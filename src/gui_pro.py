@@ -3,8 +3,13 @@ from tkinter import simpledialog, messagebox, ttk
 import math
 import sys
 import os
-import matplotlib.pyplot as plt
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+
+# ACTIVAR ALTA DEFINICIÓN (Textos nítidos en Windows)
+try:
+    from ctypes import windll
+    windll.shcore.SetProcessDpiAwareness(1)
+except:
+    pass
 
 # Importar motor matemático
 sys.path.append(os.path.dirname(__file__))
@@ -13,377 +18,519 @@ from circuit_sim import Circuit
 class SimuladorPro(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("Laboratorio Virtual de Física 2 - Circuitos DC")
-        self.geometry("1300x750")
-        # Maximizar ventana según sistema operativo
-        try:
-            self.state('zoomed')
-        except:
-            self.attributes('-zoomed', True)
-
-        # --- ESTADO DEL SISTEMA ---
-        self.nodos = []       # Lista de nodos visuales {'x', 'y', 'id', 'tag'}
-        self.componentes = [] # Lista de comps {'tipo', 'n1', 'n2', 'valor', 'ids', 'nombre'}
+        self.title("Laboratorio de Circuitos - Edición Total")
+        self.geometry("1400x900")
         
+        # --- ESTILOS ---
+        self.style = ttk.Style()
+        self.style.theme_use('clam')
+        self.style.configure("Treeview", font=("Segoe UI", 11), rowheight=30)
+        self.style.configure("Treeview.Heading", font=("Segoe UI", 11, "bold"), background="#ecf0f1")
+        self.style.map("Treeview", background=[('selected', '#3498db')])
+        
+        self.GRID_SIZE = 40 
+        
+        # --- DATOS ---
+        self.nodos = []       
+        self.componentes = [] 
+        
+        # Historial
+        self.history_stack = []
+        self.redo_stack = []
+        self.is_recording = True 
+        
+        # Variables de interacción
         self.modo = "SELECCIONAR" 
-        self.seleccionado = None 
-        self.tipo_seleccionado = None # 'COMP' o 'NODO'
+        self.seleccionado = None      
+        self.tipo_seleccionado = None 
         
-        # Variables para arrastrar conexiones
         self.nodo_inicio = None
         self.linea_guia = None
+        self.tierra_idx = 0 
+        
+        self.bloqueo_arbol = False 
+        self.entry_editor = None
 
         self.crear_interfaz()
+        self.save_state() 
+
+        # Atajos
+        self.bind("<Control-z>", self.undo)
+        self.bind("<Control-y>", self.redo)
+        self.bind("<Delete>", self.eliminar_seleccion)
+        self.bind("<Button-1>", self.check_close_editor)
 
     def crear_interfaz(self):
-        # 1. Barra de Herramientas Superior (Estilo Ribbon)
-        barra = tk.Frame(self, bg="#2c3e50", height=60)
+        # 1. Barra Superior
+        barra = tk.Frame(self, bg="#2c3e50", height=70, pady=5)
         barra.pack(side="top", fill="x")
         
-        # Botones de Herramientas
-        self.crear_boton_tool(barra, "👆 Seleccionar", "SELECCIONAR", "#95a5a6")
-        tk.Frame(barra, width=20, bg="#2c3e50").pack(side="left") # Separador
-        self.crear_boton_tool(barra, "🔵 Nodo", "NODO", "#3498db")
-        self.crear_boton_tool(barra, "▅ Resistencia", "R", "#ecf0f1", fg="black")
-        self.crear_boton_tool(barra, "🔋 Fuente V", "V", "#e74c3c")
-        self.crear_boton_tool(barra, "🅰 Amperímetro", "AMP", "#f39c12")
+        self.btn_tool(barra, "👆 Selec.", "SELECCIONAR", "#95a5a6")
+        tk.Frame(barra, width=20, bg="#2c3e50").pack(side="left")
         
-        # --- AQUÍ ESTABA EL ERROR ANTES (Botones corregidos) ---
-        tk.Button(barra, text="🧮 Calc. Resistividad", command=self.abrir_calculadora_resistividad, bg="#8e44ad", fg="white", relief="flat", padx=10).pack(side="right", padx=10, pady=10)
-        tk.Button(barra, text="♻ BORRAR TODO", command=self.borrar_todo, bg="#c0392b", fg="white", relief="flat", padx=10).pack(side="right", padx=10, pady=10)
-        # -------------------------------------------------------
+        self.btn_tool(barra, "🔵 Nodo", "NODO", "#3498db")
+        self.btn_tool(barra, "▭ Res.", "R", "#ecf0f1", fg="black")
+        self.btn_tool(barra, "🔋 Fuente V", "V", "#e74c3c")
+        self.btn_tool(barra, "⚡ Fuente I", "I", "#2ecc71")
+        
+        tk.Button(barra, text="↪ Rehacer", command=self.redo, bg="#7f8c8d", fg="white", relief="flat", padx=10).pack(side="right", padx=5)
+        tk.Button(barra, text="↩ Deshacer", command=self.undo, bg="#7f8c8d", fg="white", relief="flat", padx=10).pack(side="right", padx=5)
+        
+        # 2. División Principal
+        self.paned = tk.PanedWindow(self, orient=tk.HORIZONTAL, sashwidth=8, bg="#bdc3c7")
+        self.paned.pack(fill="both", expand=True)
 
-        # 2. Contenedor Principal (Split View)
-        main_container = tk.PanedWindow(self, orient=tk.HORIZONTAL, sashwidth=5, bg="#bdc3c7")
-        main_container.pack(fill="both", expand=True)
-
-        # 3. Lienzo de Dibujo (Izquierda)
-        self.canvas = tk.Canvas(main_container, bg="white", cursor="arrow")
-        # Eventos del Mouse
+        # IZQUIERDA: GRÁFICO
+        self.frame_grafico = tk.Frame(self.paned, bg="white")
+        self.paned.add(self.frame_grafico, minsize=500)
+        
+        self.canvas = tk.Canvas(self.frame_grafico, bg="white", cursor="arrow")
+        self.canvas.pack(fill="both", expand=True)
+        self.dibujar_rejilla()
+        
         self.canvas.bind("<Button-1>", self.clic_canvas)
         self.canvas.bind("<B1-Motion>", self.arrastrar_canvas)
         self.canvas.bind("<ButtonRelease-1>", self.soltar_canvas)
+
+        # DERECHA: TABLA
+        self.frame_datos = tk.Frame(self.paned, bg="#ecf0f1")
+        self.paned.add(self.frame_datos, minsize=450)
+
+        header = tk.Frame(self.frame_datos, bg="#34495e", pady=8)
+        header.pack(fill="x")
+        tk.Label(header, text="TABLA DE DATOS (Doble clic en celdas para editar)", 
+                 bg="#34495e", fg="white", font=("Segoe UI", 11, "bold")).pack()
+
+        # Columnas
+        cols = ("Nombre", "Tipo", "Nodos", "Valor", "V (Volts)", "I (Amps)", "P (Watts)")
+        self.tree = ttk.Treeview(self.frame_datos, columns=cols, show="headings", selectmode="browse")
         
-        # Agregar scrollbars (opcional pero útil)
-        main_container.add(self.canvas, minsize=600)
-
-        # 4. Panel de Ingeniería (Derecha)
-        panel_derecho = tk.Frame(main_container, bg="#ecf0f1", width=400)
-        main_container.add(panel_derecho, minsize=400)
-
-        # --- SECCIÓN A: EDICIÓN RÁPIDA ---
-        tk.Label(panel_derecho, text="INSPECTOR DE COMPONENTES", bg="#2980b9", fg="white", font=("Arial", 10, "bold"), pady=5).pack(fill="x")
+        anchos = [70, 50, 60, 90, 80, 80, 80]
+        for c, w in zip(cols, anchos):
+            self.tree.heading(c, text=c)
+            self.tree.column(c, width=w, anchor="center")
         
-        self.frame_propiedades = tk.Frame(panel_derecho, bg="#ecf0f1", pady=10)
-        self.frame_propiedades.pack(fill="x", padx=10)
+        self.tree.pack(fill="both", expand=True, padx=10, pady=10)
         
-        self.lbl_sel = tk.Label(self.frame_propiedades, text="Seleccione un componente para editar", bg="#ecf0f1", fg="gray")
-        self.lbl_sel.pack()
-        
-        self.frame_edit_val = tk.Frame(self.frame_propiedades, bg="#ecf0f1")
-        tk.Label(self.frame_edit_val, text="Valor:", bg="#ecf0f1").pack(side="left")
-        self.entry_val = tk.Entry(self.frame_edit_val, width=10)
-        self.entry_val.pack(side="left", padx=5)
-        tk.Button(self.frame_edit_val, text="Aplicar", command=self.aplicar_edicion, bg="#27ae60", fg="white", relief="flat").pack(side="left")
-        # (Se muestra solo cuando hay selección)
+        self.tree.bind("<<TreeviewSelect>>", self.on_tree_select)
+        self.tree.bind("<Double-1>", self.on_tree_double_click) 
 
-        # --- SECCIÓN B: RESULTADOS NUMÉRICOS ---
-        tk.Label(panel_derecho, text="RESULTADOS Y ANÁLISIS", bg="#2c3e50", fg="white", font=("Arial", 10, "bold"), pady=5).pack(fill="x", pady=(20,0))
-        
-        self.btn_simular = tk.Button(panel_derecho, text="▶ SIMULAR CIRCUITO", command=self.simular, bg="#e67e22", fg="white", font=("Arial", 12, "bold"), pady=10, relief="flat")
-        self.btn_simular.pack(fill="x", padx=10, pady=10)
+        self.status_bar = tk.Label(self.frame_datos, text="Listo.", bg="#95a5a6", fg="white", font=("Segoe UI", 10), anchor="w", padx=10, pady=5)
+        self.status_bar.pack(fill="x", side="bottom")
 
-        # Tabla de Resultados
-        columns = ("comp", "val", "i", "v", "p")
-        self.tree = ttk.Treeview(panel_derecho, columns=columns, show="headings", height=8)
-        self.tree.heading("comp", text="Comp.")
-        self.tree.heading("val", text="Valor")
-        self.tree.heading("i", text="Corr. (A)")
-        self.tree.heading("v", text="Volt. (V)")
-        self.tree.heading("p", text="Pot. (W)")
-        
-        self.tree.column("comp", width=50); self.tree.column("val", width=60)
-        self.tree.column("i", width=70); self.tree.column("v", width=60)
-        self.tree.column("p", width=70)
-        
-        self.tree.pack(fill="x", padx=10)
+    # --- HERRAMIENTAS ---
+    def btn_tool(self, parent, txt, mode, col, fg="white"):
+        tk.Button(parent, text=txt, command=lambda: self.set_modo(mode), bg=col, fg=fg, 
+                 font=("Segoe UI", 10, "bold"), relief="flat", width=12, pady=5).pack(side="left", padx=5)
 
-        # Resumen Teórico
-        self.lbl_resumen = tk.Label(panel_derecho, text="---", bg="#ecf0f1", justify="left", anchor="nw", font=("Consolas", 9))
-        self.lbl_resumen.pack(fill="x", padx=10, pady=5)
+    def set_modo(self, m):
+        self.modo = m
+        self.canvas.config(cursor="crosshair" if m != "SELECCIONAR" else "arrow")
+        self.seleccionar(None, None, update_tree=False)
 
-        # --- SECCIÓN C: GRÁFICO DE POTENCIA ---
-        tk.Label(panel_derecho, text="DISTRIBUCIÓN DE POTENCIA", bg="#2c3e50", fg="white", font=("Arial", 8, "bold")).pack(fill="x", pady=(10,0))
-        
-        self.fig = plt.Figure(figsize=(4, 3), dpi=80)
-        self.ax = self.fig.add_subplot(111)
-        self.ax.set_title("Potencia Disipada (W)", fontsize=10)
-        self.canvas_plot = FigureCanvasTkAgg(self.fig, master=panel_derecho)
-        self.canvas_plot.get_tk_widget().pack(fill="both", expand=True, padx=10, pady=5)
+    def snap(self, v): return round(v/self.GRID_SIZE)*self.GRID_SIZE
 
+    def dibujar_rejilla(self):
+        w = self.winfo_screenwidth()
+        h = self.winfo_screenheight()
+        for i in range(0, w, self.GRID_SIZE):
+            for j in range(0, h, self.GRID_SIZE):
+                self.canvas.create_oval(i-1, j-1, i+1, j+1, fill="#bdc3c7", outline="")
 
-    def crear_boton_tool(self, parent, texto, valor_modo, color, fg="white"):
-        tk.Button(parent, text=texto, command=lambda: self.set_modo(valor_modo), bg=color, fg=fg, relief="flat", font=("Arial", 9, "bold"), padx=15, pady=5).pack(side="left", padx=2, pady=10)
-
-    def set_modo(self, modo):
-        self.modo = modo
-        self.canvas.config(cursor="crosshair" if modo != "SELECCIONAR" else "arrow")
-        # Deseleccionar
-        self.seleccionar(None, None)
-
-    # --- Lógica de Dibujo e Interacción ---
-
+    # --- CANVAS ---
     def clic_canvas(self, event):
-        x, y = event.x, event.y
+        self.close_editor() 
+        x, y = self.snap(event.x), self.snap(event.y)
         
         if self.modo == "NODO":
-            # Crear nodo si no hay uno muy cerca
-            if self.encontrar_nodo_cercano(x, y) is None:
+            if self.find_node(x,y) is None: 
+                self.save_state()
                 self.crear_nodo_visual(x, y)
         
-        elif self.modo == "SELECCIONAR":
-            # Prioridad: Nodos -> Componentes
-            idx = self.encontrar_nodo_cercano(x, y)
+        elif self.modo in ["R", "V", "I"]:
+            idx = self.find_node(x,y)
             if idx is not None:
-                self.seleccionar('NODO', idx)
+                self.nodo_inicio = idx
+                nx, ny = self.nodos[idx]['x'], self.nodos[idx]['y']
+                self.linea_guia = self.canvas.create_line(nx, ny, x, y, dash=(2,2), fill="#3498db", width=2)
+
+        elif self.modo == "SELECCIONAR":
+            idx_n = self.find_node(x,y)
+            if idx_n is not None: 
+                self.seleccionar('NODO', idx_n)
                 return
-            idx_c = self.encontrar_comp_cercano(x, y)
-            if idx_c is not None:
+            idx_c = self.find_comp(x,y)
+            if idx_c is not None: 
                 self.seleccionar('COMP', idx_c)
                 return
             self.seleccionar(None, None)
 
-        elif self.modo in ["R", "V", "AMP"]:
-            # Iniciar conexión
-            idx = self.encontrar_nodo_cercano(x, y)
-            if idx is not None:
-                self.nodo_inicio = idx
-                nx, ny = self.nodos[idx]['x'], self.nodos[idx]['y']
-                self.linea_guia = self.canvas.create_line(nx, ny, x, y, dash=(2,2), fill="gray")
-
     def arrastrar_canvas(self, event):
         if self.linea_guia:
+            x, y = self.snap(event.x), self.snap(event.y)
             nx, ny = self.nodos[self.nodo_inicio]['x'], self.nodos[self.nodo_inicio]['y']
-            self.canvas.coords(self.linea_guia, nx, ny, event.x, event.y)
+            self.canvas.coords(self.linea_guia, nx, ny, x, y)
 
     def soltar_canvas(self, event):
         if self.linea_guia:
             self.canvas.delete(self.linea_guia)
             self.linea_guia = None
+            x, y = self.snap(event.x), self.snap(event.y)
+            idx_end = self.find_node(x,y)
             
-            idx_final = self.encontrar_nodo_cercano(event.x, event.y)
-            if idx_final is not None and idx_final != self.nodo_inicio:
-                self.crear_componente(self.nodo_inicio, idx_final, self.modo)
+            if idx_end is None:
+                self.crear_nodo_visual(x, y)
+                idx_end = len(self.nodos)-1
+            
+            if idx_end != self.nodo_inicio:
+                self.save_state()
+                self.crear_componente_visual(self.nodo_inicio, idx_end, self.modo)
+                self.simular_en_tiempo_real()
             
             self.nodo_inicio = None
 
-    # --- Creación Visual ---
-
+    # --- DIBUJO CON ETIQUETAS V1, R1 ---
     def crear_nodo_visual(self, x, y):
-        r = 6
-        uid = self.canvas.create_oval(x-r, y-r, x+r, y+r, fill="black", tags="nodo")
+        r = 5
+        uid = self.canvas.create_oval(x-r, y-r, x+r, y+r, fill="black", outline="black", tags="nodo")
         self.nodos.append({'x': x, 'y': y, 'id': uid})
+        # Número nodo permanente
+        self.canvas.create_text(x+12, y-12, text=str(len(self.nodos)-1), fill="#2980b9", font=("Arial", 12, "bold"), tags="nodo_lbl")
 
-    def crear_componente(self, n1, n2, tipo):
-        # Pedir valor
-        valor = 0.0
-        if tipo == "R":
-            v = simpledialog.askfloat("Resistencia", "Valor (Ohms):", parent=self)
-            if v is None: return
-            valor = v
-        elif tipo == "V":
-            v = simpledialog.askfloat("Fuente", "Voltaje (Volts):", parent=self)
-            if v is None: return
-            valor = v
-        
-        # Dibujar
+    def crear_componente_visual(self, n1, n2, tipo, valor=None, nombre=None):
+        if valor is None: valor = 100.0 if tipo == 'R' else 10.0
+        if nombre is None:
+            count = len([c for c in self.componentes if c['tipo'] == tipo]) + 1
+            nombre = f"{tipo}{count}"
+
         x1, y1 = self.nodos[n1]['x'], self.nodos[n1]['y']
         x2, y2 = self.nodos[n2]['x'], self.nodos[n2]['y']
         xm, ym = (x1+x2)/2, (y1+y2)/2
         
         ids = []
-        # Línea base
-        ids.append(self.canvas.create_line(x1, y1, x2, y2, width=2, tags="comp"))
         
-        # Símbolo (Rectángulo o Círculo)
-        label = f"{valor}Ω" if tipo == "R" else f"{valor}V"
-        bg = "#ecf0f1" if tipo == "R" else ("#ffcccc" if tipo == "V" else "#ffffcc")
+        # Cable base
+        if tipo == 'V':
+            dx, dy = x2-x1, y2-y1
+            dist = math.hypot(dx, dy) or 1
+            ux, uy = dx/dist, dy/dist
+            gap = 15
+            ids.append(self.canvas.create_line(x1, y1, xm - gap*ux, ym - gap*uy, width=2, fill="black", tags="comp"))
+            ids.append(self.canvas.create_line(xm + gap*ux, ym + gap*uy, x2, y2, width=2, fill="black", tags="comp"))
+        else:
+            ids.append(self.canvas.create_line(x1, y1, x2, y2, width=2, fill="black", tags="comp"))
         
-        # Rectángulo de fondo para texto
-        rect = self.canvas.create_rectangle(xm-25, ym-12, xm+25, ym+12, fill=bg, outline="black", tags="comp")
-        ids.append(rect)
-        
-        if tipo == "V":
-            # Polaridad visual (+ cerca de n1)
-            dx = (x2-x1)*0.2; dy = (y2-y1)*0.2
-            ids.append(self.canvas.create_text(x1+dx, y1+dy, text="+", fill="red", font=("Arial", 14, "bold")))
+        if tipo == 'R':
+            box_w, box_h = 44, 24
+            rect_id = self.canvas.create_rectangle(xm - box_w/2, ym - box_h/2, xm + box_w/2, ym + box_h/2, 
+                                                  fill="white", outline="black", width=2, tags="comp")
+            ids.append(rect_id)
+            # Valor dentro de la caja
+            txt_id = self.canvas.create_text(xm, ym, text=f"{valor}Ω", font=("Arial", 9, "bold"), fill="black", tags="comp")
+            ids.append(txt_id)
 
-        texto_id = self.canvas.create_text(xm, ym, text=label, font=("Arial", 8, "bold"), tags="comp")
-        ids.append(texto_id)
+        elif tipo == 'V':
+            dx, dy = x2-x1, y2-y1
+            dist = math.hypot(dx, dy) or 1
+            ux, uy, px, py = dx/dist, dy/dist, -dy/dist, dx/dist
+            w_l, w_s, off = 16, 8, 4
+            
+            # Placas
+            ids.append(self.canvas.create_line(xm-off*ux+px*w_l, ym-off*uy+py*w_l, 
+                                              xm-off*ux-px*w_l, ym-off*uy-py*w_l, width=2, fill="#e74c3c", tags="comp"))
+            ids.append(self.canvas.create_line(xm+off*ux+px*w_s, ym+off*uy+py*w_s, 
+                                              xm+off*ux-px*w_s, ym+off*uy-py*w_s, width=4, fill="black", tags="comp"))
+            
+            ids.append(self.canvas.create_text(x1+dx*0.2, y1+dy*0.2, text="+", fill="red", font=("Arial", 14, "bold"), tags="comp"))
+            # Valor (Placeholder, se actualiza luego)
+            txt_id = self.canvas.create_text(xm+px*25, ym+py*25, text=f"{valor}V", font=("Arial", 10, "bold"), fill="red", tags="comp")
+            ids.append(txt_id)
 
-        self.componentes.append({
-            'tipo': tipo, 'n1': n1, 'n2': n2, 'valor': valor, 
-            'ids': ids, 'nombre': f"{tipo}{len(self.componentes)+1}"
-        })
+        elif tipo == 'I':
+            r = 16
+            ids.append(self.canvas.create_oval(xm-r, ym-r, xm+r, ym+r, fill="#d5f5e3", outline="black", width=2, tags="comp"))
+            ang = math.degrees(math.atan2(y2-y1, x2-x1))
+            ids.append(self.canvas.create_text(xm, ym, text="⮕", font=("Arial", 14, "bold"), angle=ang, tags="comp"))
+            txt_id = self.canvas.create_text(xm, ym-28, text=f"{valor}A", font=("Arial", 9, "bold"), fill="green", tags="comp")
+            ids.append(txt_id)
 
-    # --- Edición ---
-    def seleccionar(self, tipo, idx):
+        # --- ETIQUETA DE NOMBRE (V1, R2...) ---
+        # La agregamos como un objeto de texto separado al final de la lista de IDs
+        # Para que esté siempre visible "arriba" o "lejos" del valor
+        label_offset_y = -35 if tipo != 'V' else -35
+        name_id = self.canvas.create_text(xm, ym + label_offset_y, text=nombre, font=("Segoe UI", 11, "bold"), fill="blue", tags="comp")
+        ids.append(name_id)
+
+        self.componentes.append({'tipo': tipo, 'n1': n1, 'n2': n2, 'valor': valor, 'ids': ids, 'nombre': nombre})
+
+    # --- SELECCIÓN ---
+    def seleccionar(self, tipo, idx, update_tree=True):
         self.canvas.itemconfig("nodo", fill="black")
-        self.canvas.itemconfig("comp", fill="black") # Borde default
+        for c in self.componentes: 
+            target = c['ids'][1] if c['tipo']=='R' else c['ids'][0]
+            if c['tipo']=='R': self.canvas.itemconfig(target, outline="black", width=2)
+            else: self.canvas.itemconfig(target, fill="black", width=2)
         
         self.tipo_seleccionado = tipo
         self.seleccionado = idx
         
+        if tipo is None:
+            if update_tree:
+                self.bloqueo_arbol = True
+                if self.tree.selection(): self.tree.selection_remove(self.tree.selection())
+                self.bloqueo_arbol = False
+            return
+
         if tipo == 'NODO':
-            self.canvas.itemconfig(self.nodos[idx]['id'], fill="red")
+            self.canvas.itemconfig(self.nodos[idx]['id'], fill="#e74c3c")
         elif tipo == 'COMP':
-            # Resaltar rectángulo (penúltimo ID guardado)
-            self.canvas.itemconfig(self.componentes[idx]['ids'][1], outline="red", width=2)
+            c = self.componentes[idx]
+            target = c['ids'][1] if c['tipo']=='R' else c['ids'][0]
+            if c['tipo']=='R': self.canvas.itemconfig(target, outline="#e74c3c", width=4)
+            else: self.canvas.itemconfig(target, fill="#e74c3c", width=3)
+            
+            if update_tree:
+                self.bloqueo_arbol = True
+                for item in self.tree.get_children():
+                    if self.tree.item(item)['values'][0] == c['nombre']:
+                        self.tree.selection_set(item)
+                        self.tree.see(item)
+                        break
+                self.bloqueo_arbol = False
 
-        self.actualizar_panel_propiedades()
+    def on_tree_select(self, event):
+        if self.bloqueo_arbol: return
+        sel = self.tree.selection()
+        if not sel:
+            self.seleccionar(None, None, update_tree=False)
+            return
+        nombre = self.tree.item(sel[0])['values'][0]
+        for i, c in enumerate(self.componentes):
+            if c['nombre'] == nombre:
+                self.seleccionar('COMP', i, update_tree=False)
+                break
 
-    def actualizar_panel_propiedades(self):
-        self.frame_edit_val.pack_forget()
-        if self.seleccionado is not None and self.tipo_seleccionado == 'COMP':
-            c = self.componentes[self.seleccionado]
-            self.lbl_sel.config(text=f"Editando: {c['nombre']} ({c['tipo']})")
-            if c['tipo'] in ['R', 'V']:
-                self.frame_edit_val.pack()
-                self.entry_val.delete(0, tk.END)
-                self.entry_val.insert(0, str(c['valor']))
-        else:
-            self.lbl_sel.config(text="Seleccione un componente para editar")
-
-    def aplicar_edicion(self):
-        if self.seleccionado is not None and self.tipo_seleccionado == 'COMP':
-            try:
-                val = float(self.entry_val.get())
-                self.componentes[self.seleccionado]['valor'] = val
-                # Actualizar visualmente el texto
-                txt_id = self.componentes[self.seleccionado]['ids'][-1]
-                new_lbl = f"{val}Ω" if self.componentes[self.seleccionado]['tipo'] == "R" else f"{val}V"
-                self.canvas.itemconfig(txt_id, text=new_lbl)
-                messagebox.showinfo("Éxito", "Valor actualizado.")
-            except: pass
-
-    # --- Simulación ---
-    def simular(self):
-        if not self.componentes: return
+    # --- EDICIÓN ROBUSTA (Doble clic) ---
+    def on_tree_double_click(self, event):
+        self.close_editor()
         
-        # Pedir Tierra (Nodo referencia)
-        for i, n in enumerate(self.nodos):
-            self.canvas.create_text(n['x'], n['y']-15, text=str(i), fill="blue", tags="temp_id")
-        self.update()
-        
-        tierra = simpledialog.askinteger("Referencia", f"Nodo Tierra (0-{len(self.nodos)-1}):", minvalue=0, maxvalue=len(self.nodos)-1)
-        self.canvas.delete("temp_id") # Borrar números
-        
-        if tierra is None: return
+        # Identificar fila y columna
+        region = self.tree.identify("region", event.x, event.y)
+        if region != "cell": return
 
-        # Construir Circuito Matemático
-        circ = Circuit()
-        mapa = {i: (str(i) if i != tierra else '0') for i in range(len(self.nodos))}
+        item_id = self.tree.identify_row(event.y)
+        col = self.tree.identify_column(event.x)
         
-        # Agregar componentes
+        if not item_id: return
+        
+        # Obtener datos actuales
+        vals = self.tree.item(item_id)['values']
+        nombre_comp = vals[0]
+        tipo_comp = vals[1]
+        
+        # Lógica de qué se edita
+        es_valor_entrada = (col == "#4") # Columna Valor
+        es_voltaje = (col == "#5")
+        es_corriente = (col == "#6")
+        
+        # CASO 1: Editar Valor de Entrada (R, V fuente, I fuente)
+        if es_valor_entrada:
+            self.lanzar_editor(item_id, col, nombre_comp, "VALOR")
+            
+        # CASO 2: Inferencia (Editar V o I en una Resistencia)
+        elif tipo_comp == 'R' and (es_voltaje or es_corriente):
+            # Preguntar si quiere inferir resistencia
+            target_str = "Voltaje" if es_voltaje else "Corriente"
+            if messagebox.askyesno("Inferencia", f"¿Desea recalcular la Resistencia para obtener este {target_str}?"):
+                self.lanzar_editor(item_id, col, nombre_comp, "INFERENCIA")
+
+    def lanzar_editor(self, item_id, col, nombre_comp, modo):
+        """Intenta poner el Entry sobre la celda. Si falla, usa popup."""
+        try:
+            bbox = self.tree.bbox(item_id, col)
+            if not bbox or bbox[2] == 0: # Fallo de bbox (común en algunos OS/DPI)
+                raise Exception("BBox invalido")
+                
+            x, y, w, h = bbox
+            vals = self.tree.item(item_id)['values']
+            col_idx = int(col.replace("#", "")) - 1
+            current_val = vals[col_idx]
+
+            self.entry_editor = tk.Entry(self.tree, font=("Segoe UI", 10))
+            self.entry_editor.place(x=x, y=y, width=w, height=h)
+            self.entry_editor.insert(0, str(current_val))
+            self.entry_editor.select_range(0, tk.END)
+            self.entry_editor.focus()
+            
+            self.entry_editor.bind("<Return>", lambda e: self.guardar_cambio(nombre_comp, modo))
+            self.entry_editor.bind("<Escape>", lambda e: self.close_editor())
+            
+        except Exception:
+            # FALLBACK: Si bbox falla, usar ventana emergente segura
+            current_val = 0
+            for c in self.componentes:
+                if c['nombre'] == nombre_comp: current_val = c['valor']
+            
+            new_val = simpledialog.askfloat("Editar", f"Ingrese nuevo valor para {nombre_comp}:", initialvalue=current_val)
+            if new_val is not None:
+                self.aplicar_cambio(nombre_comp, new_val, modo)
+
+    def guardar_cambio(self, nombre_comp, modo):
+        try:
+            val = float(self.entry_editor.get())
+            self.aplicar_cambio(nombre_comp, val, modo)
+            self.close_editor()
+        except ValueError:
+            messagebox.showerror("Error", "Número inválido")
+
+    def aplicar_cambio(self, nombre_comp, input_val, modo):
+        """Aplica la lógica matemática del cambio"""
         for c in self.componentes:
-            na, nb = mapa[c['n1']], mapa[c['n2']]
-            if c['tipo'] == 'R': circ.add_resistor(c['nombre'], na, nb, c['valor'])
-            elif c['tipo'] == 'V': circ.add_vsource(c['nombre'], na, nb, c['valor'])
-            elif c['tipo'] == 'AMP': circ.add_vsource(c['nombre'], na, nb, 0.0)
+            if c['nombre'] == nombre_comp:
+                self.save_state()
+                
+                if modo == "VALOR":
+                    c['valor'] = input_val
+                
+                elif modo == "INFERENCIA":
+                    # Calcular R necesaria. R = V / I
+                    # Necesitamos los datos actuales de la simulación para lo que NO cambió
+                    # Esto es aproximado en MNA. Asumimos comportamiento lineal local.
+                    # Simplificación: R_nueva = V_target / I_actual  o  R_nueva = V_actual / I_target
+                    # Para hacerlo bien, necesitamos los valores de la ultima simulación.
+                    # Recuperamos de la tabla visual (hack rápido pero efectivo)
+                    sel_item = self.tree.selection()
+                    if not sel_item: return
+                    vals = self.tree.item(sel_item[0])['values']
+                    cur_v = float(vals[4])
+                    cur_i = float(vals[5])
+                    
+                    if abs(input_val) < 1e-9: 
+                        messagebox.showerror("Error", "No se puede inferir con valor cero.")
+                        return
+
+                    # Si editó Voltaje (#5), input_val es V_target.
+                    # Asumimos que la fuente externa mantiene la corriente (aprox) -> R = V_target / I_actual
+                    # OJO: Esto es física básica local. En un circuito complejo, cambiar R cambia I también.
+                    # La inferencia exacta requiere un solver iterativo.
+                    # Haremos la aproximación Ohmica simple:
+                    if abs(cur_i) > 1e-9:
+                         c['valor'] = abs(input_val / cur_i)
+                    else:
+                         messagebox.showwarning("Aviso", "Corriente demasiado baja para inferir R.")
+                         
+                break
+        
+        self.simular_en_tiempo_real()
+
+    def close_editor(self):
+        if self.entry_editor:
+            self.entry_editor.destroy()
+            self.entry_editor = None
+
+    def check_close_editor(self, event):
+        if self.entry_editor and event.widget != self.entry_editor:
+            self.close_editor()
+
+    # --- SIMULACIÓN ---
+    def simular_en_tiempo_real(self):
+        sel = self.tree.selection()
+        sel_name = self.tree.item(sel[0])['values'][0] if sel else None
+
+        circ = Circuit()
+        for c in self.componentes:
+            n1 = str(c['n1']) if c['n1'] != self.tierra_idx else '0'
+            n2 = str(c['n2']) if c['n2'] != self.tierra_idx else '0'
+            if c['tipo'] == 'R': circ.add_resistor(c['nombre'], n1, n2, c['valor'])
+            elif c['tipo'] == 'V': circ.add_vsource(c['nombre'], n1, n2, c['valor'])
+            elif c['tipo'] == 'I': circ.add_isource(c['nombre'], n1, n2, c['valor'])
 
         try:
-            voltages, res_curr, vsrc_curr = circ.solve()
-            self.mostrar_resultados(voltages, res_curr, vsrc_curr, mapa)
+            _, results = circ.solve()
+            self.actualizar_tabla(results, sel_name)
+            self.actualizar_etiquetas_visuales(results)
+            bal = circ.validate_power_balance(results)
+            self.status_bar.config(text=f"Simulación OK | Balance Energía: {bal:.6f}", fg="#27ae60")
         except Exception as e:
-            messagebox.showerror("Error", str(e))
+            self.status_bar.config(text=f"Error: {str(e)}", fg="#e67e22")
+            self.actualizar_tabla({}, sel_name)
 
-    def mostrar_resultados(self, v, i_r, i_v, mapa):
-        # 1. Tabla y Resumen
+    def actualizar_tabla(self, results, sel_name):
+        self.bloqueo_arbol = True
         self.tree.delete(*self.tree.get_children())
-        total_p = 0
-        r_names = []; r_powers = []
-
         for c in self.componentes:
-            nom = c['nombre']
-            tipo = c['tipo']
-            val = c['valor']
-            curr = 0.0
-            
-            if tipo == 'R' and nom in i_r:
-                curr = i_r[nom][0]
-                pot = curr**2 * val
-                total_p += pot
-                r_names.append(nom); r_powers.append(pot)
-                vals = (nom, val, f"{curr:.4f}", "-", f"{pot:.4f}")
-            elif tipo == 'V' and nom in i_v:
-                curr = i_v[nom]
-                vals = (nom, val, f"{curr:.4f}", "-", "-")
-            else:
-                vals = (nom, val, "-", "-", "-")
-                
-            self.tree.insert("", "end", values=vals)
+            d = results.get(c['nombre'], {'v':0, 'i':0, 'p':0})
+            vals = (c['nombre'], c['tipo'], f"{c['n1']}-{c['n2']}", 
+                    f"{c['valor']:.2f}", f"{d['v']:.2f}", f"{d['i']:.3f}", f"{d['p']:.3f}")
+            item = self.tree.insert("", "end", values=vals)
+            if c['nombre'] == sel_name: self.tree.selection_set(item)
+        self.bloqueo_arbol = False
 
-        self.lbl_resumen.config(text=f"Potencia Total Disipada: {total_p:.4f} W\nLey de Conservación de Energía: OK")
-
-        # 2. Gráfico de Barras
-        self.ax.clear()
-        if r_names:
-            self.ax.bar(r_names, r_powers, color='#3498db')
-            self.ax.set_ylabel("Potencia (W)")
-            self.ax.set_title("Disipación por Resistencia")
-        else:
-            self.ax.text(0.5, 0.5, "Sin Resistencias", ha='center')
-        self.canvas_plot.draw()
-
-        # 3. Visualización en Lienzo (Overlay)
-        self.canvas.delete("overlay_res")
+    def actualizar_etiquetas_visuales(self, results):
         for c in self.componentes:
-            if c['tipo'] == 'R' and c['nombre'] in i_r:
-                curr = i_r[c['nombre']][0]
-                
-                x1, y1 = self.nodos[c['n1']]['x'], self.nodos[c['n1']]['y']
-                x2, y2 = self.nodos[c['n2']]['x'], self.nodos[c['n2']]['y']
-                xm, ym = (x1+x2)/2, (y1+y2)/2
-                
-                self.canvas.create_text(xm, ym+20, text=f"{curr:.3f}A", fill="blue", font=("Arial", 9, "bold"), tags="overlay_res")
-
-    # --- CALCULADORA EXTRA ---
-    def abrir_calculadora_resistividad(self):
-        win = tk.Toplevel(self)
-        win.title("Calculadora Resistividad")
-        win.geometry("300x200")
-        
-        tk.Label(win, text="R = ρ * L / A").pack(pady=5)
-        
-        f = tk.Frame(win); f.pack()
-        tk.Label(f, text="ρ (Ωm):").grid(row=0,0); e_rho=tk.Entry(f); e_rho.grid(row=0,1)
-        tk.Label(f, text="L (m):").grid(row=1,0); e_l=tk.Entry(f); e_l.grid(row=1,1)
-        tk.Label(f, text="A (m²):").grid(row=2,0); e_a=tk.Entry(f); e_a.grid(row=2,1)
-        
-        def calc():
-            try:
-                res = float(e_rho.get()) * float(e_l.get()) / float(e_a.get())
-                l_res.config(text=f"{res:.4f} Ω")
-            except: pass
+            # Tenemos IDs: [Cuerpo, Símbolo/Caja, ..., TextoValor, TextoNombre]
+            # El penúltimo ID (-2) es el Valor. El último ID (-1) es el Nombre.
+            # Verifiquemos indices en 'crear_componente_visual'.
+            # IDs append order: 
+            # R: [linea, rect, txt_val, txt_nombre] -> Valor es -2
+            # V: [linea, linea, linea, +, txt_val, txt_nombre] -> Valor es -2
+            # I: [oval, arrow, txt_val, txt_nombre] -> Valor es -2
             
-        tk.Button(win, text="Calcular", command=calc).pack(pady=5)
-        l_res = tk.Label(win, text="-", font=("Arial", 12, "bold"), fg="blue")
-        l_res.pack()
+            val_id = c['ids'][-2]
+            
+            # Actualizar Valor
+            unit = "Ω" if c['tipo']=='R' else ("V" if c['tipo']=='V' else "A")
+            self.canvas.itemconfig(val_id, text=f"{c['valor']}{unit}")
 
-    # Utilidades
-    def encontrar_nodo_cercano(self, x, y):
+    # --- UTILIDADES ---
+    def save_state(self):
+        if not self.is_recording: return
+        state = {
+            'nodos': [{'x':n['x'], 'y':n['y']} for n in self.nodos],
+            'comps': [{'tipo':c['tipo'], 'n1':c['n1'], 'n2':c['n2'], 'valor':c['valor'], 'nombre':c['nombre']} for c in self.componentes]
+        }
+        self.history_stack.append(state)
+        self.redo_stack.clear()
+        if len(self.history_stack) > 30: self.history_stack.pop(0)
+
+    def undo(self, e=None):
+        if len(self.history_stack) > 1:
+            self.redo_stack.append(self.history_stack.pop())
+            self.restore(self.history_stack[-1])
+
+    def redo(self, e=None):
+        if self.redo_stack:
+            state = self.redo_stack.pop()
+            self.history_stack.append(state)
+            self.restore(state)
+
+    def restore(self, state):
+        self.is_recording = False
+        self.close_editor()
+        self.canvas.delete("all")
+        self.dibujar_rejilla()
+        self.nodos = []; self.componentes = []
+        for n in state['nodos']: self.crear_nodo_visual(n['x'], n['y'])
+        for c in state['comps']: self.crear_componente_visual(c['n1'], c['n2'], c['tipo'], c['valor'], c['nombre'])
+        self.is_recording = True
+        self.simular_en_tiempo_real()
+
+    def eliminar_seleccion(self, e=None):
+        if self.seleccionado is not None and self.tipo_seleccionado == 'COMP':
+            self.save_state()
+            self.close_editor()
+            for i in self.componentes[self.seleccionado]['ids']: self.canvas.delete(i)
+            self.componentes.pop(self.seleccionado)
+            self.seleccionado = None
+            self.simular_en_tiempo_real()
+
+    def find_node(self, x, y):
         for i, n in enumerate(self.nodos):
             if math.hypot(n['x']-x, n['y']-y) < 15: return i
         return None
-
-    def encontrar_comp_cercano(self, x, y):
+    def find_comp(self, x, y):
         for i, c in enumerate(self.componentes):
             x1, y1 = self.nodos[c['n1']]['x'], self.nodos[c['n1']]['y']
             x2, y2 = self.nodos[c['n2']]['x'], self.nodos[c['n2']]['y']
-            if math.hypot((x1+x2)/2 - x, (y1+y2)/2 - y) < 20: return i
+            if math.hypot((x1+x2)/2-x, (y1+y2)/2-y) < 25: return i
         return None
-
-    def borrar_todo(self):
-        self.nodos = []; self.componentes = []
-        self.canvas.delete("all"); self.tree.delete(*self.tree.get_children())
-        self.ax.clear(); self.canvas_plot.draw()
