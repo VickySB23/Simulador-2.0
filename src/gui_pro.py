@@ -18,7 +18,7 @@ from circuit_sim import Circuit
 class SimuladorPro(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("Laboratorio de Circuitos - Edición Total")
+        self.title("Laboratorio de Circuitos - Edición Robusta")
         self.geometry("1400x900")
         
         # --- ESTILOS ---
@@ -49,7 +49,6 @@ class SimuladorPro(tk.Tk):
         self.tierra_idx = 0 
         
         self.bloqueo_arbol = False 
-        self.entry_editor = None
 
         self.crear_interfaz()
         self.save_state() 
@@ -58,7 +57,6 @@ class SimuladorPro(tk.Tk):
         self.bind("<Control-z>", self.undo)
         self.bind("<Control-y>", self.redo)
         self.bind("<Delete>", self.eliminar_seleccion)
-        self.bind("<Button-1>", self.check_close_editor)
 
     def crear_interfaz(self):
         # 1. Barra Superior
@@ -98,7 +96,7 @@ class SimuladorPro(tk.Tk):
 
         header = tk.Frame(self.frame_datos, bg="#34495e", pady=8)
         header.pack(fill="x")
-        tk.Label(header, text="TABLA DE DATOS (Doble clic en celdas para editar)", 
+        tk.Label(header, text="TABLA DE DATOS (Doble clic en la fila para editar)", 
                  bg="#34495e", fg="white", font=("Segoe UI", 11, "bold")).pack()
 
         # Columnas
@@ -139,7 +137,6 @@ class SimuladorPro(tk.Tk):
 
     # --- CANVAS ---
     def clic_canvas(self, event):
-        self.close_editor() 
         x, y = self.snap(event.x), self.snap(event.y)
         
         if self.modo == "NODO":
@@ -189,12 +186,11 @@ class SimuladorPro(tk.Tk):
             
             self.nodo_inicio = None
 
-    # --- DIBUJO CON ETIQUETAS V1, R1 ---
+    # --- DIBUJO VISUAL (AJUSTE DE ETIQUETAS) ---
     def crear_nodo_visual(self, x, y):
         r = 5
         uid = self.canvas.create_oval(x-r, y-r, x+r, y+r, fill="black", outline="black", tags="nodo")
         self.nodos.append({'x': x, 'y': y, 'id': uid})
-        # Número nodo permanente
         self.canvas.create_text(x+12, y-12, text=str(len(self.nodos)-1), fill="#2980b9", font=("Arial", 12, "bold"), tags="nodo_lbl")
 
     def crear_componente_visual(self, n1, n2, tipo, valor=None, nombre=None):
@@ -206,44 +202,36 @@ class SimuladorPro(tk.Tk):
         x1, y1 = self.nodos[n1]['x'], self.nodos[n1]['y']
         x2, y2 = self.nodos[n2]['x'], self.nodos[n2]['y']
         xm, ym = (x1+x2)/2, (y1+y2)/2
-        
         ids = []
         
         # Cable base
         if tipo == 'V':
-            dx, dy = x2-x1, y2-y1
-            dist = math.hypot(dx, dy) or 1
-            ux, uy = dx/dist, dy/dist
-            gap = 15
+            dx, dy = x2-x1, y2-y1; dist = math.hypot(dx, dy) or 1
+            ux, uy = dx/dist, dy/dist; gap = 15
             ids.append(self.canvas.create_line(x1, y1, xm - gap*ux, ym - gap*uy, width=2, fill="black", tags="comp"))
             ids.append(self.canvas.create_line(xm + gap*ux, ym + gap*uy, x2, y2, width=2, fill="black", tags="comp"))
         else:
             ids.append(self.canvas.create_line(x1, y1, x2, y2, width=2, fill="black", tags="comp"))
         
+        # Componente y Valor
         if tipo == 'R':
             box_w, box_h = 44, 24
             rect_id = self.canvas.create_rectangle(xm - box_w/2, ym - box_h/2, xm + box_w/2, ym + box_h/2, 
                                                   fill="white", outline="black", width=2, tags="comp")
             ids.append(rect_id)
-            # Valor dentro de la caja
             txt_id = self.canvas.create_text(xm, ym, text=f"{valor}Ω", font=("Arial", 9, "bold"), fill="black", tags="comp")
             ids.append(txt_id)
 
         elif tipo == 'V':
-            dx, dy = x2-x1, y2-y1
-            dist = math.hypot(dx, dy) or 1
+            dx, dy = x2-x1, y2-y1; dist = math.hypot(dx, dy) or 1
             ux, uy, px, py = dx/dist, dy/dist, -dy/dist, dx/dist
             w_l, w_s, off = 16, 8, 4
-            
-            # Placas
-            ids.append(self.canvas.create_line(xm-off*ux+px*w_l, ym-off*uy+py*w_l, 
-                                              xm-off*ux-px*w_l, ym-off*uy-py*w_l, width=2, fill="#e74c3c", tags="comp"))
-            ids.append(self.canvas.create_line(xm+off*ux+px*w_s, ym+off*uy+py*w_s, 
-                                              xm+off*ux-px*w_s, ym+off*uy-py*w_s, width=4, fill="black", tags="comp"))
-            
+            ids.append(self.canvas.create_line(xm-off*ux+px*w_l, ym-off*uy+py*w_l, xm-off*ux-px*w_l, ym-off*uy-py*w_l, width=2, fill="#e74c3c", tags="comp"))
+            ids.append(self.canvas.create_line(xm+off*ux+px*w_s, ym+off*uy+py*w_s, xm+off*ux-px*w_s, ym+off*uy-py*w_s, width=4, fill="black", tags="comp"))
             ids.append(self.canvas.create_text(x1+dx*0.2, y1+dy*0.2, text="+", fill="red", font=("Arial", 14, "bold"), tags="comp"))
-            # Valor (Placeholder, se actualiza luego)
-            txt_id = self.canvas.create_text(xm+px*25, ym+py*25, text=f"{valor}V", font=("Arial", 10, "bold"), fill="red", tags="comp")
+            
+            # Texto Valor (Ajuste de offset)
+            txt_id = self.canvas.create_text(xm+px*28, ym+py*28, text=f"{valor}V", font=("Arial", 10, "bold"), fill="red", tags="comp")
             ids.append(txt_id)
 
         elif tipo == 'I':
@@ -251,19 +239,17 @@ class SimuladorPro(tk.Tk):
             ids.append(self.canvas.create_oval(xm-r, ym-r, xm+r, ym+r, fill="#d5f5e3", outline="black", width=2, tags="comp"))
             ang = math.degrees(math.atan2(y2-y1, x2-x1))
             ids.append(self.canvas.create_text(xm, ym, text="⮕", font=("Arial", 14, "bold"), angle=ang, tags="comp"))
-            txt_id = self.canvas.create_text(xm, ym-28, text=f"{valor}A", font=("Arial", 9, "bold"), fill="green", tags="comp")
+            # Texto Valor (Ajuste de offset)
+            txt_id = self.canvas.create_text(xm, ym-35, text=f"{valor}A", font=("Arial", 9, "bold"), fill="green", tags="comp")
             ids.append(txt_id)
 
-        # --- ETIQUETA DE NOMBRE (V1, R2...) ---
-        # La agregamos como un objeto de texto separado al final de la lista de IDs
-        # Para que esté siempre visible "arriba" o "lejos" del valor
-        label_offset_y = -35 if tipo != 'V' else -35
-        name_id = self.canvas.create_text(xm, ym + label_offset_y, text=nombre, font=("Segoe UI", 11, "bold"), fill="blue", tags="comp")
+        # Etiqueta de Nombre (R1, V1) - AJUSTADA
+        name_id = self.canvas.create_text(xm, ym - 18, text=nombre, font=("Segoe UI", 11, "bold"), fill="blue", tags="comp")
         ids.append(name_id)
 
         self.componentes.append({'tipo': tipo, 'n1': n1, 'n2': n2, 'valor': valor, 'ids': ids, 'nombre': nombre})
 
-    # --- SELECCIÓN ---
+    # --- SELECCIÓN Y EDICIÓN ---
     def seleccionar(self, tipo, idx, update_tree=True):
         self.canvas.itemconfig("nodo", fill="black")
         for c in self.componentes: 
@@ -310,81 +296,41 @@ class SimuladorPro(tk.Tk):
                 self.seleccionar('COMP', i, update_tree=False)
                 break
 
-    # --- EDICIÓN ROBUSTA (Doble clic) ---
     def on_tree_double_click(self, event):
-        self.close_editor()
-        
-        # Identificar fila y columna
-        region = self.tree.identify("region", event.x, event.y)
-        if region != "cell": return
-
+        """Doble clic en la fila para activar el diálogo de edición seguro."""
         item_id = self.tree.identify_row(event.y)
-        col = self.tree.identify_column(event.x)
-        
         if not item_id: return
         
-        # Obtener datos actuales
         vals = self.tree.item(item_id)['values']
         nombre_comp = vals[0]
         tipo_comp = vals[1]
         
-        # Lógica de qué se edita
-        es_valor_entrada = (col == "#4") # Columna Valor
-        es_voltaje = (col == "#5")
-        es_corriente = (col == "#6")
+        # Modo por defecto: Editar VALOR principal
+        modo = "VALOR"
         
-        # CASO 1: Editar Valor de Entrada (R, V fuente, I fuente)
-        if es_valor_entrada:
-            self.lanzar_editor(item_id, col, nombre_comp, "VALOR")
-            
-        # CASO 2: Inferencia (Editar V o I en una Resistencia)
-        elif tipo_comp == 'R' and (es_voltaje or es_corriente):
-            # Preguntar si quiere inferir resistencia
-            target_str = "Voltaje" if es_voltaje else "Corriente"
-            if messagebox.askyesno("Inferencia", f"¿Desea recalcular la Resistencia para obtener este {target_str}?"):
-                self.lanzar_editor(item_id, col, nombre_comp, "INFERENCIA")
+        # Identificar si el clic fue en V o I para preguntar sobre Inferencia
+        col = self.tree.identify_column(event.x)
+        if tipo_comp == 'R' and (col == "#5" or col == "#6"):
+            target = "Voltaje" if col == "#5" else "Corriente"
+            if messagebox.askyesno("Inferencia", f"¿Desea recalcular la Resistencia para obtener este {target}?"):
+                modo = "INFERENCIA"
+            else:
+                return
 
-    def lanzar_editor(self, item_id, col, nombre_comp, modo):
-        """Intenta poner el Entry sobre la celda. Si falla, usa popup."""
-        try:
-            bbox = self.tree.bbox(item_id, col)
-            if not bbox or bbox[2] == 0: # Fallo de bbox (común en algunos OS/DPI)
-                raise Exception("BBox invalido")
-                
-            x, y, w, h = bbox
-            vals = self.tree.item(item_id)['values']
-            col_idx = int(col.replace("#", "")) - 1
-            current_val = vals[col_idx]
+        # Lanzar diálogo seguro
+        self.usar_dialogo_fallback(nombre_comp, modo)
 
-            self.entry_editor = tk.Entry(self.tree, font=("Segoe UI", 10))
-            self.entry_editor.place(x=x, y=y, width=w, height=h)
-            self.entry_editor.insert(0, str(current_val))
-            self.entry_editor.select_range(0, tk.END)
-            self.entry_editor.focus()
-            
-            self.entry_editor.bind("<Return>", lambda e: self.guardar_cambio(nombre_comp, modo))
-            self.entry_editor.bind("<Escape>", lambda e: self.close_editor())
-            
-        except Exception:
-            # FALLBACK: Si bbox falla, usar ventana emergente segura
-            current_val = 0
-            for c in self.componentes:
-                if c['nombre'] == nombre_comp: current_val = c['valor']
-            
-            new_val = simpledialog.askfloat("Editar", f"Ingrese nuevo valor para {nombre_comp}:", initialvalue=current_val)
-            if new_val is not None:
-                self.aplicar_cambio(nombre_comp, new_val, modo)
-
-    def guardar_cambio(self, nombre_comp, modo):
-        try:
-            val = float(self.entry_editor.get())
-            self.aplicar_cambio(nombre_comp, val, modo)
-            self.close_editor()
-        except ValueError:
-            messagebox.showerror("Error", "Número inválido")
+    def usar_dialogo_fallback(self, nombre_comp, modo):
+        current_val = 0
+        for c in self.componentes:
+            if c['nombre'] == nombre_comp: current_val = c['valor']
+        
+        prompt = f"Nuevo valor para {nombre_comp}:"
+        new_val = simpledialog.askfloat("Editar Valor", prompt, initialvalue=current_val, parent=self)
+        if new_val is not None:
+            self.aplicar_cambio(nombre_comp, new_val, modo)
 
     def aplicar_cambio(self, nombre_comp, input_val, modo):
-        """Aplica la lógica matemática del cambio"""
         for c in self.componentes:
             if c['nombre'] == nombre_comp:
                 self.save_state()
@@ -393,46 +339,17 @@ class SimuladorPro(tk.Tk):
                     c['valor'] = input_val
                 
                 elif modo == "INFERENCIA":
-                    # Calcular R necesaria. R = V / I
-                    # Necesitamos los datos actuales de la simulación para lo que NO cambió
-                    # Esto es aproximado en MNA. Asumimos comportamiento lineal local.
-                    # Simplificación: R_nueva = V_target / I_actual  o  R_nueva = V_actual / I_target
-                    # Para hacerlo bien, necesitamos los valores de la ultima simulación.
-                    # Recuperamos de la tabla visual (hack rápido pero efectivo)
+                    # Lógica de inferencia R = V/I
                     sel_item = self.tree.selection()
-                    if not sel_item: return
-                    vals = self.tree.item(sel_item[0])['values']
-                    cur_v = float(vals[4])
-                    cur_i = float(vals[5])
-                    
-                    if abs(input_val) < 1e-9: 
-                        messagebox.showerror("Error", "No se puede inferir con valor cero.")
-                        return
-
-                    # Si editó Voltaje (#5), input_val es V_target.
-                    # Asumimos que la fuente externa mantiene la corriente (aprox) -> R = V_target / I_actual
-                    # OJO: Esto es física básica local. En un circuito complejo, cambiar R cambia I también.
-                    # La inferencia exacta requiere un solver iterativo.
-                    # Haremos la aproximación Ohmica simple:
-                    if abs(cur_i) > 1e-9:
-                         c['valor'] = abs(input_val / cur_i)
-                    else:
-                         messagebox.showwarning("Aviso", "Corriente demasiado baja para inferir R.")
-                         
+                    if sel_item:
+                        vals = self.tree.item(sel_item[0])['values']
+                        cur_i = float(vals[5])
+                        if abs(cur_i) > 1e-9: c['valor'] = abs(input_val / cur_i)
+                        else: messagebox.showwarning("Aviso", "Corriente muy baja para inferir.")
                 break
-        
         self.simular_en_tiempo_real()
 
-    def close_editor(self):
-        if self.entry_editor:
-            self.entry_editor.destroy()
-            self.entry_editor = None
-
-    def check_close_editor(self, event):
-        if self.entry_editor and event.widget != self.entry_editor:
-            self.close_editor()
-
-    # --- SIMULACIÓN ---
+    # --- SIMULACIÓN Y UTILIDADES ---
     def simular_en_tiempo_real(self):
         sel = self.tree.selection()
         sel_name = self.tree.item(sel[0])['values'][0] if sel else None
@@ -468,21 +385,10 @@ class SimuladorPro(tk.Tk):
 
     def actualizar_etiquetas_visuales(self, results):
         for c in self.componentes:
-            # Tenemos IDs: [Cuerpo, Símbolo/Caja, ..., TextoValor, TextoNombre]
-            # El penúltimo ID (-2) es el Valor. El último ID (-1) es el Nombre.
-            # Verifiquemos indices en 'crear_componente_visual'.
-            # IDs append order: 
-            # R: [linea, rect, txt_val, txt_nombre] -> Valor es -2
-            # V: [linea, linea, linea, +, txt_val, txt_nombre] -> Valor es -2
-            # I: [oval, arrow, txt_val, txt_nombre] -> Valor es -2
-            
             val_id = c['ids'][-2]
-            
-            # Actualizar Valor
             unit = "Ω" if c['tipo']=='R' else ("V" if c['tipo']=='V' else "A")
             self.canvas.itemconfig(val_id, text=f"{c['valor']}{unit}")
 
-    # --- UTILIDADES ---
     def save_state(self):
         if not self.is_recording: return
         state = {
@@ -506,7 +412,6 @@ class SimuladorPro(tk.Tk):
 
     def restore(self, state):
         self.is_recording = False
-        self.close_editor()
         self.canvas.delete("all")
         self.dibujar_rejilla()
         self.nodos = []; self.componentes = []
@@ -518,7 +423,6 @@ class SimuladorPro(tk.Tk):
     def eliminar_seleccion(self, e=None):
         if self.seleccionado is not None and self.tipo_seleccionado == 'COMP':
             self.save_state()
-            self.close_editor()
             for i in self.componentes[self.seleccionado]['ids']: self.canvas.delete(i)
             self.componentes.pop(self.seleccionado)
             self.seleccionado = None
