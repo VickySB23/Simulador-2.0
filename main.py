@@ -1,12 +1,13 @@
 import sys
 import os
 
-# Configuración de rutas
+# Configurar ruta para encontrar los módulos en 'src'
 sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
 
-import gui
+# Importamos la interfaz gráfica PRO
+import gui_pro
 
 if __name__ == "__main__":
-    # Inicia la interfaz gráfica moderna
-    app = gui.AplicacionVisual()
+    # Inicia la aplicación
+    app = gui_pro.SimuladorPro()
     app.mainloop()
