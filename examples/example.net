@@ -1,9 +1,0 @@
-# ejemplo.net - circuito de prueba
-# V1 entre nodo 1 y tierra = 10 V
-V1 1 0 10
-# Resistencias
-R1 1 2 100
-R2 2 0 200
-R3 1 0 1000
-# Fuente de corriente de 5 mA desde nodo 2 hacia tierra
-I1 2 0 5mA

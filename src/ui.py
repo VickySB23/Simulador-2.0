@@ -29,7 +29,6 @@ def mostrar_ayuda_navegacion():
 
 def mostrar_resumen_vivo(circ):
     if not circ.resistors and not circ.vsources:
-        # ARREGLADO: Cerrado correctamente con [/]
         console.print(Panel("[dim italic]El circuito está vacío. Agrega componentes.[/]", title="Lienzo del Circuito", border_style="dim"))
         return
 
@@ -40,12 +39,12 @@ def mostrar_resumen_vivo(circ):
     table.add_column("Valor", justify="right", style="green")
 
     for v in circ.vsources:
-        grafico = f"({v.n_plus}) ──[bold red](+ V -)[/]── ({v.n_minus})"
+        grafico = f"({v.n_plus}) ──[bold red](+ V -)[/]──> ({v.n_minus})"
         nodos_txt = f"{v.n_plus} → {v.n_minus}"
         table.add_row(v.name, grafico, nodos_txt, f"{v.value} V")
 
     for r in circ.resistors:
-        grafico = f"({r.n1}) ───[bold white]█[dim]R[/]█[/]─── ({r.n2})"
+        grafico = f"({r.n1}) <──[bold white]R[/]──> ({r.n2})"
         nodos_txt = f"{r.n1} ↔ {r.n2}"
         table.add_row(r.name, grafico, nodos_txt, f"{r.value} Ω")
 

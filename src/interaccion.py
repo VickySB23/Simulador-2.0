@@ -1,40 +1,35 @@
 import sys
 import time
-from rich.prompt import Prompt
+from rich.prompt import Prompt, Confirm
 import ui
-from circuit_sim import Circuit, parse_value, load_netlist
+from circuit_sim import Circuit, parse_value
 
 class ReiniciarSistema(Exception): pass
 class VolverAtras(Exception): pass
 
 def input_inteligente(mensaje, tipo="float", default=None):
-    """
-    Pide un dato al usuario. 
-    Gestiona Q/R/B, evita duplicados (show_default=False) y errores de None.
-    """
     while True:
+        # show_default=False para no duplicar (1k) en la pantalla
         valor_raw = Prompt.ask(mensaje, default=default, show_default=False)
         
-        if valor_raw is None:
-            val = ""
-        else:
-            val = str(valor_raw).strip()
+        if valor_raw is None: val = ""
+        else: val = str(valor_raw).strip()
         
-        # Comandos Globales
         if val.lower() == 'q':
             ui.console.print("[bold red]👋 Cerrando simulador...[/bold red]")
             sys.exit(0)
         if val.lower() == 'r': raise ReiniciarSistema()
+        
+        # En flujo directo, 'volver' es menos útil, pero lo dejamos por seguridad
         if val.lower() == 'b': raise VolverAtras()
 
         if tipo == "str": return val
-        
         if tipo == "float":
             if val == "": return None 
             try:
                 return parse_value(val)
             except ValueError:
-                ui.console.print(f"[red]❌ Valor no válido.[/red] Intente: 10, 1k, 5m")
+                ui.console.print(f"[red]❌ Valor no válido.[/red]")
 
 def modo_crear_circuito():
     """Construye el circuito mostrando el diagrama en vivo."""
@@ -61,7 +56,7 @@ def modo_crear_circuito():
                     continue
                 return circ
 
-            # --- RESISTENCIA ---
+            # --- AGREGAR RESISTENCIA ---
             if opcion == "1":
                 ui.console.print(f"\n[cyan]--- Nueva Resistencia R{cont_r} ---[/cyan]")
                 val = input_inteligente(f"  Valor en Ohms (ej: 1k)", default="1k")
@@ -71,10 +66,10 @@ def modo_crear_circuito():
                 circ.add_resistor(f"R{cont_r}", n1, n2, val)
                 cont_r += 1
 
-            # --- FUENTE ---
+            # --- AGREGAR FUENTE ---
             elif opcion == "2":
                 ui.console.print(f"\n[cyan]--- Nueva Fuente V{cont_v} ---[/cyan]")
-                val = input_inteligente(f"  Voltaje en Volts (ej: 12)", default="12")
+                val = input_inteligente("  Voltaje en Volts (ej: 12)", default="12")
                 n_pos = input_inteligente("  Nodo Positivo (+)", tipo="str")
                 n_neg = input_inteligente("  Nodo Negativo (-) [dim](Enter=0/Tierra)[/dim]", tipo="str", default="0")
                 
@@ -85,63 +80,38 @@ def modo_crear_circuito():
             continue
 
 def ejecutar_simulacion(circ):
-    """Realiza cálculos y muestra resultados en terminal (sin PNG)."""
+    """Realiza cálculos y muestra resultados en terminal."""
     if not circ: return
 
     ui.mostrar_encabezado()
     try:
+        # 1. Resolver
         voltages, res_currents, vsrc_currents = circ.solve()
+        
+        # 2. Mostrar Resultados
         ui.mostrar_resultados(voltages, res_currents, vsrc_currents)
         
+        # 3. Pausa Final
         input_inteligente("\n[Presione Enter para Reiniciar]", tipo="str", default="")
         
     except Exception as e:
         ui.console.print(ui.Panel(f"[bold red]Error Matemático:[/bold red] {e}\n\nCausa probable: Circuito abierto o sin Tierra (0).", title="ERROR", border_style="red"))
-        # Pregunta simple para reintentar o salir
-        resp = input_inteligente("¿Intentar corregir? (s/n)", tipo="str", default="s")
-        if resp.lower() != 's': sys.exit(0)
-
-def ciclo_principal():
-    ui.mostrar_encabezado()
-    ui.console.print("\n[1] Cargar Ejercicio 10 (TP4)")
-    ui.console.print("[2] Crear circuito nuevo paso a paso")
-    
-    try:
-        opcion = input_inteligente("Seleccione", tipo="str")
-        circ = None
-
-        # OPCION 1: Archivo
-        if opcion == "1":
-            ruta = "examples/ejercicio_10_tp4.net"
-            if not os.path.exists(ruta):
-                ui.console.print(f"[bold red]Error:[/bold red] Falta '{ruta}'.")
-                time.sleep(3); return 
-            
-            circ = load_netlist(ruta)
-            ui.console.print(f"[green]✓ Circuito cargado[/green]")
-            
-            # Mostrar diagrama antes de calcular
-            ui.mostrar_resumen_vivo(circ)
-            time.sleep(2.0)
-        
-        # OPCION 2: Manual
-        elif opcion == "2":
-            circ = modo_crear_circuito()
-        
-        else:
-            return 
-
-        ejecutar_simulacion(circ)
-
-    except VolverAtras:
-        return 
+        if Confirm.ask("¿Intentar corregir?"): return 
+        else: sys.exit(0)
 
 def iniciar_aplicacion():
+    """Punto de entrada global: Va directo al modo crear."""
     while True:
         try:
-            ciclo_principal()
+            # --- FLUJO DIRECTO ---
+            ui.mostrar_encabezado()
+            circ = modo_crear_circuito()
+            ejecutar_simulacion(circ)
+            # ---------------------
+
         except ReiniciarSistema:
-            ui.console.print("[yellow]🔄 Reiniciando...[/yellow]")
+            ui.console.print("[yellow]🔄 Reiniciando sistema...[/yellow]")
+            time.sleep(0.5)
             continue
         except KeyboardInterrupt:
             break
