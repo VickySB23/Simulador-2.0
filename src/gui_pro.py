@@ -109,103 +109,118 @@ def dibujar_componente_func(canvas, x1, y1, x2, y2, tipo, valor, nombre):
     gap = 25 if tipo != 'WIRE' else 0
     is_source = tipo in ['V', 'I']
     
-    # Segmentos de cable
+    # --- DIBUJO DE CABLES (Con punta de flecha pequeña) ---
+    # arrowshape=(longitud_punta, longitud_base, ancho) -> (5,8,2) es sutil
+    arrow_style = tk.LAST
+    arrow_shape = (5, 8, 2)
+
     if gap > 0:
         coords_1 = [x1, y1, x2, y1, x2, ym-gap] if vertical else [x1, y1, xm-gap, y1]
         coords_2 = [x2, ym+gap, x2, y2] if vertical else [xm+gap, y1, x2, y1, x2, y2]
-        if len(coords_1)>=4: ids.append(canvas.create_line(coords_1, width=3, fill="#2c3e50", tags="comp"))
-        if len(coords_2)>=4: ids.append(canvas.create_line(coords_2, width=3, fill="#2c3e50", tags="comp"))
+        if len(coords_1)>=4: 
+            ids.append(canvas.create_line(coords_1, width=3, fill="#2c3e50", tags="comp", arrow=arrow_style, arrowshape=arrow_shape))
+        if len(coords_2)>=4: 
+            ids.append(canvas.create_line(coords_2, width=3, fill="#2c3e50", tags="comp", arrow=arrow_style, arrowshape=arrow_shape))
     else:
         coords = [x1, y1, x2, y1, x2, y2] if vertical else [x1, y1, x2, y1, x2, y2]
-        ids.append(canvas.create_line(coords, width=3, fill="#2c3e50", tags="comp"))
+        ids.append(canvas.create_line(coords, width=3, fill="#2c3e50", tags="comp", arrow=arrow_style, arrowshape=arrow_shape))
         ids.append(canvas.create_text(xm, ym, text="")) 
 
     val_str = format_eng(valor, "Ω" if tipo=='R' else ("V" if tipo=='V' else "A"))
 
-    # --- HELPER PARA TEXTO CON FONDO ---
+    # --- HELPER PARA TEXTO CON FONDO (MÁSCARA) ---
     def create_label_bg(tx, ty, text, color, angle=0, font_size=9, tag_extra=""):
-        # Estimar tamaño del fondo basado en longitud del texto
         char_w = 7 if font_size == 9 else 6
         w_box = len(text) * char_w
         h_box = 16
-        
-        if angle == 90: 
-            w_box, h_box = h_box, w_box
-            
-        # Rectángulo de fondo (Máscara)
+        if angle == 90: w_box, h_box = h_box, w_box
         bg_id = canvas.create_rectangle(tx - w_box/2, ty - h_box/2, tx + w_box/2, ty + h_box/2, 
                                         fill="white", outline="", tags=("comp", tag_extra))
-        # Texto
         t_id = canvas.create_text(tx, ty, text=text, font=("Arial", font_size, "bold"), 
                                   fill=color, angle=angle, tags=("comp", tag_extra))
         return bg_id, t_id
 
+    # --- LÓGICA DE POSICIONAMIENTO INTELIGENTE (Separar lados) ---
+    # Distancias desde el centro
+    dist_val = 35   # Donde va el valor o nombre
+    dist_arrow = 35 # Donde va la flecha de intensidad
+
+    # Coordenadas por defecto (Horizontal)
+    # Valor/Nombre arriba, Flecha abajo
+    pos_val_x, pos_val_y = xm, ym - dist_val
+    pos_arr_x, pos_arr_y = xm, ym + dist_arrow
+    angle_txt = 0
+
+    if vertical:
+        # Vertical: Valor/Nombre a la DERECHA, Flecha a la IZQUIERDA
+        # Esto evita que se solapen sobre el cuerpo de la resistencia
+        pos_val_x, pos_val_y = xm + dist_val, ym
+        pos_arr_x, pos_arr_y = xm - dist_val, ym # Lado opuesto
+        angle_txt = 0 # Texto horizontal es más legible, pero si prefieres rotado usa 90
+
     # --- DIBUJO DE COMPONENTES ---
     if tipo == 'R':
-        # Cálculo dinámico del rectángulo del cuerpo de la resistencia
+        # Rectángulo Resistencia
         char_width = 7
         txt_w = len(val_str) * char_width + 10
         if txt_w < 40: txt_w = 40
         box_w, box_h = txt_w, 20
-        
-        angle_txt = 0
+        angle_r = 0
         if vertical:
             box_w, box_h = box_h, box_w 
-            angle_txt = 90
+            angle_r = 90
             
         rect_id = canvas.create_rectangle(xm-box_w/2, ym-box_h/2, xm+box_w/2, ym+box_h/2, fill="white", outline="black", width=2, tags="comp")
         ids.append(rect_id)
-        
-        # Texto valor (dentro, no necesita fondo extra porque el rect es blanco)
-        ids.append(canvas.create_text(xm, ym, text=val_str, font=("Arial", 9, "bold"), fill="black", tags="comp", angle=angle_txt))
+        ids.append(canvas.create_text(xm, ym, text=val_str, font=("Arial", 9, "bold"), fill="black", tags="comp", angle=angle_r))
 
     elif tipo == 'V':
         r = 20
         ids.append(canvas.create_oval(xm-r, ym-r, xm+r, ym+r, fill="#e74c3c", outline="black", width=2, tags="comp"))
         ids.append(canvas.create_text(xm, ym, text="+  -", font=("Arial", 10, "bold"), fill="white", tags="comp"))
-        
-        tx, ty = (xm+28, ym) if vertical else (xm, ym-28)
-        bg, txt = create_label_bg(tx, ty, val_str, "red", angle=0)
+        # Valor usando la lógica separada
+        bg, txt = create_label_bg(pos_val_x, pos_val_y, val_str, "red", angle=angle_txt)
         ids.extend([bg, txt])
 
     elif tipo == 'I':
         r = 20
         ids.append(canvas.create_oval(xm-r, ym-r, xm+r, ym+r, fill="#2ecc71", outline="black", width=2, tags="comp"))
         ids.append(canvas.create_text(xm, ym, text="I", font=("Arial", 12, "bold"), fill="white", tags="comp"))
-        
-        tx, ty = (xm+28, ym) if vertical else (xm, ym-28)
-        bg, txt = create_label_bg(tx, ty, val_str, "green", angle=0)
+        # Valor usando la lógica separada
+        bg, txt = create_label_bg(pos_val_x, pos_val_y, val_str, "green", angle=angle_txt)
         ids.extend([bg, txt])
 
     # --- NOMBRE (R1, V1) ---
     if tipo != 'WIRE':
-        dist_name = 45 if is_source else 35
-        nx, ny = (xm-dist_name, ym) if vertical else (xm, ym-dist_name)
-        if is_source: ny -= 5 
-        # Usamos el helper también para el nombre para que no se superponga con cables
+        # El nombre va junto al valor o un poco más allá
+        offset_name = 15 if vertical else 15
+        # Ajuste fino para que no pise el valor si es V/I
+        nx, ny = pos_val_x, pos_val_y
+        if vertical: nx += (20 if tipo=='R' else 0) # Si es R, el valor está dentro, el nombre va a la derecha
+        else: ny -= (20 if tipo=='R' else 0)       # Si es R horizontal, nombre arriba
+
+        # Si es V o I, el valor ya ocupó el espacio pos_val, movemos el nombre más afuera
+        if tipo in ['V', 'I']:
+            if vertical: nx += 30
+            else: ny -= 20
+
         bg, txt = create_label_bg(nx, ny, nombre, "blue", angle=0, font_size=10)
         ids.extend([bg, txt])
     else:
         ids.append(canvas.create_text(xm, ym, text=""))
 
-    # --- ETIQUETA DE VOLTAJE EN CABLE (CON FONDO) ---
+    # --- ETIQUETA DE VOLTAJE EN CABLE ---
     if tipo == 'WIRE':
-        if vertical:
-            vx, vy = (xm - 15, ym); ang_volt = 90
-        else:
-            vx, vy = (xm, ym - 15); ang_volt = 0
-            
-        # Creamos el fondo y el texto pero ocultos inicialmente
+        if vertical: vx, vy = (xm - 15, ym); ang_volt = 90
+        else: vx, vy = (xm, ym - 15); ang_volt = 0
         bg_id = canvas.create_rectangle(vx, vy, vx, vy, fill="white", outline="", tags="lbl_volt_wire", state="hidden")
         txt_id = canvas.create_text(vx, vy, text="", font=("Arial", 9, "bold"), fill="#e67e22", tags="lbl_volt_wire", state="hidden", angle=ang_volt)
         ids.extend([bg_id, txt_id])
     
-    # --- FLECHA CORRIENTE (CON FONDO) ---
-    dist_arrow = 28
-    ax, ay = (xm+dist_arrow, ym) if vertical else (xm, ym+dist_arrow)
+    # --- FLECHA CORRIENTE (Usa la posición calculada opuesta al valor) ---
     # Fondo pequeño para la flecha
-    bg_arrow = canvas.create_oval(ax-8, ay-8, ax+8, ay+8, fill="white", outline="", tags="arrow") 
-    txt_arrow = canvas.create_text(ax, ay, text="", font=("Arial", 10, "bold"), fill="#c0392b", tags="arrow")
+    bg_arrow = canvas.create_oval(pos_arr_x-8, pos_arr_y-8, pos_arr_x+8, pos_arr_y+8, fill="white", outline="", tags="arrow") 
+    txt_arrow = canvas.create_text(pos_arr_x, pos_arr_y, text="", font=("Arial", 10, "bold"), fill="#c0392b", tags="arrow")
     ids.extend([bg_arrow, txt_arrow])
     
     return ids
@@ -464,17 +479,13 @@ class SimuladorPro(tk.Tk):
         self.componentes.append({'tipo': tipo, 'n1': n1, 'n2': n2, 'valor': valor, 'ids': ids, 'nombre': nombre})
         
         if tipo == 'WIRE':
-            volt_id = ids[-3] # Encontrando el ID del texto de voltaje, ajustado por los nuevos elementos
-            # IDs structure: [line1, line2, box, text]
-            # Revisamos el último elemento que sea 'lbl_volt_wire'
-            for item in ids:
-                tags = self.canvas.gettags(item)
-                if "lbl_volt_wire" in tags and self.canvas.type(item) == "text":
-                    state = "normal" if self.mostrar_voltajes.get() else "hidden"
-                    self.canvas.itemconfig(item, state=state)
-                    # También el fondo
-                    bg_item = ids[ids.index(item)-1]
-                    self.canvas.itemconfig(bg_item, state=state)
+            # IDs: line, line (maybe), bg, text (volt)
+            # The last two are volt label
+            volt_id = ids[-1] 
+            bg_id = ids[-2]
+            state = "normal" if self.mostrar_voltajes.get() else "hidden"
+            self.canvas.itemconfig(volt_id, state=state)
+            self.canvas.itemconfig(bg_id, state=state)
             
         return len(self.componentes) - 1
 
@@ -584,25 +595,20 @@ class SimuladorPro(tk.Tk):
                     color = get_voltage_color(v_wire, v_min, v_max)
                     self.canvas.itemconfig(c['ids'][0], fill=color)
                     
-                    # Buscar el texto del voltaje en los IDs
+                    # Update wire voltage text
                     for item in c['ids']:
                         tags = self.canvas.gettags(item)
                         if "lbl_volt_wire" in tags and self.canvas.type(item) == "text":
                             self.canvas.itemconfig(item, text=format_eng(v_wire, "V"))
-                            
-                            # Ajustar el fondo
+                            # Update BG
                             bg_item = c['ids'][c['ids'].index(item)-1]
-                            # Calcular tamaño texto aproximado
                             txt = format_eng(v_wire, "V")
                             w_box = len(txt)*6
                             h_box = 16
                             coords = self.canvas.coords(item)
-                            # Si el texto está rotado 90
                             if self.canvas.itemcget(item, "angle") == "90.0":
                                 w_box, h_box = h_box, w_box
-                            
                             self.canvas.coords(bg_item, coords[0]-w_box/2, coords[1]-h_box/2, coords[0]+w_box/2, coords[1]+h_box/2)
-                            
                     continue 
                 
                 va = voltages.get(n1_key, 0.0); vb = voltages.get(n2_key, 0.0)
@@ -622,25 +628,22 @@ class SimuladorPro(tk.Tk):
             
             for c in self.componentes:
                 if c['tipo'] == 'WIRE': continue
-                val_id = c['ids'][-3]
-                # Actualizar texto principal no requiere lógica especial de fondo porque el rect ya está
-                # Pero si es Fuente, sí. El helper ya creó el rect. Solo actualizamos texto.
-                # Buscar el texto del valor
-                # En R es ids[-1]
-                # En V/I es ids[-1] (text) y ids[-2] (bg)
                 
-                # Lógica simple: buscar tags
-                for item in c['ids']:
-                    tags = self.canvas.gettags(item)
-                    if "comp" in tags and self.canvas.type(item) == "text":
-                        # Es un texto de componente. Verificar si es el valor.
-                        current_text = self.canvas.itemcget(item, "text")
-                        # Si parece un valor (tiene numeros y unidades)
-                        if any(x.isdigit() for x in current_text) and c['nombre'] not in current_text:
-                             self.canvas.itemconfig(item, text=format_eng(c['valor'], "Ω" if c['tipo']=='R' else ("V" if c['tipo']=='V' else "A")))
+                # Update component value texts
+                # Note: Helpers created the labels with "comp" tag. We must find the right one.
+                # A safe way is to check the current text vs stored val. Or just update all number-like texts in this comp
+                # But simpler: just find the one that holds the value.
+                # For V/I: value is at ids[-1] (text)
+                # For R: value is at ids[-1] (text)
+                # Arrow text: ids[-1] is Arrow Text, ids[-2] Arrow BG... WAIT order in draw func matters.
+                # Draw order: ... Names ... Labels ... WireVolts ... ArrowBG, ArrowText
+                # ArrowText is always LAST.
                 
-                # Flecha corriente
-                arrow_id = c['ids'][-1]
+                # Updating Arrow
+                arrow_text_id = c['ids'][-1]
+                # Value text is trickier to find by index due to variable number of IDs (bg/no bg)
+                # Let's iterate and find by tag/content logic or assume position based on type
+                
                 curr = results.get(c['nombre'], {'i':0})['i']
                 if abs(curr) > 1e-12:
                     x1,y1 = self.nodos[c['n1']]['x'], self.nodos[c['n1']]['y']
@@ -654,8 +657,8 @@ class SimuladorPro(tk.Tk):
                     elif 225 <= ang < 315: arrow_char = "▲" 
                     else:                 arrow_char = "➤" 
                     
-                    self.canvas.itemconfig(arrow_id, text=f"{arrow_char} {format_eng(abs(curr), 'A')}", angle=0, state="normal")
-                else: self.canvas.itemconfig(arrow_id, state="hidden")
+                    self.canvas.itemconfig(arrow_text_id, text=f"{arrow_char} {format_eng(abs(curr), 'A')}", angle=0, state="normal")
+                else: self.canvas.itemconfig(arrow_text_id, state="hidden")
 
             for i, n in enumerate(self.nodos):
                 if i == self.tierra_idx:
