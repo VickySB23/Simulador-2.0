@@ -85,10 +85,11 @@ def crear_nodo_visual_func(canvas, x, y, label, is_gnd=False):
     color = "#34495e" 
     uid = canvas.create_oval(x-r, y-r, x+r, y+r, fill=color, outline="black", width=2, tags="nodo")
     
-    # Solo mostramos el nombre (N1, GND)
+    # Texto del nodo
     txt_id = canvas.create_text(x, y-22, text=label, fill="#7f8c8d", font=("Arial", 9, "bold"), tags="lbl_nodo")
     
     if is_gnd:
+        # Símbolo de Tierra Visual
         gnd_ids = []
         gnd_ids.append(canvas.create_line(x, y+r, x, y+r+10, width=2, fill="black", tags="gnd"))
         gnd_ids.append(canvas.create_line(x-10, y+r+10, x+10, y+r+10, width=2, fill="black", tags="gnd"))
@@ -149,14 +150,14 @@ def dibujar_componente_func(canvas, x1, y1, x2, y2, tipo, valor, nombre):
     else:
         ids.append(canvas.create_text(xm, ym, text=""))
 
-    # --- ETIQUETA DE VOLTAJE EN CABLE (MEJORADA) ---
+    # --- ETIQUETA DE VOLTAJE EN CABLE ---
     if tipo == 'WIRE':
-        # Si es vertical, rotamos el texto 90 grados y lo pegamos al lado
+        # Rotamos el texto 90 grados si es vertical para que acompañe al cable
         if vertical:
-            vx, vy = (xm - 15, ym) # A la izquierda
+            vx, vy = (xm - 15, ym) 
             ang_volt = 90
         else:
-            vx, vy = (xm, ym - 15) # Arriba
+            vx, vy = (xm, ym - 15) 
             ang_volt = 0
             
         ids.append(canvas.create_text(vx, vy, text="", font=("Arial", 9, "bold"), 
@@ -164,7 +165,7 @@ def dibujar_componente_func(canvas, x1, y1, x2, y2, tipo, valor, nombre):
                                       state="hidden", angle=ang_volt))
     
     # --- FLECHA CORRIENTE ---
-    dist_arrow = 28 # Un poco más separado para evitar choques
+    dist_arrow = 28
     ax, ay = (xm+dist_arrow, ym) if vertical else (xm, ym+dist_arrow) 
     ids.append(canvas.create_text(ax, ay, text="", font=("Arial", 10, "bold"), fill="#c0392b", tags="arrow"))
     
@@ -309,6 +310,17 @@ class SimuladorPro(tk.Tk):
     def clic_canvas(self, event):
         x, y = self.snap(event.x), self.snap(event.y)
         
+        # --- LÓGICA GND MOVIBLE ---
+        if self.modo == "GND":
+            idx = self.find_node(x, y)
+            if idx is not None:
+                # El usuario hizo clic en un nodo existente con la herramienta GND
+                self.tierra_idx = idx
+                self.save_state()
+                self.simular_en_tiempo_real()
+                return # Terminamos aquí, no creamos nodo nuevo
+        # ---------------------------
+
         if self.modo in ["R", "V", "I"]:
             if self.find_comp(x, y, radius_override=45) is not None:
                 messagebox.showwarning("Espacio Ocupado", "Ya existe un componente aquí o muy cerca.")
@@ -323,13 +335,12 @@ class SimuladorPro(tk.Tk):
             self.set_modo("SELECCIONAR")
         
         elif self.modo == "GND":
+            # Si hace clic en el vacío, crea un nodo y lo hace tierra
             idx = self.find_node(x,y)
-            if idx is not None:
-                self.save_state(); self.tierra_idx = idx
-                self.set_modo("SELECCIONAR"); self.simular_en_tiempo_real()
-            else:
+            if idx is None:
                 self.save_state(); idx = self.crear_nodo(x,y); self.tierra_idx = idx
                 self.set_modo("SELECCIONAR"); self.simular_en_tiempo_real()
+
         elif self.modo == "NODO":
             if self.find_node(x,y) is None:
                 self.save_state(); self.crear_nodo(x, y); self.set_modo("SELECCIONAR")
@@ -397,7 +408,7 @@ class SimuladorPro(tk.Tk):
         self.componentes.append({'tipo': tipo, 'n1': n1, 'n2': n2, 'valor': valor, 'ids': ids, 'nombre': nombre})
         
         if tipo == 'WIRE':
-            volt_id = ids[-2] # El penúltimo es el texto de voltaje
+            volt_id = ids[-2] 
             state = "normal" if self.mostrar_voltajes.get() else "hidden"
             self.canvas.itemconfig(volt_id, state=state)
             
@@ -463,9 +474,27 @@ class SimuladorPro(tk.Tk):
         circ = Circuit()
         # Asegurar GND
         circ.nodes.add('0')
+        
+        # --- NUEVA LÓGICA: Detección de nodos desconectados (Grado del nodo) ---
+        node_degree = {str(i): 0 for i in range(len(self.nodos))}
+        # -----------------------------------------------------------------------
+
         for c in self.componentes:
             n1 = str(c['n1']) if c['n1'] != self.tierra_idx else '0'
             n2 = str(c['n2']) if c['n2'] != self.tierra_idx else '0'
+            
+            # Contamos conexiones físicas (para saber si está conectado a algo)
+            # Mapeamos '0' de vuelta al índice original para el contador
+            idx1 = str(self.tierra_idx) if n1 == '0' else str(c['n1'])
+            idx2 = str(self.tierra_idx) if n2 == '0' else str(c['n2'])
+            
+            # Si es el nodo tierra, usamos el índice real almacenado
+            if n1 == '0': idx1 = str(self.tierra_idx)
+            if n2 == '0': idx2 = str(self.tierra_idx)
+
+            node_degree[idx1] = node_degree.get(idx1, 0) + 1
+            node_degree[idx2] = node_degree.get(idx2, 0) + 1
+
             val = c['valor']
             if c['tipo'] == 'WIRE': val = 1e-9
             if c['tipo'] in ['R', 'WIRE']: circ.add_resistor(c['nombre'], n1, n2, val)
@@ -525,38 +554,42 @@ class SimuladorPro(tk.Tk):
                 
                 arrow_id = c['ids'][-1]
                 curr = results.get(c['nombre'], {'i':0})['i']
-                if abs(curr) > 1e-6:
+                if abs(curr) > 1e-12:
                     x1,y1 = self.nodos[c['n1']]['x'], self.nodos[c['n1']]['y']
                     x2,y2 = self.nodos[c['n2']]['x'], self.nodos[c['n2']]['y']
                     
-                    # LOGICA MEJORADA: Flechas simples (▲/▼) para componentes verticales
-                    is_vertical = abs(y2 - y1) > abs(x2 - x1)
+                    # LOGICA FLECHAS 360 GRADOS
+                    ang = math.degrees(math.atan2(y2-y1, x2-x1))
                     
-                    if is_vertical:
-                        # Si es vertical, NO rotamos el texto, solo cambiamos la flecha
-                        # Flujo de corriente: de n1 a n2 si curr > 0
-                        # En Tkinter Y crece hacia abajo.
-                        # n1 es arriba (y menor) y n2 abajo (y mayor) => corriente positiva baja
-                        downwards = (y2 > y1) if curr > 0 else (y1 > y2)
-                        arrow_char = "▼" if downwards else "▲"
-                        
-                        # Texto horizontal (ángulo 0) mucho más fácil de leer
-                        self.canvas.itemconfig(arrow_id, text=f"{arrow_char} {format_eng(abs(curr), 'A')}", angle=0, state="normal")
-                    else:
-                        # Horizontal clásico
-                        ang = math.degrees(math.atan2(y2-y1, x2-x1)) if curr > 0 else math.degrees(math.atan2(y1-y2, x1-x2))
-                        arrow_char = "➤"
-                        if ang > 90: ang -= 180; arrow_char = "◄"
-                        elif ang < -90: ang += 180; arrow_char = "◄"
-                        self.canvas.itemconfig(arrow_id, text=f"{arrow_char} {format_eng(abs(curr), 'A')}", angle=ang, state="normal")
-
+                    # Si la corriente es negativa, invertimos la dirección lógica
+                    if curr < 0:
+                        ang += 180
+                    
+                    # Normalizar ángulo a 0-360
+                    ang = ang % 360
+                    
+                    # Determinar carácter de flecha basado en el ángulo real
+                    if 45 <= ang < 135:   arrow_char = "▼" # Abajo (Y crece hacia abajo)
+                    elif 135 <= ang < 225: arrow_char = "◄" # Izquierda
+                    elif 225 <= ang < 315: arrow_char = "▲" # Arriba
+                    else:                 arrow_char = "➤" # Derecha
+                    
+                    # El texto siempre horizontal para leerse bien
+                    self.canvas.itemconfig(arrow_id, text=f"{arrow_char} {format_eng(abs(curr), 'A')}", angle=0, state="normal")
                 else: self.canvas.itemconfig(arrow_id, state="hidden")
 
             for i, n in enumerate(self.nodos):
+                # Actualizar visualización de nodos (GND se pone oscuro)
+                if i == self.tierra_idx:
+                    self.canvas.delete(n.get('gnd_lines', [])) # Borrar líneas anteriores si las hubiera
+                    # Redibujar símbolo GND si este es el nodo activo
+                    # (Nota: simplificado, solo cambiamos color y texto)
+                
                 key = str(i) if i!=self.tierra_idx else '0'
                 v_val = voltages.get(key, 0.0)
                 color = get_voltage_color(v_val, v_min, v_max)
                 self.canvas.itemconfig(n['id'], fill=color)
+                
                 prefix = "GND" if i==self.tierra_idx else f"N{i}"
                 self.canvas.itemconfig(n['txt_id'], text=prefix)
 
@@ -568,44 +601,79 @@ class SimuladorPro(tk.Tk):
 
             self.txt_kcl.delete("1.0", tk.END)
             self.txt_kcl.insert(tk.END, f"{'NODO':<10} | {'Σ I (A)':<15}\n" + "-"*30 + "\n")
+            
+            # --- VALIDACIÓN DE CONEXIÓN EN TABLA ---
             for k, v in kcl_nodos.items():
                 lbl = "GND" if k=='0' else f"N{k}"
-                status = "✅" if abs(v) < 1e-3 else "❌"
+                
+                # Recuperar índice real para chequear conexiones
+                real_idx = str(self.tierra_idx) if k == '0' else k
+                conns = node_degree.get(real_idx, 0)
+                
+                if conns < 2:
+                    # Si tiene menos de 2 conexiones, es un nodo abierto/suelto
+                    status = "❌ (Abierto)"
+                else:
+                    # Si está conectado, validamos KCL matemático
+                    status = "✅" if abs(v) < 1e-3 else "❌ (Error KCL)"
+                    
                 self.txt_kcl.insert(tk.END, f"{lbl:<10} | {v:+.5f} {status}\n")
+            # ---------------------------------------
+
             self.status_bar.config(text="Cálculo Automático OK", fg="#27ae60")
             
         except Exception as e:
             self.status_bar.config(text=f"Error: {str(e)}", fg="#e67e22")
 
+    # -----------------------------------------------------------------------------------
+    #  AQUÍ ESTÁN LOS MÉTODOS QUE FALTABAN: UNDO, REDO, SAVE_STATE y FIND...
+    # -----------------------------------------------------------------------------------
+    
     def save_state(self):
         if not self.history.is_recording: return
         state = {'n': [{'x':n['x'],'y':n['y']} for n in self.nodos], 
                  'c': [{'t':c['tipo'],'n1':c['n1'],'n2':c['n2'],'v':c['valor'],'n':c['nombre']} for c in self.componentes]}
         self.history.save(state)
+
     def undo(self, e=None):
         s = self.history.undo()
         if s: self.restore(s)
+
     def redo(self, e=None):
         s = self.history.redo()
         if s: self.restore(s)
+
     def restore(self, s):
         self.history.is_recording = False
-        self.canvas.delete("all"); dibujar_rejilla(self.canvas, self.winfo_screenwidth(), self.winfo_screenheight(), self.GRID_SIZE)
-        self.nodos=[]; self.componentes=[]
-        for n in s['n']: self.crear_nodo(n['x'], n['y'])
-        for c in s['c']: self.crear_componente(c['n1'], c['n2'], c['t'], c['v'], c['n'])
+        self.canvas.delete("all")
+        dibujar_rejilla(self.canvas, self.winfo_screenwidth(), self.winfo_screenheight(), self.GRID_SIZE)
+        self.nodos = []
+        self.componentes = []
+        
+        # Reconstruir nodos
+        for n in s['n']: 
+            self.crear_nodo(n['x'], n['y'])
+            
+        # Reconstruir componentes
+        for c in s['c']: 
+            self.crear_componente(c['n1'], c['n2'], c['t'], c['v'], c['n'])
+            
         self.history.is_recording = True
         self.simular_en_tiempo_real()
+
     def eliminar_seleccion(self, e=None):
         if self.seleccionado is not None and self.tipo_seleccionado == 'COMP':
             self.save_state()
-            for i in self.componentes[self.seleccionado]['ids']: self.canvas.delete(i)
+            for i in self.componentes[self.seleccionado]['ids']: 
+                self.canvas.delete(i)
             self.componentes.pop(self.seleccionado)
             self.seleccionado = None
             self.simular_en_tiempo_real()
+
     def find_node(self, x, y):
         for i, n in enumerate(self.nodos):
             if math.hypot(n['x']-x, n['y']-y) < 20: return i
+            
     def find_comp(self, x, y, radius_override=None):
         radius = radius_override if radius_override else 40
         for i, c in enumerate(self.componentes):
