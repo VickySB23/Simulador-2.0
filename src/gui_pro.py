@@ -216,7 +216,7 @@ def dibujar_componente_func(canvas, x1, y1, x2, y2, tipo, valor, nombre):
 class SimuladorPro(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("Laboratorio de Circuitos - Análisis Profesional")
+        self.title("Simulador de Circuitos de Corriente Continua Interactivo - Sanchez Bujaldon Victoria")
         self.geometry("1400x950")
         
         self.style = ttk.Style()
