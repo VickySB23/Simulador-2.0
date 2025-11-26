@@ -13,20 +13,33 @@ except:
 sys.path.append(os.path.dirname(__file__))
 from circuit_sim import Circuit
 
+# --- UTILS DE FORMATO E INGENIERÍA ---
+def format_eng(value, unit=""):
+    """Formatea números con prefijos de ingeniería (M, k, m, µ, n)"""
+    if value is None: return "---"
+    if abs(value) < 1e-15: return f"0.00 {unit}"
+    
+    abs_val = abs(value)
+    sign = "-" if value < 0 else ""
+    
+    if abs_val >= 1e6: return f"{sign}{abs_val/1e6:.2f} M{unit}"
+    if abs_val >= 1e3: return f"{sign}{abs_val/1e3:.2f} k{unit}"
+    if abs_val >= 1:   return f"{sign}{abs_val:.2f} {unit}"
+    if abs_val >= 1e-3: return f"{sign}{abs_val*1e3:.2f} m{unit}"
+    if abs_val >= 1e-6: return f"{sign}{abs_val*1e6:.2f} µ{unit}"
+    if abs_val >= 1e-9: return f"{sign}{abs_val*1e9:.2f} n{unit}"
+    
+    return f"{sign}{value:.2e} {unit}"
+
 # --- UTILS DE COLOR ---
 def get_voltage_color(v, v_min, v_max):
     """Retorna un color hex entre Azul (Bajo) y Rojo (Alto)"""
-    if v_max == v_min: return "#2c3e50" # Gris oscuro si todo es igual
-    
-    # Normalizar 0.0 a 1.0
+    if v_max == v_min: return "#2c3e50" 
     ratio = (v - v_min) / (v_max - v_min)
     ratio = max(0.0, min(1.0, ratio))
-    
-    # Interpolación Azul (0,0,255) -> Rojo (255,0,0)
     r = int(255 * ratio)
     g = 0
     b = int(255 * (1 - ratio))
-    
     return f"#{r:02x}{g:02x}{b:02x}"
 
 # ==========================================
@@ -62,22 +75,24 @@ class HistoryManager:
 # SECCIÓN 2: DIBUJO
 # ==========================================
 def dibujar_rejilla(canvas, w, h, grid_size):
+    canvas.create_rectangle(0,0,w,h, fill="#fdfefe", outline="")
     for i in range(0, w, grid_size):
         for j in range(0, h, grid_size):
             canvas.create_oval(i-1, j-1, i+1, j+1, fill="#bdc3c7", outline="")
 
 def crear_nodo_visual_func(canvas, x, y, label, is_gnd=False):
-    r = 7
-    color = "#34495e" # Color base
+    r = 8
+    color = "#34495e" 
     uid = canvas.create_oval(x-r, y-r, x+r, y+r, fill=color, outline="black", width=2, tags="nodo")
-    txt_id = canvas.create_text(x+12, y-12, text=label, fill="#7f8c8d", font=("Arial", 10, "bold"), tags="lbl_nodo")
+    
+    # Solo mostramos el nombre (N1, GND)
+    txt_id = canvas.create_text(x, y-22, text=label, fill="#7f8c8d", font=("Arial", 9, "bold"), tags="lbl_nodo")
     
     if is_gnd:
         gnd_ids = []
         gnd_ids.append(canvas.create_line(x, y+r, x, y+r+10, width=2, fill="black", tags="gnd"))
         gnd_ids.append(canvas.create_line(x-10, y+r+10, x+10, y+r+10, width=2, fill="black", tags="gnd"))
         gnd_ids.append(canvas.create_line(x-6, y+r+14, x+6, y+r+14, width=2, fill="black", tags="gnd"))
-        gnd_ids.append(canvas.create_line(x-2, y+r+18, x+2, y+r+18, width=2, fill="black", tags="gnd"))
     
     return uid, txt_id
 
@@ -87,53 +102,72 @@ def dibujar_componente_func(canvas, x1, y1, x2, y2, tipo, valor, nombre):
     if dist_x > dist_y: xm, ym, vertical = (x1 + x2) / 2, y1, False
     else: xm, ym, vertical = x2, (y1 + y2) / 2, True
 
-    gap = 20 if tipo != 'WIRE' else 0
+    gap = 25 if tipo != 'WIRE' else 0
+    is_source = tipo in ['V', 'I']
     
     # Segmentos de cable
-    # ids[0] -> Conectado a n1
-    # ids[1] -> Conectado a n2 (si existe gap)
     if gap > 0:
         coords_1 = [x1, y1, x2, y1, x2, ym-gap] if vertical else [x1, y1, xm-gap, y1]
         coords_2 = [x2, ym+gap, x2, y2] if vertical else [xm+gap, y1, x2, y1, x2, y2]
-        
         if len(coords_1)>=4: ids.append(canvas.create_line(coords_1, width=3, fill="#2c3e50", tags="comp"))
         if len(coords_2)>=4: ids.append(canvas.create_line(coords_2, width=3, fill="#2c3e50", tags="comp"))
     else:
         coords = [x1, y1, x2, y1, x2, y2] if vertical else [x1, y1, x2, y1, x2, y2]
         ids.append(canvas.create_line(coords, width=3, fill="#2c3e50", tags="comp"))
-        ids.append(canvas.create_text(xm, ym, text="")) # Placeholder
+        ids.append(canvas.create_text(xm, ym, text="")) 
 
-    # Símbolos
+    # --- SÍMBOLOS ---
+    val_str = format_eng(valor, "Ω" if tipo=='R' else ("V" if tipo=='V' else "A"))
+
     if tipo == 'R':
         box_w, box_h = 40, 20
         if vertical: box_w, box_h = box_h, box_w
         rect_id = canvas.create_rectangle(xm-box_w/2, ym-box_h/2, xm+box_w/2, ym+box_h/2, fill="white", outline="black", width=2, tags="comp")
         ids.append(rect_id)
-        txt_id = canvas.create_text(xm, ym, text=f"{valor}Ω", font=("Arial", 9, "bold"), fill="black", tags="comp")
-        ids.append(txt_id)
+        ids.append(canvas.create_text(xm, ym, text=val_str, font=("Arial", 9, "bold"), fill="black", tags="comp"))
 
     elif tipo == 'V':
-        r = 15
+        r = 20
         ids.append(canvas.create_oval(xm-r, ym-r, xm+r, ym+r, fill="#e74c3c", outline="black", width=2, tags="comp"))
         ids.append(canvas.create_text(xm, ym, text="+  -", font=("Arial", 10, "bold"), fill="white", tags="comp"))
-        tx, ty = (xm+25, ym) if vertical else (xm, ym-25)
-        ids.append(canvas.create_text(tx, ty, text=f"{valor}V", font=("Arial", 9, "bold"), fill="red", tags="comp"))
+        tx, ty = (xm+28, ym) if vertical else (xm, ym-28)
+        ids.append(canvas.create_text(tx, ty, text=val_str, font=("Arial", 9, "bold"), fill="red", tags="comp"))
 
     elif tipo == 'I':
-        r = 15
+        r = 20
         ids.append(canvas.create_oval(xm-r, ym-r, xm+r, ym+r, fill="#2ecc71", outline="black", width=2, tags="comp"))
         ids.append(canvas.create_text(xm, ym, text="I", font=("Arial", 12, "bold"), fill="white", tags="comp"))
-        tx, ty = (xm+25, ym) if vertical else (xm, ym-25)
-        ids.append(canvas.create_text(tx, ty, text=f"{valor}A", font=("Arial", 9, "bold"), fill="green", tags="comp"))
+        tx, ty = (xm+28, ym) if vertical else (xm, ym-28)
+        ids.append(canvas.create_text(tx, ty, text=val_str, font=("Arial", 9, "bold"), fill="green", tags="comp"))
 
+    # --- NOMBRE ---
     if tipo != 'WIRE':
-        nx, ny = (xm-25, ym) if vertical else (xm, ym-25)
-        if tipo in ['V', 'I']: ny -= 18
+        dist_name = 45 if is_source else 35
+        nx, ny = (xm-dist_name, ym) if vertical else (xm, ym-dist_name)
+        if is_source: ny -= 5 
         ids.append(canvas.create_text(nx, ny, text=nombre, font=("Segoe UI", 11, "bold"), fill="blue", tags="comp"))
     else:
         ids.append(canvas.create_text(xm, ym, text=""))
 
-    ids.append(canvas.create_text(xm, ym, text="", font=("Arial", 14, "bold"), fill="red", tags="arrow"))
+    # --- ETIQUETA DE VOLTAJE EN CABLE (MEJORADA) ---
+    if tipo == 'WIRE':
+        # Si es vertical, rotamos el texto 90 grados y lo pegamos al lado
+        if vertical:
+            vx, vy = (xm - 15, ym) # A la izquierda
+            ang_volt = 90
+        else:
+            vx, vy = (xm, ym - 15) # Arriba
+            ang_volt = 0
+            
+        ids.append(canvas.create_text(vx, vy, text="", font=("Arial", 9, "bold"), 
+                                      fill="#e67e22", tags="lbl_volt_wire", 
+                                      state="hidden", angle=ang_volt))
+    
+    # --- FLECHA CORRIENTE ---
+    dist_arrow = 28 # Un poco más separado para evitar choques
+    ax, ay = (xm+dist_arrow, ym) if vertical else (xm, ym+dist_arrow) 
+    ids.append(canvas.create_text(ax, ay, text="", font=("Arial", 10, "bold"), fill="#c0392b", tags="arrow"))
+    
     return ids
 
 # ==========================================
@@ -151,7 +185,8 @@ class SimuladorPro(tk.Tk):
         self.style.configure("Treeview.Heading", font=("Segoe UI", 10, "bold"), background="#ecf0f1")
         self.style.map("Treeview", background=[('selected', '#3498db')])
         
-        self.GRID_SIZE = 20 
+        self.GRID_SIZE = 40 
+        
         self.nodos = []       
         self.componentes = [] 
         self.history = HistoryManager(limit=30)
@@ -163,6 +198,9 @@ class SimuladorPro(tk.Tk):
         self.nodo_inicio = None
         self.linea_guia = None
         self.bloqueo_arbol = False 
+
+        # Checkbox variable
+        self.mostrar_voltajes = tk.BooleanVar(value=True)
 
         self.crear_interfaz()
         self.save_state() 
@@ -188,6 +226,15 @@ class SimuladorPro(tk.Tk):
         self.btn_tool(barra, "🔵 Nodo", "NODO", "#3498db")
         self.btn_tool(barra, "⏚ GND", "GND", "#34495e")
         
+        tk.Frame(barra, width=20, bg="#2c3e50").pack(side="left")
+        
+        # Checkbox "Ver Voltajes"
+        chk = tk.Checkbutton(barra, text="Ver Voltajes", variable=self.mostrar_voltajes, 
+                             command=self.actualizar_etiquetas_voltaje,
+                             bg="#2c3e50", fg="white", selectcolor="#2c3e50", activebackground="#2c3e50", activeforeground="white",
+                             font=("Segoe UI", 10))
+        chk.pack(side="left")
+
         tk.Button(barra, text="↪ Rehacer", command=self.redo, bg="#7f8c8d", fg="white", relief="flat", padx=10).pack(side="right", padx=5)
         tk.Button(barra, text="↩ Deshacer", command=self.undo, bg="#7f8c8d", fg="white", relief="flat", padx=10).pack(side="right", padx=5)
         
@@ -197,7 +244,7 @@ class SimuladorPro(tk.Tk):
         self.frame_grafico = tk.Frame(self.paned, bg="white")
         self.paned.add(self.frame_grafico, minsize=600)
         
-        self.canvas = tk.Canvas(self.frame_grafico, bg="white", cursor="arrow")
+        self.canvas = tk.Canvas(self.frame_grafico, bg="#fdfefe", cursor="arrow")
         self.canvas.pack(fill="both", expand=True)
         
         self.update()
@@ -214,10 +261,10 @@ class SimuladorPro(tk.Tk):
         header.pack(fill="x")
         tk.Label(header, text="DETALLE POR RAMA (KCL/KVL)", bg="#34495e", fg="white", font=("Segoe UI", 10, "bold")).pack()
 
-        cols = ("Nombre", "Tipo", "Valor", "Va (V)", "Vb (V)", "ΔV (V)", "|I| (A)", "P (W)")
+        cols = ("Nombre", "Tipo", "Valor", "Va (V)", "Vb (V)", "ΔV", "|I|", "P (W)")
         self.tree = ttk.Treeview(self.frame_datos, columns=cols, show="headings", selectmode="browse", height=8)
         
-        anchos = [60, 40, 60, 60, 60, 60, 70, 70]
+        anchos = [60, 40, 70, 60, 60, 60, 70, 70]
         for c, w in zip(cols, anchos):
             self.tree.heading(c, text=c); self.tree.column(c, width=w, anchor="center")
         
@@ -242,6 +289,10 @@ class SimuladorPro(tk.Tk):
         self.status_bar = tk.Label(self.frame_datos, text="Listo.", bg="#95a5a6", fg="white", font=("Segoe UI", 9), anchor="w", padx=10)
         self.status_bar.pack(fill="x", side="bottom")
 
+    def actualizar_etiquetas_voltaje(self):
+        state = "normal" if self.mostrar_voltajes.get() else "hidden"
+        self.canvas.itemconfig("lbl_volt_wire", state=state)
+
     def btn_tool(self, parent, txt, mode, col, fg="white"):
         tk.Button(parent, text=txt, command=lambda: self.set_modo(mode), bg=col, fg=fg, 
                  font=("Segoe UI", 10, "bold"), relief="flat", width=14, pady=5).pack(side="left", padx=5)
@@ -257,6 +308,12 @@ class SimuladorPro(tk.Tk):
 
     def clic_canvas(self, event):
         x, y = self.snap(event.x), self.snap(event.y)
+        
+        if self.modo in ["R", "V", "I"]:
+            if self.find_comp(x, y, radius_override=45) is not None:
+                messagebox.showwarning("Espacio Ocupado", "Ya existe un componente aquí o muy cerca.")
+                return
+
         if self.modo in ["R", "V", "I"]:
             self.save_state()
             x1, y1 = x - 40, y; x2, y2 = x + 40, y
@@ -264,6 +321,7 @@ class SimuladorPro(tk.Tk):
             comp_idx = self.crear_componente(idx1, idx2, self.modo)
             self.usar_dialogo_fallback(self.componentes[comp_idx]['nombre'], "VALOR")
             self.set_modo("SELECCIONAR")
+        
         elif self.modo == "GND":
             idx = self.find_node(x,y)
             if idx is not None:
@@ -300,7 +358,7 @@ class SimuladorPro(tk.Tk):
             self.canvas.delete("highlight")
             if idx is not None:
                 nx, ny = self.nodos[idx]['x'], self.nodos[idx]['y']
-                self.canvas.create_oval(nx-8, ny-8, nx+8, ny+8, outline="#39ff14", width=3, tags="highlight")
+                self.canvas.create_oval(nx-10, ny-10, nx+10, ny+10, outline="#39ff14", width=3, tags="highlight")
 
     def soltar_canvas(self, event):
         if self.linea_guia:
@@ -337,6 +395,12 @@ class SimuladorPro(tk.Tk):
         x2, y2 = self.nodos[n2]['x'], self.nodos[n2]['y']
         ids = dibujar_componente_func(self.canvas, x1, y1, x2, y2, tipo, valor, nombre)
         self.componentes.append({'tipo': tipo, 'n1': n1, 'n2': n2, 'valor': valor, 'ids': ids, 'nombre': nombre})
+        
+        if tipo == 'WIRE':
+            volt_id = ids[-2] # El penúltimo es el texto de voltaje
+            state = "normal" if self.mostrar_voltajes.get() else "hidden"
+            self.canvas.itemconfig(volt_id, state=state)
+            
         return len(self.componentes) - 1
 
     def seleccionar(self, tipo, idx, update_tree=True):
@@ -421,24 +485,33 @@ class SimuladorPro(tk.Tk):
             v_min = min(voltages.values()) if voltages else 0.0
 
             for c in self.componentes:
-                if c['tipo'] == 'WIRE': 
-                    # Colorear cables (Heatmap)
-                    n1_key = str(c['n1']) if c['n1'] != self.tierra_idx else '0'
-                    v_wire = voltages.get(n1_key, 0.0)
-                    color = get_voltage_color(v_wire, v_min, v_max)
-                    self.canvas.itemconfig(c['ids'][0], fill=color)
-                    continue
-                
                 d = results.get(c['nombre'], {'v':0, 'i':0, 'p':0})
                 n1_key = str(c['n1']) if c['n1'] != self.tierra_idx else '0'
                 n2_key = str(c['n2']) if c['n2'] != self.tierra_idx else '0'
+                
+                kcl_nodos[n1_key] -= d['i']
+                kcl_nodos[n2_key] += d['i']
+
+                if c['tipo'] == 'WIRE': 
+                    v_wire = voltages.get(n1_key, 0.0)
+                    color = get_voltage_color(v_wire, v_min, v_max)
+                    self.canvas.itemconfig(c['ids'][0], fill=color)
+                    
+                    volt_id = c['ids'][-2] 
+                    self.canvas.itemconfig(volt_id, text=format_eng(v_wire, "V"))
+                    continue 
+                
                 va = voltages.get(n1_key, 0.0); vb = voltages.get(n2_key, 0.0)
                 
-                kcl_nodos[n1_key] -= d['i']; kcl_nodos[n2_key] += d['i']
                 if d['p'] > 0: p_dis += d['p']
                 else: p_gen += abs(d['p'])
 
-                vals = (c['nombre'], c['tipo'], f"{c['valor']:.2f}", f"{va:.2f}", f"{vb:.2f}", f"{d['v']:.2f}", f"{abs(d['i']):.3f}", f"{d['p']:.3f}")
+                val_fmt = format_eng(c['valor'], "Ω" if c['tipo']=='R' else ("V" if c['tipo']=='V' else "A"))
+                v_drop = format_eng(d['v'], "V")
+                i_fmt = format_eng(abs(d['i']), "A")
+                p_fmt = format_eng(d['p'], "W")
+                
+                vals = (c['nombre'], c['tipo'], val_fmt, f"{va:.2f}", f"{vb:.2f}", v_drop, i_fmt, p_fmt)
                 item = self.tree.insert("", "end", values=vals)
                 if c['nombre'] == sel_name: self.tree.selection_set(item)
             
@@ -448,26 +521,47 @@ class SimuladorPro(tk.Tk):
                 if c['tipo'] == 'WIRE': continue
                 val_id = c['ids'][-3]
                 unit = "Ω" if c['tipo']=='R' else ("V" if c['tipo']=='V' else "A")
-                self.canvas.itemconfig(val_id, text=f"{c['valor']}{unit}")
+                self.canvas.itemconfig(val_id, text=format_eng(c['valor'], unit))
+                
                 arrow_id = c['ids'][-1]
                 curr = results.get(c['nombre'], {'i':0})['i']
                 if abs(curr) > 1e-6:
                     x1,y1 = self.nodos[c['n1']]['x'], self.nodos[c['n1']]['y']
                     x2,y2 = self.nodos[c['n2']]['x'], self.nodos[c['n2']]['y']
-                    ang = math.degrees(math.atan2(y2-y1, x2-x1)) if curr > 0 else math.degrees(math.atan2(y1-y2, x1-x2))
-                    self.canvas.itemconfig(arrow_id, text=f"➤\n{abs(curr):.2f}A", angle=ang, state="normal")
+                    
+                    # LOGICA MEJORADA: Flechas simples (▲/▼) para componentes verticales
+                    is_vertical = abs(y2 - y1) > abs(x2 - x1)
+                    
+                    if is_vertical:
+                        # Si es vertical, NO rotamos el texto, solo cambiamos la flecha
+                        # Flujo de corriente: de n1 a n2 si curr > 0
+                        # En Tkinter Y crece hacia abajo.
+                        # n1 es arriba (y menor) y n2 abajo (y mayor) => corriente positiva baja
+                        downwards = (y2 > y1) if curr > 0 else (y1 > y2)
+                        arrow_char = "▼" if downwards else "▲"
+                        
+                        # Texto horizontal (ángulo 0) mucho más fácil de leer
+                        self.canvas.itemconfig(arrow_id, text=f"{arrow_char} {format_eng(abs(curr), 'A')}", angle=0, state="normal")
+                    else:
+                        # Horizontal clásico
+                        ang = math.degrees(math.atan2(y2-y1, x2-x1)) if curr > 0 else math.degrees(math.atan2(y1-y2, x1-x2))
+                        arrow_char = "➤"
+                        if ang > 90: ang -= 180; arrow_char = "◄"
+                        elif ang < -90: ang += 180; arrow_char = "◄"
+                        self.canvas.itemconfig(arrow_id, text=f"{arrow_char} {format_eng(abs(curr), 'A')}", angle=ang, state="normal")
+
                 else: self.canvas.itemconfig(arrow_id, state="hidden")
 
             for i, n in enumerate(self.nodos):
                 key = str(i) if i!=self.tierra_idx else '0'
                 v_val = voltages.get(key, 0.0)
                 color = get_voltage_color(v_val, v_min, v_max)
-                self.canvas.itemconfig(n['id'], fill=color) # Colorear nodo
+                self.canvas.itemconfig(n['id'], fill=color)
                 prefix = "GND" if i==self.tierra_idx else f"N{i}"
-                self.canvas.itemconfig(n['txt_id'], text=f"{prefix}: {v_val:.2f}V")
+                self.canvas.itemconfig(n['txt_id'], text=prefix)
 
-            self.lbl_p_gen.config(text=f"P. Suministrada: {p_gen:.4f} W")
-            self.lbl_p_dis.config(text=f"P. Disipada: {p_dis:.4f} W")
+            self.lbl_p_gen.config(text=f"P. Suministrada: {format_eng(p_gen, 'W')}")
+            self.lbl_p_dis.config(text=f"P. Disipada: {format_eng(p_dis, 'W')}")
             neto = p_gen - p_dis
             color_bal = "green" if abs(neto) < 1e-4 else "red"
             self.lbl_balance.config(text=f"Neto: {neto:.5e} W", fg=color_bal)
@@ -476,7 +570,7 @@ class SimuladorPro(tk.Tk):
             self.txt_kcl.insert(tk.END, f"{'NODO':<10} | {'Σ I (A)':<15}\n" + "-"*30 + "\n")
             for k, v in kcl_nodos.items():
                 lbl = "GND" if k=='0' else f"N{k}"
-                status = "✅" if abs(v) < 1e-4 else "❌"
+                status = "✅" if abs(v) < 1e-3 else "❌"
                 self.txt_kcl.insert(tk.END, f"{lbl:<10} | {v:+.5f} {status}\n")
             self.status_bar.config(text="Cálculo Automático OK", fg="#27ae60")
             
@@ -511,9 +605,10 @@ class SimuladorPro(tk.Tk):
             self.simular_en_tiempo_real()
     def find_node(self, x, y):
         for i, n in enumerate(self.nodos):
-            if math.hypot(n['x']-x, n['y']-y) < 15: return i
-    def find_comp(self, x, y):
+            if math.hypot(n['x']-x, n['y']-y) < 20: return i
+    def find_comp(self, x, y, radius_override=None):
+        radius = radius_override if radius_override else 40
         for i, c in enumerate(self.componentes):
             x1,y1=self.nodos[c['n1']]['x'], self.nodos[c['n1']]['y']
             x2,y2=self.nodos[c['n2']]['x'], self.nodos[c['n2']]['y']
-            if math.hypot((x1+x2)/2-x, (y1+y2)/2-y) < 30: return i
+            if math.hypot((x1+x2)/2-x, (y1+y2)/2-y) < radius: return i
