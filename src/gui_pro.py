@@ -109,8 +109,7 @@ def dibujar_componente_func(canvas, x1, y1, x2, y2, tipo, valor, nombre):
     gap = 25 if tipo != 'WIRE' else 0
     is_source = tipo in ['V', 'I']
     
-    # --- DIBUJO DE CABLES (Con punta de flecha pequeña) ---
-    # arrowshape=(longitud_punta, longitud_base, ancho) -> (5,8,2) es sutil
+    # Cables con flecha pequeña
     arrow_style = tk.LAST
     arrow_shape = (5, 8, 2)
 
@@ -128,88 +127,75 @@ def dibujar_componente_func(canvas, x1, y1, x2, y2, tipo, valor, nombre):
 
     val_str = format_eng(valor, "Ω" if tipo=='R' else ("V" if tipo=='V' else "A"))
 
-    # --- HELPER PARA TEXTO CON FONDO (MÁSCARA) ---
+    # Helper texto con fondo
     def create_label_bg(tx, ty, text, color, angle=0, font_size=9, tag_extra=""):
-        char_w = 7 if font_size == 9 else 6
+        char_w = 7 if font_size >= 9 else 6
         w_box = len(text) * char_w
         h_box = 16
         if angle == 90: w_box, h_box = h_box, w_box
+        
         bg_id = canvas.create_rectangle(tx - w_box/2, ty - h_box/2, tx + w_box/2, ty + h_box/2, 
                                         fill="white", outline="", tags=("comp", tag_extra))
         t_id = canvas.create_text(tx, ty, text=text, font=("Arial", font_size, "bold"), 
                                   fill=color, angle=angle, tags=("comp", tag_extra))
         return bg_id, t_id
 
-    # --- LÓGICA DE POSICIONAMIENTO INTELIGENTE (Separar lados) ---
-    # Distancias desde el centro
-    dist_val = 35   # Donde va el valor o nombre
-    dist_arrow = 35 # Donde va la flecha de intensidad
-
-    # Coordenadas por defecto (Horizontal)
-    # Valor/Nombre arriba, Flecha abajo
-    pos_val_x, pos_val_y = xm, ym - dist_val
-    pos_arr_x, pos_arr_y = xm, ym + dist_arrow
-    angle_txt = 0
+    # --- DISTANCIAS ---
+    dist_side = 28  
 
     if vertical:
-        # Vertical: Valor/Nombre a la DERECHA, Flecha a la IZQUIERDA
-        # Esto evita que se solapen sobre el cuerpo de la resistencia
-        pos_val_x, pos_val_y = xm + dist_val, ym
-        pos_arr_x, pos_arr_y = xm - dist_val, ym # Lado opuesto
-        angle_txt = 0 # Texto horizontal es más legible, pero si prefieres rotado usa 90
+        nx, ny = xm + dist_side, ym
+        ax, ay = xm - dist_side, ym
+        angle_name = 0 
+    else:
+        nx, ny = xm, ym - dist_side
+        ax, ay = xm, ym + dist_side
+        angle_name = 0
 
-    # --- DIBUJO DE COMPONENTES ---
+    # --- DIBUJO COMPONENTES ---
     if tipo == 'R':
-        # Rectángulo Resistencia
-        char_width = 7
-        txt_w = len(val_str) * char_width + 10
-        if txt_w < 40: txt_w = 40
-        box_w, box_h = txt_w, 20
-        angle_r = 0
+        char_width = 6 
+        txt_w = len(val_str) * char_width + 8
+        if txt_w < 36: txt_w = 36 
+        box_w, box_h = txt_w, 18 
+        angle_box_text = 0
         if vertical:
             box_w, box_h = box_h, box_w 
-            angle_r = 90
+            angle_box_text = 90
             
         rect_id = canvas.create_rectangle(xm-box_w/2, ym-box_h/2, xm+box_w/2, ym+box_h/2, fill="white", outline="black", width=2, tags="comp")
         ids.append(rect_id)
-        ids.append(canvas.create_text(xm, ym, text=val_str, font=("Arial", 9, "bold"), fill="black", tags="comp", angle=angle_r))
+        ids.append(canvas.create_text(xm, ym, text=val_str, font=("Arial", 8, "bold"), fill="black", tags="comp", angle=angle_box_text))
 
     elif tipo == 'V':
         r = 20
         ids.append(canvas.create_oval(xm-r, ym-r, xm+r, ym+r, fill="#e74c3c", outline="black", width=2, tags="comp"))
         ids.append(canvas.create_text(xm, ym, text="+  -", font=("Arial", 10, "bold"), fill="white", tags="comp"))
-        # Valor usando la lógica separada
-        bg, txt = create_label_bg(pos_val_x, pos_val_y, val_str, "red", angle=angle_txt)
+        
+        val_y_offset = 15 if not vertical else 15
+        bg, txt = create_label_bg(nx, ny + val_y_offset if not vertical else ny, val_str, "red", angle=angle_name)
         ids.extend([bg, txt])
+        if not vertical: ny -= 12
+        else: nx += 2 
 
     elif tipo == 'I':
         r = 20
         ids.append(canvas.create_oval(xm-r, ym-r, xm+r, ym+r, fill="#2ecc71", outline="black", width=2, tags="comp"))
         ids.append(canvas.create_text(xm, ym, text="I", font=("Arial", 12, "bold"), fill="white", tags="comp"))
-        # Valor usando la lógica separada
-        bg, txt = create_label_bg(pos_val_x, pos_val_y, val_str, "green", angle=angle_txt)
+        
+        val_y_offset = 15 if not vertical else 15
+        bg, txt = create_label_bg(nx, ny + val_y_offset if not vertical else ny, val_str, "green", angle=angle_name)
         ids.extend([bg, txt])
+        if not vertical: ny -= 12
 
-    # --- NOMBRE (R1, V1) ---
+    # --- NOMBRE ---
     if tipo != 'WIRE':
-        # El nombre va junto al valor o un poco más allá
-        offset_name = 15 if vertical else 15
-        # Ajuste fino para que no pise el valor si es V/I
-        nx, ny = pos_val_x, pos_val_y
-        if vertical: nx += (20 if tipo=='R' else 0) # Si es R, el valor está dentro, el nombre va a la derecha
-        else: ny -= (20 if tipo=='R' else 0)       # Si es R horizontal, nombre arriba
-
-        # Si es V o I, el valor ya ocupó el espacio pos_val, movemos el nombre más afuera
-        if tipo in ['V', 'I']:
-            if vertical: nx += 30
-            else: ny -= 20
-
-        bg, txt = create_label_bg(nx, ny, nombre, "blue", angle=0, font_size=10)
+        bg, txt = create_label_bg(nx, ny, nombre, "blue", angle=angle_name, font_size=10)
         ids.extend([bg, txt])
     else:
         ids.append(canvas.create_text(xm, ym, text=""))
 
-    # --- ETIQUETA DE VOLTAJE EN CABLE ---
+    # --- ETIQUETA VOLTAJE CABLE ---
     if tipo == 'WIRE':
         if vertical: vx, vy = (xm - 15, ym); ang_volt = 90
         else: vx, vy = (xm, ym - 15); ang_volt = 0
@@ -217,10 +203,9 @@ def dibujar_componente_func(canvas, x1, y1, x2, y2, tipo, valor, nombre):
         txt_id = canvas.create_text(vx, vy, text="", font=("Arial", 9, "bold"), fill="#e67e22", tags="lbl_volt_wire", state="hidden", angle=ang_volt)
         ids.extend([bg_id, txt_id])
     
-    # --- FLECHA CORRIENTE (Usa la posición calculada opuesta al valor) ---
-    # Fondo pequeño para la flecha
-    bg_arrow = canvas.create_oval(pos_arr_x-8, pos_arr_y-8, pos_arr_x+8, pos_arr_y+8, fill="white", outline="", tags="arrow") 
-    txt_arrow = canvas.create_text(pos_arr_x, pos_arr_y, text="", font=("Arial", 10, "bold"), fill="#c0392b", tags="arrow")
+    # --- FLECHA CORRIENTE ---
+    # CAMBIO: Font size 8 (más chico) y con fondo blanco (create_label_bg)
+    bg_arrow, txt_arrow = create_label_bg(ax, ay, "", "#c0392b", angle=0, font_size=8, tag_extra="arrow")
     ids.extend([bg_arrow, txt_arrow])
     
     return ids
@@ -479,8 +464,7 @@ class SimuladorPro(tk.Tk):
         self.componentes.append({'tipo': tipo, 'n1': n1, 'n2': n2, 'valor': valor, 'ids': ids, 'nombre': nombre})
         
         if tipo == 'WIRE':
-            # IDs: line, line (maybe), bg, text (volt)
-            # The last two are volt label
+            # ids: line, line(opt), bg, text
             volt_id = ids[-1] 
             bg_id = ids[-2]
             state = "normal" if self.mostrar_voltajes.get() else "hidden"
@@ -608,6 +592,7 @@ class SimuladorPro(tk.Tk):
                             coords = self.canvas.coords(item)
                             if self.canvas.itemcget(item, "angle") == "90.0":
                                 w_box, h_box = h_box, w_box
+                            
                             self.canvas.coords(bg_item, coords[0]-w_box/2, coords[1]-h_box/2, coords[0]+w_box/2, coords[1]+h_box/2)
                     continue 
                 
@@ -629,36 +614,60 @@ class SimuladorPro(tk.Tk):
             for c in self.componentes:
                 if c['tipo'] == 'WIRE': continue
                 
-                # Update component value texts
-                # Note: Helpers created the labels with "comp" tag. We must find the right one.
-                # A safe way is to check the current text vs stored val. Or just update all number-like texts in this comp
-                # But simpler: just find the one that holds the value.
-                # For V/I: value is at ids[-1] (text)
-                # For R: value is at ids[-1] (text)
-                # Arrow text: ids[-1] is Arrow Text, ids[-2] Arrow BG... WAIT order in draw func matters.
-                # Draw order: ... Names ... Labels ... WireVolts ... ArrowBG, ArrowText
-                # ArrowText is always LAST.
-                
-                # Updating Arrow
+                # Update value text
+                for item in c['ids']:
+                    tags = self.canvas.gettags(item)
+                    if "comp" in tags and self.canvas.type(item) == "text":
+                        txt = self.canvas.itemcget(item, "text")
+                        if any(ch.isdigit() for ch in txt) and c['nombre'] not in txt:
+                             self.canvas.itemconfig(item, text=format_eng(c['valor'], "Ω" if c['tipo']=='R' else ("V" if c['tipo']=='V' else "A")))
+
                 arrow_text_id = c['ids'][-1]
-                # Value text is trickier to find by index due to variable number of IDs (bg/no bg)
-                # Let's iterate and find by tag/content logic or assume position based on type
+                arrow_bg_id = c['ids'][-2]
                 
                 curr = results.get(c['nombre'], {'i':0})['i']
                 if abs(curr) > 1e-12:
                     x1,y1 = self.nodos[c['n1']]['x'], self.nodos[c['n1']]['y']
                     x2,y2 = self.nodos[c['n2']]['x'], self.nodos[c['n2']]['y']
-                    ang = math.degrees(math.atan2(y2-y1, x2-x1))
-                    if curr < 0: ang += 180
-                    ang = ang % 360
                     
+                    # LOGICA DE FLECHA ABSOLUTA EN PANTALLA
+                    dx = x2 - x1
+                    dy = y2 - y1
+                    if curr < 0:
+                        dx, dy = -dx, -dy # Invertir vector si corriente negativa
+                    
+                    ang = math.degrees(math.atan2(dy, dx)) % 360
+                    
+                    # Selección de caracter basado en ángulo de pantalla
                     if 45 <= ang < 135:   arrow_char = "▼" 
                     elif 135 <= ang < 225: arrow_char = "◄" 
                     elif 225 <= ang < 315: arrow_char = "▲" 
                     else:                 arrow_char = "➤" 
                     
-                    self.canvas.itemconfig(arrow_text_id, text=f"{arrow_char} {format_eng(abs(curr), 'A')}", angle=0, state="normal")
-                else: self.canvas.itemconfig(arrow_text_id, state="hidden")
+                    is_vertical = abs(y2 - y1) > abs(x2 - x1)
+                    txt_angle = 90 if is_vertical else 0
+                    
+                    # Texto SIEMPRE horizontal para lectura fácil (revertido a angle=0 por feedback)
+                    # Pero el usuario pidió vertical si el componente es vertical.
+                    # Vamos a respetar la lógica de rotación del texto de intensidad si es vertical
+                    
+                    final_txt = f"{arrow_char} {format_eng(abs(curr), 'A')}"
+                    
+                    self.canvas.itemconfig(arrow_text_id, text=final_txt, angle=txt_angle, state="normal")
+                    self.canvas.itemconfig(arrow_bg_id, state="normal")
+                    
+                    # Ajustar fondo de flecha
+                    coords = self.canvas.coords(arrow_text_id) 
+                    char_w = 6
+                    w_box = len(final_txt) * char_w
+                    h_box = 16
+                    if txt_angle == 90: w_box, h_box = h_box, w_box
+                    
+                    self.canvas.coords(arrow_bg_id, coords[0]-w_box/2, coords[1]-h_box/2, coords[0]+w_box/2, coords[1]+h_box/2)
+
+                else: 
+                    self.canvas.itemconfig(arrow_text_id, state="hidden")
+                    self.canvas.itemconfig(arrow_bg_id, state="hidden")
 
             for i, n in enumerate(self.nodos):
                 if i == self.tierra_idx:
