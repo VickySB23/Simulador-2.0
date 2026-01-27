@@ -1,9 +1,9 @@
 import sys
 import os
-import gui_pro
 
-# Configurar ruta para encontrar los módulos en 'src'
 sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
+
+import gui_pro
 
 if __name__ == "__main__":
     # Inicia la aplicación
