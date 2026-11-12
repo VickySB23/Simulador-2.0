@@ -1,0 +1,72 @@
+{
+  "circuitos": 500,
+  "semilla": 20261112,
+  "simulados": 222,
+  "solvers": {
+    "dense": 205,
+    "trivial": 7,
+    "sparse": 10
+  },
+  "errores": 278,
+  "codigos": {
+    "invalid_component": 125,
+    "shorted_voltage_source": 75,
+    "voltage_source_loop": 34,
+    "floating_nodes": 35,
+    "no_ground": 9
+  },
+  "diferencia_absoluta_maxima": {
+    "tension": 0.000021394065697677433,
+    "corriente": 2.1391319271479858e-11,
+    "potencia": 0.0000042773535824380815,
+    "balance": 0.0000034904805943369865
+  },
+  "diferencia_relativa_maxima": {
+    "tension": 0.0000618784200525298,
+    "corriente": 0.021387336346379016,
+    "potencia": 0.00003784364006026965,
+    "balance": 2.730900518029909e-10
+  },
+  "diferencia_relativa_a_la_escala_maxima": {
+    "tension": 5.514741610742372e-10,
+    "corriente": 5.459252841455431e-10,
+    "potencia": 5.453125368042557e-10,
+    "balance": 2.730900518029909e-10
+  },
+  "peores_casos": {
+    "tension": {
+      "circuito": 99,
+      "js": -0.0017486048948982097,
+      "py": -0.0017487131025021177,
+      "v_max": 20045.298668394673,
+      "componentes": 402,
+      "solver": "sparse"
+    },
+    "corriente": {
+      "circuito": 449,
+      "js": -2.077626959362533e-11,
+      "py": 6.110667527536862e-13,
+      "v_max": 100029.34264358747,
+      "componentes": 325,
+      "solver": "sparse"
+    },
+    "potencia": {
+      "circuito": 99,
+      "js": 3.0576190784619794e-10,
+      "py": 3.057997514862582e-10,
+      "v_max": 20045.298668394673,
+      "componentes": 402,
+      "solver": "sparse"
+    },
+    "balance": {
+      "circuito": 99,
+      "js": 801.4131656518489,
+      "py": 801.4131654329909,
+      "v_max": 20045.298668394673,
+      "componentes": 402,
+      "solver": "sparse"
+    }
+  },
+  "discrepancias": 0,
+  "primeras": []
+}
