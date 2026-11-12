@@ -23,6 +23,13 @@ frontend/public/          lo que se publica (HTML + CSS + JS vanilla con módulo
   js/app.js, editor.js, paneles.js, exportar.js, tema.js     interfaz
   sw.js                   service worker: caché con versión, red primero (4 s) y caché sin conexión
   js/version.js, js/actualizacion.js   versión de la página y aviso "Hay una versión nueva — Actualizar"
+  css/tokens.css          sistema de diseño (único lugar con valores literales): claro, oscuro, proyector
+  css/ui.css, circuito.css, galeria.css   interfaz nueva y dibujo del circuito, solo con tokens (test)
+  fonts/                  Nunito (OFL), subconjunto latino, sin CDN
+  galeria.html, js/galeria.js   galería del rediseño (en revisión: el editor todavía usa app.css)
+  js/dibujo.js            componentes en vista ilustrada y esquemática (IEC); describe lo animado
+  js/animador.js          animaciones en un canvas sobre el SVG (puntos, halo, calor, pulso)
+  js/iconos.js            íconos propios; js/lib/animacion.js: velocidad, brillo, calor y color (tests)
 frontend/tests/           node --test (sin dependencias)
 tests/e2e/                verificar.mjs (Chrome real con playwright-core) y servir.mjs
 tests/comparacion/        motor JS contra POST /simulate de la rama microservicios
@@ -44,6 +51,11 @@ mismos mensajes. Corrigen bugs confirmados de Simulador-2.0:
 5. Densa hasta `DENSE_LIMIT = 200` incógnitas, dispersa (LU con pivoteo parcial sobre filas
    dispersas) por encima.
 6. Convención pasiva: potencia positiva = absorbe.
+7. Componentes solo de la versión web: `lamp` (resistencia + `rated_power`; el resultado agrega
+   `brightness` = P/Pnom y `burned` = P > Pnom, y quemada sigue conduciendo) y `switch` (`closed`:
+   cerrado = cable, abierto = fuera del circuito). Una parte que queda sin camino a tierra por un
+   interruptor abierto y no tiene fuentes no es error: corrientes 0 y tensiones `null`. Sin
+   interruptores, todo sigue igual que el backend (la comparación de 500 circuitos da idéntico).
 
 `parseValue` es el `parse_value` del backend (M y MEG = mega, m = mili); `valores.js` agrega la
 coma decimal. Si se cambia el motor, correr `tests/comparacion/comparar.mjs` contra el stack de
@@ -70,14 +82,21 @@ render reemplaza los elementos del SVG.
   se sube a mano. El service worker nuevo no se activa solo: espera a que el usuario toque Actualizar. Si la página
   ya cargó la versión nueva desde la red, se activa sin avisar.
 - Sin librerías externas ni CDN.
+- **Rediseño:** `ui.css`, `circuito.css` y `galeria.css` usan solo variables de `tokens.css` (sin
+  colores ni px/rem literales; lo verifica `tests/tokens.test.js`).
+- **Animaciones en canvas, no en el SVG:** animar dentro del SVG lo repinta entero en cada cuadro
+  (medido: 116 → 15 cuadros/s con 50 componentes y la CPU 4× más lenta). El SVG queda estático y
+  `animador.js` dibuja lo que se mueve; solo anima lo visible, se pausa y respeta
+  `prefers-reduced-motion`.
 
 ## Comandos
 
 ```bash
-cd frontend && node --test                  # 89 tests
+cd frontend && node --test                  # 109 tests
 node tests/e2e/servir.mjs                   # http://localhost:8000/Simulador-2.0/
 cd tests/e2e && npm install && node verificar.mjs capturas   # 31 comprobaciones en Chrome
 node tests/e2e/actualizacion.mjs            # aviso de versión nueva (publicar mientras espera)
+node tests/e2e/galeria.mjs capturas         # capturas de la galería y cuadros/s con 50 componentes
 ```
 
 ## Cómo trabajar

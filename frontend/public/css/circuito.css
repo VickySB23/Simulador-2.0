@@ -1,0 +1,143 @@
+/* Dibujo del circuito en SVG: vista ilustrada y esquemática (IEC) y estados.
+ * Solo usa variables de tokens.css (lo verifica tests/tokens.test.js). Los valores por
+ * componente (--brillo, --calor) los pone js/dibujo.js con CSSOM.
+ * El SVG es estático: lo que se mueve (puntos de corriente, halo, calor, pulso) lo dibuja
+ * js/animador.js en un canvas encima, porque animar dentro del SVG lo repinta entero en cada
+ * cuadro. Acá solo queda la base fija del halo y el calor, y la transición de la palanca.
+ * Sin filtros SVG: son caros en celulares.
+ */
+
+.lienzo-svg { display: block; background: var(--color-fondo-hundido); user-select: none; -webkit-user-select: none; }
+.lienzo-svg .punto-grilla { fill: var(--color-grilla); }
+
+/* --- Trazos comunes -------------------------------------------------------------------------- */
+
+.comp { --brillo: 0; --calor: 0; }
+.comp .pata,
+.comp .esq-linea,
+.comp .esq-placa,
+.comp .esq-cuchilla { fill: none; stroke: var(--color-tinta); stroke-linecap: round; stroke-linejoin: round; }
+.comp .pata { stroke-width: var(--trazo-componente); }
+.comp .esq-linea, .comp .esq-placa, .comp .esq-cuchilla { stroke-width: var(--trazo-esquema); }
+.comp .esq-placa-corta { stroke: var(--color-tinta); stroke-width: calc(var(--trazo-esquema) * 3); stroke-linecap: butt; }
+.comp .esq-cuerpo { fill: var(--color-fondo-hundido); stroke: var(--color-tinta); stroke-width: var(--trazo-esquema); }
+.comp .esq-contacto { fill: var(--color-fondo-hundido); stroke: var(--color-tinta); stroke-width: var(--trazo-esquema); }
+.comp .contorno { stroke: var(--color-tinta); stroke-width: var(--trazo-componente); stroke-linejoin: round; }
+
+/* Cables: el color por tensión llega como style.stroke (var(--tension-k) o color-mix). */
+.comp .cable {
+  fill: none;
+  stroke: var(--color-cable-neutro);
+  stroke-width: var(--trazo-cable);
+  stroke-linecap: round;
+}
+.nodo { fill: var(--color-tinta); stroke: var(--color-fondo-hundido); stroke-width: var(--borde-fino); }
+.nodo--error { fill: var(--color-nodo-error); }
+.anillo-error { fill: none; stroke: var(--color-error); stroke-width: var(--borde); }
+
+/* --- Selección y error --------------------------------------------------------------------- */
+
+.comp .comp__seleccion { stroke: transparent; stroke-width: calc(var(--trazo-cable) * 5); stroke-linecap: round; fill: none; }
+.comp.seleccionado .comp__seleccion { stroke: var(--color-seleccion-suave); }
+.comp.seleccionado .pata, .comp.seleccionado .contorno, .comp.seleccionado .esq-linea,
+.comp.seleccionado .esq-cuerpo, .comp.seleccionado .esq-placa, .comp.seleccionado .esq-cuchilla { stroke: var(--color-seleccion); }
+.comp.con-error .pata, .comp.con-error .contorno, .comp.con-error .esq-linea, .comp.con-error .esq-cuerpo,
+.comp.con-error .esq-placa, .comp.con-error .cable { stroke: var(--color-error); }
+
+/* --- Resistencia ------------------------------------------------------------------------------ */
+
+.res-cuerpo { fill: var(--ilus-resistencia-cuerpo); }
+.res-banda-1 { fill: var(--ilus-banda-1); }
+.res-banda-2 { fill: var(--ilus-banda-2); }
+.res-banda-3 { fill: var(--ilus-banda-3); }
+.res-calor { fill: var(--ilus-calor); opacity: calc(var(--calor) * 0.4); }
+
+/* --- Batería (fuente de tensión) ---------------------------------------------------------------- */
+
+.bat-cuerpo { fill: var(--ilus-bateria-cuerpo); }
+.bat-franja { fill: var(--ilus-bateria-franja); }
+.bat-borne { fill: var(--ilus-bateria-borne); }
+.signo {
+  font-family: var(--fuente);
+  font-size: var(--texto-signo);
+  font-weight: var(--peso-titulo);
+  text-anchor: middle;
+  dominant-baseline: central;
+  fill: var(--ilus-bateria-signo);
+  pointer-events: none;
+}
+.signo--esquema { fill: var(--color-tinta); font-size: var(--texto-etiqueta); }
+/* Marco fijo de la batería que entrega energía; el pulso animado lo dibuja el animador. */
+.bat-pulso { fill: none; stroke: var(--ilus-bateria-pulso); stroke-width: var(--borde-fino); opacity: 0; }
+.comp.entregando .bat-pulso { opacity: 0.6; }
+
+/* --- Fuente de corriente ------------------------------------------------------------------------ */
+
+.fi-cuerpo { fill: var(--ilus-fuente-corriente); }
+.fi-flecha { fill: none; stroke: var(--ilus-fuente-flecha); stroke-width: var(--trazo-cable); stroke-linecap: round; stroke-linejoin: round; }
+
+/* --- Lámpara -------------------------------------------------------------------------------------- */
+
+.lam-base { fill: var(--ilus-lampara-base); }
+.lam-vidrio { fill: var(--ilus-lampara-vidrio); }
+.lam-luz { fill: var(--ilus-lampara-luz); opacity: var(--brillo); }
+.lam-filamento {
+  fill: none;
+  stroke: var(--ilus-lampara-filamento);
+  stroke-width: var(--trazo-esquema);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.comp.encendida .lam-filamento { stroke: var(--ilus-lampara-filamento-encendido); }
+.lam-halo { fill: var(--ilus-lampara-halo); opacity: calc(var(--brillo) * 0.18); }
+.lam-halo--interno { opacity: calc(var(--brillo) * 0.32); }
+.comp.quemada .lam-vidrio { fill: var(--ilus-lampara-quemada); }
+.comp.quemada .lam-luz, .comp.quemada .lam-halo { display: none; }
+.lam-grieta { fill: none; stroke: var(--color-tinta); stroke-width: var(--borde-fino); stroke-linecap: round; }
+.comp.quemada .esq-linea { stroke: var(--color-error); }
+
+/* --- Interruptor ---------------------------------------------------------------------------------- */
+
+.int-base { fill: var(--ilus-interruptor-base); }
+.int-borne { fill: var(--ilus-interruptor-borne); }
+.int-palanca .int-barra { fill: var(--ilus-interruptor-palanca); }
+.int-palanca .int-perilla { fill: var(--ilus-interruptor-palanca); }
+.int-palanca, .esq-cuchilla {
+  transform-box: fill-box;
+  transform-origin: 0% 50%;
+  transition: transform var(--duracion-lenta) var(--curva-rebote);
+}
+.comp.abierto .int-palanca { transform: rotate(-32deg); }
+.comp.abierto .esq-cuchilla { transform: rotate(-26deg); }
+.comp--switch { cursor: pointer; }
+
+/* --- Tierra ----------------------------------------------------------------------------------------- */
+
+.tierra { fill: none; stroke: var(--ilus-tierra); stroke-width: var(--trazo-componente); stroke-linecap: round; }
+
+/* --- Etiquetas ---------------------------------------------------------------------------------------- */
+
+.etiqueta {
+  font-family: var(--fuente);
+  font-size: var(--texto-etiqueta);
+  font-weight: var(--peso-titulo);
+  fill: var(--color-texto);
+  paint-order: stroke;
+  stroke: var(--color-fondo-hundido);
+  stroke-width: var(--borde-grueso);
+  stroke-linejoin: round;
+}
+.etiqueta--valor { font-size: var(--texto-etiqueta-valor); font-weight: var(--peso-medio); fill: var(--color-texto-suave); }
+.etiqueta--tension { font-family: var(--fuente-mono); font-size: var(--texto-etiqueta-valor); }
+.etiqueta--corriente { fill: var(--color-flecha-corriente); font-size: var(--texto-etiqueta-valor); }
+
+/* --- Capa de animación (canvas encima del SVG) ---------------------------------------------------- */
+
+.capa-animada { position: relative; }
+.capa-animada > canvas { position: absolute; pointer-events: none; }
+
+/* --- Movimiento reducido: la palanca cambia sin animarse ------------------------------------------ */
+
+@media (prefers-reduced-motion: reduce) {
+  .int-palanca, .esq-cuchilla { transition: none; }
+}

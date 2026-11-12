@@ -1,0 +1,372 @@
+/* Componentes de la interfaz. Solo usa variables de tokens.css: nada de colores ni tamaños
+ * literales (lo verifica tests/tokens.test.js). */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--color-fondo);
+  color: var(--color-texto);
+  font-family: var(--fuente);
+  font-size: var(--texto-base);
+  font-weight: var(--peso-normal);
+  line-height: var(--interlineado);
+}
+
+[hidden] { display: none !important; }
+
+h1, h2, h3 { font-weight: var(--peso-titulo); letter-spacing: var(--tracking-titulo); margin: 0; }
+h1 { font-size: var(--texto-xl); }
+h2 { font-size: var(--texto-lg); }
+h3 { font-size: var(--texto-base); }
+code, .mono { font-family: var(--fuente-mono); font-size: var(--texto-sm); }
+
+:focus-visible { outline: var(--borde) solid var(--color-foco); outline-offset: var(--esp-1); }
+
+/* --- Íconos ------------------------------------------------------------------------------- */
+
+.icono {
+  width: var(--icono);
+  height: var(--icono);
+  flex-shrink: 0;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: var(--borde);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.icono .relleno { fill: currentColor; stroke: none; }
+.icono .relleno-suave { fill: currentColor; opacity: 0.25; stroke: none; }
+
+/* --- Botones ------------------------------------------------------------------------------ */
+
+.boton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--esp-2);
+  min-height: var(--alto-control);
+  padding: 0 var(--esp-4);
+  border: var(--borde) solid var(--color-tinta);
+  border-radius: var(--radio-pildora);
+  background: var(--color-superficie);
+  color: var(--color-texto);
+  font: inherit;
+  font-weight: var(--peso-fuerte);
+  box-shadow: var(--sombra-plana);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: transform var(--duracion-rapida) var(--curva), box-shadow var(--duracion-rapida) var(--curva),
+    background var(--duracion-rapida) var(--curva);
+}
+.boton:hover:not(:disabled) { background: var(--color-superficie-2); }
+.boton:active:not(:disabled) {
+  transform: translate(var(--esp-1), var(--esp-1)) scale(0.98);
+  box-shadow: var(--sombra-presionada);
+}
+.boton:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
+.boton[aria-pressed="true"] {
+  background: var(--color-mostaza);
+  color: var(--color-encabezado-texto);
+  transform: translate(calc(var(--esp-1) / 2), calc(var(--esp-1) / 2));
+  box-shadow: var(--sombra-presionada);
+}
+.boton--primario { background: var(--color-primario); color: var(--color-texto-invertido); }
+.boton--primario:hover:not(:disabled) { background: var(--color-primario-hover); }
+.boton--peligro:hover:not(:disabled) { background: var(--color-error-suave); color: var(--color-error); }
+.boton--icono { padding: 0; width: var(--alto-control); }
+.boton--chico {
+  min-height: var(--alto-control-chico);
+  padding: 0 var(--esp-3);
+  font-size: var(--texto-sm);
+  box-shadow: var(--sombra-presionada);
+}
+.boton--chico.boton--icono { width: var(--alto-control-chico); padding: 0; }
+.boton--plano { border-color: transparent; box-shadow: none; background: transparent; }
+.boton--plano:hover:not(:disabled) { background: var(--color-superficie-2); }
+
+/* Selector de dos o tres opciones (Ilustrada / Esquemática, Convencional / Electrones). */
+.conmutador {
+  display: inline-flex;
+  padding: var(--esp-1);
+  gap: var(--esp-1);
+  border: var(--borde) solid var(--color-tinta);
+  border-radius: var(--radio-pildora);
+  background: var(--color-superficie-2);
+}
+.conmutador button {
+  min-height: var(--alto-control-chico);
+  padding: 0 var(--esp-3);
+  border: 0;
+  border-radius: var(--radio-pildora);
+  background: transparent;
+  color: var(--color-texto-suave);
+  font: inherit;
+  font-size: var(--texto-sm);
+  font-weight: var(--peso-fuerte);
+  cursor: pointer;
+}
+.conmutador button[aria-pressed="true"] {
+  background: var(--color-superficie);
+  color: var(--color-texto);
+  box-shadow: inset 0 0 0 var(--borde-fino) var(--color-tinta);
+}
+
+/* --- Barra superior y de herramientas ------------------------------------------------------- */
+
+.encabezado {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-3);
+  padding: var(--esp-3) var(--esp-4);
+  background: var(--color-fondo);
+  border-bottom: var(--borde) solid var(--color-tinta);
+}
+.marca { display: flex; align-items: center; gap: var(--esp-2); }
+.marca-logo {
+  width: var(--alto-control);
+  height: var(--alto-control);
+  border: var(--borde) solid var(--color-tinta);
+  border-radius: var(--radio-md);
+  background: var(--color-primario);
+  color: var(--color-texto-invertido);
+  display: grid;
+  place-items: center;
+  box-shadow: var(--sombra-presionada);
+}
+.encabezado__espacio { flex: 1; min-width: 0; }
+
+.barra {
+  display: flex;
+  gap: var(--esp-3);
+  padding: var(--esp-3) var(--esp-4);
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.barra__grupo {
+  display: flex;
+  gap: var(--esp-2);
+  flex-shrink: 0;
+  padding: var(--esp-1);
+  border: var(--borde) solid var(--color-tinta);
+  border-radius: var(--radio-pildora);
+  background: var(--color-superficie);
+}
+.barra__grupo .boton { box-shadow: none; border-color: transparent; }
+.barra__grupo .boton[aria-pressed="true"] { border-color: var(--color-tinta); }
+
+/* --- Tarjetas con encabezado de color --------------------------------------------------------- */
+
+.tarjeta {
+  border: var(--borde) solid var(--color-tinta);
+  border-radius: var(--radio-lg);
+  background: var(--color-superficie);
+  box-shadow: var(--sombra-plana-grande);
+  overflow: hidden;
+}
+.tarjeta__encabezado {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-2);
+  padding: var(--esp-3) var(--esp-4);
+  background: var(--color-mostaza);
+  color: var(--color-encabezado-texto);
+  border-bottom: var(--borde) solid var(--color-tinta);
+  font-weight: var(--peso-titulo);
+}
+.tarjeta__encabezado h2, .tarjeta__encabezado h3 { font-size: var(--texto-base); }
+.tarjeta--resultados .tarjeta__encabezado { background: var(--color-encabezado-resultados); }
+.tarjeta--ecuaciones .tarjeta__encabezado { background: var(--color-encabezado-ecuaciones); }
+.tarjeta--circuitos .tarjeta__encabezado { background: var(--color-encabezado-circuitos); }
+.tarjeta--dialogo .tarjeta__encabezado { background: var(--color-encabezado-dialogo); }
+.tarjeta__cuerpo { padding: var(--esp-4); display: flex; flex-direction: column; gap: var(--esp-3); }
+
+/* Métricas (potencia entregada, absorbida, balance, KCL). */
+.metricas { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--esp-2); }
+.metrica {
+  padding: var(--esp-2) var(--esp-3);
+  border: var(--borde-fino) solid var(--color-tinta);
+  border-radius: var(--radio-md);
+  background: var(--color-superficie-2);
+  display: flex;
+  flex-direction: column;
+}
+.metrica__titulo { font-size: var(--texto-xs); color: var(--color-texto-suave); font-weight: var(--peso-medio); }
+.metrica__valor { font-size: var(--texto-lg); font-weight: var(--peso-titulo); font-variant-numeric: tabular-nums; }
+.metrica__valor--ok { color: var(--color-ok); }
+.metrica__valor--mal { color: var(--color-error); }
+
+/* --- Pestañas --------------------------------------------------------------------------------- */
+
+.pestanas { display: flex; gap: var(--esp-2); padding: var(--esp-2); }
+.pestana {
+  flex: 1;
+  min-height: var(--alto-control);
+  border: var(--borde) solid transparent;
+  border-radius: var(--radio-pildora);
+  background: transparent;
+  color: var(--color-texto-suave);
+  font: inherit;
+  font-weight: var(--peso-fuerte);
+  cursor: pointer;
+}
+.pestana:hover { background: var(--color-superficie-2); }
+.pestana[aria-selected="true"] {
+  border-color: var(--color-tinta);
+  background: var(--color-superficie);
+  color: var(--color-texto);
+  box-shadow: var(--sombra-presionada);
+}
+
+/* --- Tablas ----------------------------------------------------------------------------------- */
+
+.tabla-scroll { overflow-x: auto; }
+.tabla { width: 100%; border-collapse: separate; border-spacing: 0; font-size: var(--texto-sm); }
+.tabla th, .tabla td { padding: var(--esp-2) var(--esp-3); text-align: left; white-space: nowrap; }
+.tabla thead th {
+  font-size: var(--texto-xs);
+  font-weight: var(--peso-fuerte);
+  color: var(--color-texto-suave);
+  border-bottom: var(--borde) solid var(--color-tinta);
+}
+.tabla tbody tr:nth-child(even) td { background: var(--color-superficie-2); }
+.tabla .num { text-align: right; font-variant-numeric: tabular-nums; font-weight: var(--peso-medio); }
+.tabla tr.con-error td { color: var(--color-error); }
+.tabla .cero { color: var(--color-texto-suave); opacity: 0.6; }
+.muestra {
+  display: inline-block;
+  width: var(--esp-3);
+  height: var(--esp-3);
+  margin-right: var(--esp-2);
+  border: var(--borde-fino) solid var(--color-tinta);
+  border-radius: var(--radio-pildora);
+  vertical-align: middle;
+}
+
+/* --- Mensajes, chips y avisos ------------------------------------------------------------------ */
+
+.mensaje {
+  display: flex;
+  gap: var(--esp-2);
+  align-items: flex-start;
+  padding: var(--esp-3);
+  border: var(--borde) solid var(--color-tinta);
+  border-radius: var(--radio-md);
+  background: var(--color-superficie-2);
+}
+.mensaje--error { background: var(--color-error-suave); color: var(--color-error); border-color: var(--color-error); }
+.mensaje--ok { background: var(--color-ok-suave); color: var(--color-ok); border-color: var(--color-ok); }
+.mensaje--aviso { background: var(--color-aviso-suave); color: var(--color-aviso); border-color: var(--color-aviso); }
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1);
+  padding: 0 var(--esp-2);
+  min-height: var(--alto-control-chico);
+  border: var(--borde-fino) solid var(--color-tinta);
+  border-radius: var(--radio-pildora);
+  background: var(--color-superficie);
+  font-size: var(--texto-xs);
+  font-weight: var(--peso-fuerte);
+}
+.chip--ok { background: var(--color-ok-suave); }
+.chip--error { background: var(--color-error-suave); }
+
+.estado-simulacion { display: flex; align-items: center; gap: var(--esp-2); font-size: var(--texto-sm); color: var(--color-texto-suave); }
+.estado-simulacion::before {
+  content: "";
+  width: var(--esp-3);
+  height: var(--esp-3);
+  border: var(--borde-fino) solid var(--color-tinta);
+  border-radius: var(--radio-pildora);
+  background: var(--color-borde-suave);
+}
+.estado-simulacion[data-fase="ok"]::before { background: var(--color-ok); }
+.estado-simulacion[data-fase="error"]::before { background: var(--color-error); }
+
+.aviso {
+  padding: var(--esp-3) var(--esp-4);
+  border: var(--borde) solid var(--color-tinta);
+  border-radius: var(--radio-md);
+  background: var(--color-tinta);
+  color: var(--color-texto-invertido);
+  font-weight: var(--peso-fuerte);
+  box-shadow: var(--sombra-flotante);
+}
+.aviso-version {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-3);
+  padding: var(--esp-2) var(--esp-2) var(--esp-2) var(--esp-4);
+  border: var(--borde) solid var(--color-tinta);
+  border-radius: var(--radio-pildora);
+  background: var(--color-superficie);
+  font-weight: var(--peso-fuerte);
+  box-shadow: var(--sombra-plana-grande);
+}
+
+/* --- Listas de circuitos ------------------------------------------------------------------------ */
+
+.lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--esp-2); }
+.elemento {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-3);
+  padding: var(--esp-2) var(--esp-3);
+  border: var(--borde-fino) solid var(--color-tinta);
+  border-radius: var(--radio-md);
+  background: var(--color-superficie);
+}
+.elemento--actual { background: var(--color-primario-suave); border-width: var(--borde); }
+.elemento__texto { flex: 1; min-width: 0; }
+.elemento__nombre { font-weight: var(--peso-fuerte); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.elemento__meta { font-size: var(--texto-xs); color: var(--color-texto-suave); }
+
+/* --- Leyenda de tensiones ----------------------------------------------------------------------- */
+
+.leyenda-tension { display: flex; flex-direction: column; gap: var(--esp-1); font-size: var(--texto-xs); font-weight: var(--peso-fuerte); }
+.leyenda-tension__barra {
+  height: var(--esp-3);
+  border: var(--borde-fino) solid var(--color-tinta);
+  border-radius: var(--radio-pildora);
+  background: linear-gradient(90deg, var(--tension-0), var(--tension-1), var(--tension-2), var(--tension-3), var(--tension-4));
+}
+.leyenda-tension__extremos { display: flex; justify-content: space-between; color: var(--color-texto-suave); }
+
+/* --- Diálogos y campos --------------------------------------------------------------------------- */
+
+.dialogo {
+  padding: 0;
+  width: min(calc(var(--ancho-panel) + var(--esp-4)), calc(100vw - var(--esp-6)));
+  border: var(--borde) solid var(--color-tinta);
+  border-radius: var(--radio-lg);
+  background: var(--color-superficie);
+  color: var(--color-texto);
+  box-shadow: var(--sombra-plana-grande);
+  overflow: hidden;
+}
+.dialogo::backdrop { background: var(--velo); }
+.dialogo .tarjeta__encabezado { background: var(--color-encabezado-dialogo); }
+.campo { display: flex; flex-direction: column; gap: var(--esp-1); font-weight: var(--peso-fuerte); font-size: var(--texto-sm); }
+.campo input {
+  min-height: var(--alto-control);
+  padding: 0 var(--esp-3);
+  border: var(--borde) solid var(--color-tinta);
+  border-radius: var(--radio-md);
+  background: var(--color-fondo);
+  color: var(--color-texto);
+  font: inherit;
+  font-size: var(--texto-base);
+}
+.campo input[aria-invalid="true"] { border-color: var(--color-error); background: var(--color-error-suave); }
+.campo__ayuda { font-weight: var(--peso-normal); color: var(--color-texto-suave); font-size: var(--texto-xs); }
+.campo__error { color: var(--color-error); font-size: var(--texto-xs); min-height: var(--texto-base); }
+.acciones { display: flex; flex-wrap: wrap; gap: var(--esp-2); }
+.acciones--fin { justify-content: flex-end; }
+
+.nota { margin: 0; font-size: var(--texto-xs); color: var(--color-texto-suave); }
+
+@media (prefers-reduced-motion: reduce) {
+  .boton, .conmutador button { transition: none; }
+}

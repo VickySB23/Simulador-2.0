@@ -1,0 +1,264 @@
+/* Sistema de diseño del Simulador DC: ilustración plana, cálida y con contornos marcados.
+ *
+ * Es el ÚNICO archivo con valores literales (colores, tamaños, sombras). El resto de la interfaz
+ * (ui.css, circuito.css) usa solo estas variables; tests/tokens.test.js lo verifica.
+ * Variantes: clara (por defecto), oscura (por sistema o [data-theme="dark"]) y proyector
+ * ([data-proyector="1"], que se combina con cualquiera de las dos).
+ */
+
+@font-face {
+  font-family: "Nunito";
+  /* Nunito, SIL Open Font License 1.1 (fonts/OFL.txt). Variable: pesos 200 a 1000, subconjunto latino. */
+  src: url("../fonts/nunito.woff2") format("woff2");
+  font-weight: 200 1000;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  color-scheme: light;
+
+  /* --- Color: base ------------------------------------------------------------------------ */
+  --color-fondo: #fbf3e4;            /* crema */
+  --color-fondo-hundido: #f4e8d2;    /* lienzo del circuito */
+  --color-superficie: #fffcf6;       /* cuerpo de tarjetas */
+  --color-superficie-2: #f7ecda;     /* filas alternas, campos */
+  --color-tinta: #2e2420;            /* contornos y texto: marrón casi negro */
+  --color-texto: #2e2420;
+  --color-texto-suave: #6e5d50;
+  --color-texto-invertido: #fffcf6;
+  --color-borde-suave: #e3d3ba;
+  --color-grilla: #dccab0;
+
+  /* --- Color: marca y acentos (cálidos) --------------------------------------------------- */
+  --color-primario: #e4572e;         /* tomate */
+  --color-primario-hover: #cf4720;
+  --color-primario-suave: #fbd9cc;
+  --color-mostaza: #f2a541;
+  --color-coral: #f28c6b;
+  --color-menta: #8cc7b5;
+  --color-cielo: #9cc3e6;
+  --color-lila: #b9a3d6;
+  --color-verde: #3e9c7a;
+
+  /* Encabezados de tarjeta */
+  --color-encabezado-resultados: var(--color-mostaza);
+  --color-encabezado-ecuaciones: var(--color-menta);
+  --color-encabezado-circuitos: var(--color-coral);
+  --color-encabezado-dialogo: var(--color-cielo);
+  --color-encabezado-texto: var(--color-tinta);
+
+  /* --- Color: estados --------------------------------------------------------------------- */
+  --color-seleccion: #2f6db5;
+  --color-seleccion-suave: #d6e4f5;
+  --color-error: #c8283f;
+  --color-error-suave: #fbdcdc;
+  --color-ok: #2f8a57;
+  --color-ok-suave: #d9efe1;
+  --color-aviso: #b26a00;
+  --color-aviso-suave: #fcebc8;
+  --color-foco: #2f6db5;
+
+  /* --- Color: circuito -------------------------------------------------------------------- */
+  /* Escala de tensión de los cables: azul oscuro (potencial más bajo) a rojo (más alto). */
+  --tension-0: #1d3557;
+  --tension-1: #2f6fa3;
+  --tension-2: #7bb3a6;
+  --tension-3: #f2a541;
+  --tension-4: #d62828;
+  --color-cable-neutro: var(--color-tinta);
+  --color-puntos-convencional: #ffd23f;   /* corriente convencional: de + a − */
+  --color-puntos-electrones: #5ec8f2;     /* flujo de electrones: de − a + */
+  --color-flecha-corriente: #1f8a70;
+  --color-nodo-error: var(--color-error);
+
+  /* Ilustraciones de componentes */
+  --ilus-resistencia-cuerpo: #f1d7a8;
+  --ilus-banda-1: #8a4b2a;
+  --ilus-banda-2: #2e2420;
+  --ilus-banda-3: #e4572e;
+  --ilus-calor: #ff7a2f;                  /* brillo cálido según la potencia */
+  --ilus-bateria-cuerpo: #3e9c7a;
+  --ilus-bateria-franja: #f2a541;
+  --ilus-bateria-borne: #c98a4b;
+  --ilus-bateria-signo: #fffcf6;
+  --ilus-bateria-pulso: #8fe3c0;
+  --ilus-fuente-corriente: #b9a3d6;
+  --ilus-fuente-flecha: #2e2420;
+  --ilus-lampara-vidrio: #fff6d8;
+  --ilus-lampara-luz: #ffd23f;
+  --ilus-lampara-halo: #ffcf40;
+  --ilus-lampara-filamento: #b5651d;
+  --ilus-lampara-filamento-encendido: #ff8c1a;
+  --ilus-lampara-base: #9aa4ad;
+  --ilus-lampara-quemada: #8c8279;
+  --ilus-interruptor-base: #c9a27a;
+  --ilus-interruptor-palanca: #e4572e;
+  --ilus-interruptor-borne: #9aa4ad;
+  --ilus-tierra: var(--color-tinta);
+
+  /* --- Tipografía ------------------------------------------------------------------------- */
+  --fuente: "Nunito", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --fuente-mono: ui-monospace, "Cascadia Code", "SF Mono", Consolas, monospace;
+  --texto-xs: 0.75rem;
+  --texto-sm: 0.8125rem;
+  --texto-base: 0.9375rem;
+  --texto-lg: 1.125rem;
+  --texto-xl: 1.375rem;
+  --texto-xxl: 1.75rem;
+  --peso-normal: 500;
+  --peso-medio: 650;
+  --peso-fuerte: 800;
+  --peso-titulo: 900;
+  --interlineado: 1.45;
+  --tracking-titulo: -0.01em;
+
+  /* --- Forma ------------------------------------------------------------------------------ */
+  --radio-sm: 8px;
+  --radio-md: 14px;
+  --radio-lg: 20px;
+  --radio-pildora: 999px;
+  --borde-fino: 1.5px;
+  --borde: 2.5px;
+  --borde-grueso: 3.5px;
+
+  /* Sombras planas desplazadas (estilo ilustración) y una difusa para lo flotante. */
+  --sombra-plana: 3px 3px 0 var(--color-tinta);
+  --sombra-plana-grande: 5px 5px 0 var(--color-tinta);
+  --sombra-presionada: 1px 1px 0 var(--color-tinta);
+  --sombra-flotante: 0 10px 30px rgb(46 36 32 / 0.22);
+  --velo: rgb(46 36 32 / 0.45);
+
+  /* --- Espaciado -------------------------------------------------------------------------- */
+  --esp-1: 4px;
+  --esp-2: 8px;
+  --esp-3: 12px;
+  --esp-4: 16px;
+  --esp-5: 24px;
+  --esp-6: 32px;
+  --esp-7: 48px;
+  --alto-control: 38px;
+  --alto-control-chico: 30px;
+  --icono: 20px;
+  --ancho-panel: 400px;
+
+  /* --- Dibujo del circuito (unidades del SVG) --------------------------------------------- */
+  --trazo-cable: 4px;
+  --trazo-componente: 2.5px;
+  --trazo-esquema: 2px;
+  --puntos-tamano: 6px;
+  --texto-etiqueta: 12px;
+  --texto-etiqueta-valor: 11.5px;
+  --texto-signo: 18px;
+
+  /* --- Movimiento ------------------------------------------------------------------------- */
+  --duracion-rapida: 120ms;
+  --duracion-media: 240ms;
+  --duracion-lenta: 420ms;
+  --curva: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --curva-rebote: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* --- Variante oscura ---------------------------------------------------------------------- */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --color-fondo: #1e1916;
+    --color-fondo-hundido: #17130f;
+    --color-superficie: #2a231f;
+    --color-superficie-2: #342b26;
+    --color-tinta: #f3e6cf;
+    --color-texto: #f6ecdd;
+    --color-texto-suave: #c4b29d;
+    --color-texto-invertido: #1e1916;
+    --color-borde-suave: #4a3e36;
+    --color-grilla: #3b322c;
+    --color-primario: #f0714a;
+    --color-primario-hover: #f58a67;
+    --color-primario-suave: #4a2a1f;
+    --color-encabezado-texto: #1e1916;
+    --color-seleccion: #7fb0ec;
+    --color-seleccion-suave: #253a55;
+    --color-error: #ff7383;
+    --color-error-suave: #4a2027;
+    --color-ok: #6fd39b;
+    --color-ok-suave: #1f3a2b;
+    --color-aviso: #ffbf47;
+    --color-aviso-suave: #42331a;
+    --color-foco: #7fb0ec;
+    --tension-0: #4c6fa8;
+    --tension-1: #4f9bd1;
+    --tension-2: #86c7b8;
+    --tension-3: #f6b65a;
+    --tension-4: #ff5a4f;
+    --color-flecha-corriente: #5fd3b4;
+    --ilus-resistencia-cuerpo: #d9bd8a;
+    --ilus-lampara-vidrio: #3a342a;
+    --ilus-interruptor-base: #a8845f;
+    --sombra-flotante: 0 10px 30px rgb(0 0 0 / 0.5);
+    --velo: rgb(0 0 0 / 0.6);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --color-fondo: #1e1916;
+  --color-fondo-hundido: #17130f;
+  --color-superficie: #2a231f;
+  --color-superficie-2: #342b26;
+  --color-tinta: #f3e6cf;
+  --color-texto: #f6ecdd;
+  --color-texto-suave: #c4b29d;
+  --color-texto-invertido: #1e1916;
+  --color-borde-suave: #4a3e36;
+  --color-grilla: #3b322c;
+  --color-primario: #f0714a;
+  --color-primario-hover: #f58a67;
+  --color-primario-suave: #4a2a1f;
+  --color-encabezado-texto: #1e1916;
+  --color-seleccion: #7fb0ec;
+  --color-seleccion-suave: #253a55;
+  --color-error: #ff7383;
+  --color-error-suave: #4a2027;
+  --color-ok: #6fd39b;
+  --color-ok-suave: #1f3a2b;
+  --color-aviso: #ffbf47;
+  --color-aviso-suave: #42331a;
+  --color-foco: #7fb0ec;
+  --tension-0: #4c6fa8;
+  --tension-1: #4f9bd1;
+  --tension-2: #86c7b8;
+  --tension-3: #f6b65a;
+  --tension-4: #ff5a4f;
+  --color-flecha-corriente: #5fd3b4;
+  --ilus-resistencia-cuerpo: #d9bd8a;
+  --ilus-lampara-vidrio: #3a342a;
+  --ilus-interruptor-base: #a8845f;
+  --sombra-flotante: 0 10px 30px rgb(0 0 0 / 0.5);
+  --velo: rgb(0 0 0 / 0.6);
+}
+
+/* --- Variante proyector: todo más grande y más grueso --------------------------------------- */
+:root[data-proyector="1"] {
+  --texto-xs: 0.9375rem;
+  --texto-sm: 1rem;
+  --texto-base: 1.125rem;
+  --texto-lg: 1.375rem;
+  --texto-xl: 1.625rem;
+  --texto-xxl: 2.125rem;
+  --borde: 3px;
+  --borde-grueso: 4px;
+  --sombra-plana: 4px 4px 0 var(--color-tinta);
+  --sombra-plana-grande: 6px 6px 0 var(--color-tinta);
+  --alto-control: 48px;
+  --alto-control-chico: 38px;
+  --icono: 24px;
+  --ancho-panel: 480px;
+  --trazo-cable: 5.5px;
+  --trazo-componente: 3.2px;
+  --trazo-esquema: 2.8px;
+  --puntos-tamano: 8px;
+  --texto-etiqueta: 15px;
+  --texto-etiqueta-valor: 14px;
+  --texto-signo: 22px;
+}

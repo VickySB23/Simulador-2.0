@@ -40,5 +40,10 @@ con el hash del commit; en local, cambiá `simulador-dc-dev` en `sw.js` y `js/ve
 "Hay una versión nueva — Actualizar", tocarlo y terminar con la versión nueva activa.
 `ESPERA_MINUTOS` fija cuánto espera (por defecto 15).
 
+`galeria.mjs` saca capturas de `galeria.html` (claro, oscuro, proyector y celular), comprueba que
+los canvas de animación queden sobre su SVG, que las animaciones se pausen y respeten
+`prefers-reduced-motion`, y mide cuadros por segundo con 50 componentes animados, también con la
+CPU 4× más lenta (como un celular de gama media).
+
 `servir.mjs` sirve `frontend/public/` en la raíz y en `/Simulador-2.0/`, como GitHub Pages, para
 comprobar que todas las rutas sean relativas.

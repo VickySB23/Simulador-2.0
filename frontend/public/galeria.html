@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'">
+  <meta name="referrer" content="no-referrer">
+  <title>Galería · Simulador DC</title>
+  <meta name="description" content="Sistema de diseño del Simulador DC: tokens, interfaz y componentes en todos sus estados.">
+  <meta name="color-scheme" content="light dark">
+  <link rel="icon" href="icono.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/tokens.css">
+  <link rel="stylesheet" href="css/ui.css">
+  <link rel="stylesheet" href="css/circuito.css">
+  <link rel="stylesheet" href="css/galeria.css">
+  <script src="js/tema.js"></script>
+  <script type="module" src="js/galeria.js"></script>
+</head>
+<body>
+  <header class="encabezado galeria-encabezado">
+    <div class="marca">
+      <span class="marca-logo"><span data-icono="lampara"></span></span>
+      <div>
+        <h1>Galería del sistema de diseño</h1>
+        <p class="nota">Simulador DC · borrador para aprobar antes de rediseñar el editor</p>
+      </div>
+    </div>
+    <div class="encabezado__espacio"></div>
+    <div class="galeria-controles">
+      <div class="conmutador" role="group" aria-label="Tema" id="control-tema">
+        <button type="button" data-tema="auto" aria-pressed="true">Auto</button>
+        <button type="button" data-tema="light" aria-pressed="false">Claro</button>
+        <button type="button" data-tema="dark" aria-pressed="false">Oscuro</button>
+      </div>
+      <button id="control-proyector" class="boton" type="button" aria-pressed="false"><span data-icono="proyector"></span>Proyector</button>
+      <button id="control-animaciones" class="boton" type="button" aria-pressed="false"><span data-icono="pausa"></span><span>Pausar animaciones</span></button>
+      <div class="conmutador" role="group" aria-label="Sentido de la corriente" id="control-sentido">
+        <button type="button" data-sentido="convencional" aria-pressed="true">Convencional</button>
+        <button type="button" data-sentido="electrones" aria-pressed="false">Electrones</button>
+      </div>
+      <a class="boton boton--chico" href="./">Volver al simulador</a>
+    </div>
+  </header>
+
+  <div class="galeria">
+    <nav class="indice" aria-label="Secciones">
+      <ol>
+        <li><a href="#tokens">1. Tokens</a></li>
+        <li><a href="#interfaz">2. Interfaz</a></li>
+        <li><a href="#componentes">3. Componentes</a></li>
+        <li><a href="#animaciones">4. Animaciones</a></li>
+        <li><a href="#demo">5. Circuito de prueba</a></li>
+        <li><a href="#rendimiento">6. Rendimiento</a></li>
+      </ol>
+    </nav>
+
+    <main>
+      <!-- 1. Tokens --------------------------------------------------------------------------->
+      <section class="seccion" id="tokens">
+        <h2>1. Tokens</h2>
+        <p>Todo sale de <code>css/tokens.css</code>: colores, tipografía (Nunito, licencia OFL, incluida en el repo), radios, sombras, espaciados y trazos del circuito. Las variantes clara, oscura y proyector cambian solo estas variables.</p>
+        <div class="subseccion"><h3>Colores de la interfaz</h3><div class="rejilla" id="colores-interfaz"></div></div>
+        <div class="subseccion"><h3>Colores del circuito</h3><div class="rejilla" id="colores-circuito"></div></div>
+        <div class="subseccion">
+          <h3>Tipografía</h3>
+          <div class="tarjeta"><div class="tarjeta__cuerpo">
+            <p class="muestra-tipo" id="tipografia"></p>
+          </div></div>
+        </div>
+        <div class="subseccion"><h3>Radios y sombras</h3><div class="fila" id="radios"></div></div>
+        <div class="subseccion"><h3>Espaciados</h3><div id="espaciados"></div></div>
+      </section>
+
+      <!-- 2. Interfaz -------------------------------------------------------------------------->
+      <section class="seccion" id="interfaz">
+        <h2>2. Interfaz</h2>
+        <p>Botones, barra de herramientas, pestañas, tarjetas con encabezado de color, tablas, mensajes, diálogos y avisos, con los mismos tokens.</p>
+
+        <div class="subseccion">
+          <h3>Botones</h3>
+          <div class="fila">
+            <button class="boton boton--primario" type="button"><span data-icono="compartir"></span>Compartir</button>
+            <button class="boton" type="button"><span data-icono="guardar"></span>Guardar</button>
+            <button class="boton" type="button" aria-pressed="true"><span data-icono="proyector"></span>Presionado</button>
+            <button class="boton" type="button" disabled><span data-icono="rehacer"></span>Deshabilitado</button>
+            <button class="boton boton--peligro" type="button"><span data-icono="borrar"></span>Borrar</button>
+            <button class="boton boton--plano" type="button"><span data-icono="nuevo"></span>Plano</button>
+            <button class="boton boton--icono" type="button" aria-label="Rotar"><span data-icono="rotar"></span></button>
+            <button class="boton boton--chico" type="button">Chico</button>
+            <button class="boton boton--chico boton--icono" type="button" aria-label="Cerrar"><span data-icono="cerrar"></span></button>
+          </div>
+          <div class="fila">
+            <div class="conmutador" role="group" aria-label="Vista">
+              <button type="button" aria-pressed="true"><span data-icono="ilustrada"></span> Ilustrada</button>
+              <button type="button" aria-pressed="false"><span data-icono="esquematica"></span> Esquemática</button>
+            </div>
+            <span class="chip">12 V</span>
+            <span class="chip chip--ok">Balance OK</span>
+            <span class="chip chip--error">Nodo suelto</span>
+          </div>
+        </div>
+
+        <div class="subseccion">
+          <h3>Barra de herramientas</h3>
+          <div class="barra">
+            <div class="barra__grupo" role="radiogroup" aria-label="Herramienta">
+              <button class="boton" type="button" aria-pressed="true"><span data-icono="seleccionar"></span>Seleccionar</button>
+              <button class="boton" type="button"><span data-icono="cable"></span>Cable</button>
+              <button class="boton" type="button"><span data-icono="resistencia"></span>R</button>
+              <button class="boton" type="button"><span data-icono="bateria"></span>Batería</button>
+              <button class="boton" type="button"><span data-icono="fuente-corriente"></span>I</button>
+              <button class="boton" type="button"><span data-icono="lampara"></span>Lámpara</button>
+              <button class="boton" type="button"><span data-icono="interruptor"></span>Interruptor</button>
+              <button class="boton" type="button"><span data-icono="tierra"></span>GND</button>
+            </div>
+            <div class="barra__grupo">
+              <button class="boton" type="button"><span data-icono="rotar"></span>Rotar</button>
+              <button class="boton" type="button"><span data-icono="valor"></span>Valor</button>
+              <button class="boton" type="button" disabled><span data-icono="borrar"></span>Borrar</button>
+            </div>
+            <div class="barra__grupo">
+              <button class="boton" type="button"><span data-icono="deshacer"></span>Deshacer</button>
+              <button class="boton" type="button" disabled><span data-icono="rehacer"></span>Rehacer</button>
+            </div>
+            <div class="barra__grupo">
+              <button class="boton" type="button"><span data-icono="pausa"></span>Pausa</button>
+              <button class="boton" type="button"><span data-icono="sentido"></span>Sentido</button>
+              <button class="boton" type="button"><span data-icono="esquematica"></span>Vista</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="subseccion"><h3>Íconos</h3><div class="rejilla" id="iconos"></div></div>
+
+        <div class="subseccion">
+          <h3>Paneles</h3>
+          <div class="rejilla rejilla--ancha">
+            <article class="tarjeta tarjeta--resultados">
+              <header class="tarjeta__encabezado"><span data-icono="lampara"></span><h3>Resultados</h3></header>
+              <div class="tarjeta__cuerpo">
+                <div class="estado-simulacion" data-fase="ok">Simulación OK · 3 nodos · 0,9 ms</div>
+                <div class="metricas">
+                  <div class="metrica"><span class="metrica__titulo">Entregada</span><span class="metrica__valor">750 W</span></div>
+                  <div class="metrica"><span class="metrica__titulo">Absorbida</span><span class="metrica__valor">750 W</span></div>
+                  <div class="metrica"><span class="metrica__titulo">Balance</span><span class="metrica__valor metrica__valor--ok">OK</span></div>
+                  <div class="metrica"><span class="metrica__titulo">Residuo KCL</span><span class="metrica__valor metrica__valor--ok">1,8e-15 A</span></div>
+                </div>
+                <div class="tabla-scroll">
+                  <table class="tabla">
+                    <thead><tr><th>Id</th><th class="num">Tensión</th><th class="num">Corriente</th><th class="num">Potencia</th></tr></thead>
+                    <tbody>
+                      <tr><td>V1</td><td class="num">60,0 V</td><td class="num">−12,5 A</td><td class="num">−750 W ↑</td></tr>
+                      <tr><td>R1</td><td class="num">30,0 V</td><td class="num">10,0 A</td><td class="num">300 W</td></tr>
+                      <tr><td>L1</td><td class="num">30,0 V</td><td class="num">2,50 A</td><td class="num">75,0 W</td></tr>
+                      <tr class="con-error"><td>R5</td><td class="num">—</td><td class="num">—</td><td class="num">—</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div class="leyenda-tension">
+                  <span>Tensión de los cables</span>
+                  <div class="leyenda-tension__barra"></div>
+                  <div class="leyenda-tension__extremos"><span>0 V (más bajo)</span><span>60 V (más alto)</span></div>
+                </div>
+              </div>
+            </article>
+
+            <article class="tarjeta tarjeta--ecuaciones">
+              <header class="tarjeta__encabezado"><span data-icono="ecuaciones"></span><h3>Ecuaciones</h3></header>
+              <div class="tarjeta__cuerpo">
+                <p class="nota">Suma de las corrientes que salen de cada nodo.</p>
+                <ol class="lista">
+                  <li class="elemento"><code>(V(12,8) − V(6,4))/3 Ω + V(12,8)/6 Ω = 0</code></li>
+                  <li class="elemento"><code>V(6,4) = 60 V</code></li>
+                </ol>
+                <div class="tabla-scroll">
+                  <table class="tabla">
+                    <thead><tr><th></th><th class="num">V(6,4)</th><th class="num">V(12,8)</th><th class="num">I(V1)</th><th class="num">z</th></tr></thead>
+                    <tbody>
+                      <tr><th>KCL V(6,4)</th><td class="num">0,4167</td><td class="num">−0,4167</td><td class="num">1</td><td class="num">0</td></tr>
+                      <tr><th>KCL V(12,8)</th><td class="num">−0,4167</td><td class="num">0,8333</td><td class="num cero">0</td><td class="num">0</td></tr>
+                      <tr><th>V1</th><td class="num">1</td><td class="num cero">0</td><td class="num cero">0</td><td class="num">60</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </article>
+
+            <article class="tarjeta tarjeta--circuitos">
+              <header class="tarjeta__encabezado"><span data-icono="abrir"></span><h3>Circuitos</h3></header>
+              <div class="tarjeta__cuerpo">
+                <div class="acciones">
+                  <button class="boton boton--primario boton--chico" type="button"><span data-icono="guardar"></span>Guardar</button>
+                  <button class="boton boton--chico" type="button"><span data-icono="exportar"></span>Exportar</button>
+                  <button class="boton boton--chico" type="button"><span data-icono="importar"></span>Importar</button>
+                </div>
+                <ul class="lista">
+                  <li class="elemento elemento--actual"><div class="elemento__texto"><div class="elemento__nombre">TP4 de prueba</div><div class="elemento__meta">11 componentes · 12/11/26 15:20</div></div><button class="boton boton--chico" type="button">Abrir</button></li>
+                  <li class="elemento"><div class="elemento__texto"><div class="elemento__nombre">Puente de Wheatstone</div><div class="elemento__meta">13 componentes · 10/11/26 09:02</div></div><button class="boton boton--chico" type="button">Abrir</button></li>
+                </ul>
+              </div>
+            </article>
+          </div>
+        </div>
+
+        <div class="subseccion">
+          <h3>Pestañas</h3>
+          <div class="pestanas tarjeta" role="tablist">
+            <button class="pestana" role="tab" aria-selected="true" type="button">Resultados</button>
+            <button class="pestana" role="tab" aria-selected="false" type="button">Ecuaciones</button>
+            <button class="pestana" role="tab" aria-selected="false" type="button">Circuitos</button>
+          </div>
+        </div>
+
+        <div class="subseccion">
+          <h3>Mensajes y avisos</h3>
+          <div class="mensaje mensaje--error"><span data-icono="cerrar"></span>Nodos sin camino a tierra: 28_18, 32_18. Conectalos con una resistencia o fuente de tensión.</div>
+          <div class="mensaje mensaje--aviso"><span data-icono="lampara"></span>La lámpara L1 está quemada: disipa 13,5 W y su potencia nominal es 6 W.</div>
+          <div class="mensaje mensaje--ok"><span data-icono="guardar"></span>Guardado en este navegador: TP4 de prueba.</div>
+          <div class="fila">
+            <div class="aviso">Link copiado. Pegalo donde quieras.</div>
+            <div class="aviso-version"><span>Hay una versión nueva —</span><button class="boton boton--primario boton--chico" type="button">Actualizar</button></div>
+          </div>
+        </div>
+
+        <div class="subseccion">
+          <h3>Diálogo</h3>
+          <div class="fila">
+            <div class="dialogo dialogo--estatico" role="dialog" aria-label="Ejemplo de diálogo">
+              <header class="tarjeta__encabezado"><span data-icono="valor"></span><h3>Valor de R1</h3></header>
+              <div class="tarjeta__cuerpo">
+                <label class="campo">Resistencia (Ω)<input value="4,7k" readonly></label>
+                <p class="campo__ayuda">Acepta prefijos: 10k, 4.7k, 1MEG, 5m, 2.2u.</p>
+                <label class="campo">Con error<input value="abc" aria-invalid="true" readonly></label>
+                <p class="campo__error">Valor inválido: 'abc'. Ejemplos: 10k, 4.7k, 5m.</p>
+                <div class="acciones acciones--fin">
+                  <button class="boton" type="button">Cancelar</button>
+                  <button class="boton boton--primario" type="button">Aceptar</button>
+                </div>
+              </div>
+            </div>
+            <button id="abrir-dialogo" class="boton" type="button"><span data-icono="valor"></span>Abrir el diálogo real</button>
+          </div>
+          <dialog id="dialogo-real" class="dialogo">
+            <form method="dialog">
+              <header class="tarjeta__encabezado"><span data-icono="valor"></span><h3>Valor de R1</h3></header>
+              <div class="tarjeta__cuerpo">
+                <label class="campo">Resistencia (Ω)<input value="1k"></label>
+                <div class="acciones acciones--fin">
+                  <button class="boton" value="cancelar">Cancelar</button>
+                  <button class="boton boton--primario" value="aceptar">Aceptar</button>
+                </div>
+              </div>
+            </form>
+          </dialog>
+        </div>
+      </section>
+
+      <!-- 3. Componentes ------------------------------------------------------------------------->
+      <section class="seccion" id="componentes">
+        <h2>3. Componentes</h2>
+        <p>Cada componente en todos sus estados, en vista ilustrada y esquemática (símbolos IEC 60617). Los interruptores se abren y cierran con un clic.</p>
+        <div id="tablas-componentes"></div>
+      </section>
+
+      <!-- 4. Animaciones ------------------------------------------------------------------------->
+      <section class="seccion" id="animaciones">
+        <h2>4. Animaciones</h2>
+        <p>Los puntos avanzan en el sentido real de la corriente, con velocidad en escala logarítmica. El botón “Electrones” los invierte. Todo se detiene con “Pausar animaciones” y si el sistema pide movimiento reducido.</p>
+        <div class="subseccion"><h3>Corriente según la intensidad</h3><div id="anim-corriente"></div></div>
+        <div class="subseccion">
+          <h3>Lámpara, resistencia y batería</h3>
+          <div class="fila">
+            <label class="control-rango">Brillo de la lámpara <input id="rango-brillo" type="range" min="0" max="150" value="60"> <span id="texto-brillo"></span></label>
+            <label class="control-rango">Calor de la resistencia <input id="rango-calor" type="range" min="0" max="100" value="70"> <span id="texto-calor"></span></label>
+          </div>
+          <div class="rejilla" id="anim-varios"></div>
+        </div>
+      </section>
+
+      <!-- 5. Circuito de prueba -------------------------------------------------------------------->
+      <section class="seccion" id="demo">
+        <h2>5. Circuito de prueba</h2>
+        <p>Simulado en vivo con el motor (con lámpara e interruptor). Tocá los interruptores o cambiá la tensión de la batería: con 18 V la lámpara de 6 W se quema.</p>
+        <div class="demo">
+          <div class="demo__lienzo" id="demo-lienzo"></div>
+          <article class="tarjeta tarjeta--resultados">
+            <header class="tarjeta__encabezado"><h3>Resultados</h3></header>
+            <div class="tarjeta__cuerpo">
+              <div class="conmutador" role="group" aria-label="Vista del circuito" id="demo-vista">
+                <button type="button" data-vista="ilustrada" aria-pressed="true">Ilustrada</button>
+                <button type="button" data-vista="esquematica" aria-pressed="false">Esquemática</button>
+              </div>
+              <div class="conmutador" role="group" aria-label="Tensión de la batería" id="demo-tension">
+                <button type="button" data-tension="6" aria-pressed="false">6 V</button>
+                <button type="button" data-tension="12" aria-pressed="true">12 V</button>
+                <button type="button" data-tension="18" aria-pressed="false">18 V</button>
+              </div>
+              <div id="demo-mensaje"></div>
+              <div class="tabla-scroll">
+                <table class="tabla">
+                  <thead><tr><th>Id</th><th class="num">Tensión</th><th class="num">Corriente</th><th class="num">Potencia</th></tr></thead>
+                  <tbody id="demo-tabla"></tbody>
+                </table>
+              </div>
+              <div class="leyenda-tension">
+                <span>Tensión de los cables</span>
+                <div class="leyenda-tension__barra"></div>
+                <div class="leyenda-tension__extremos"><span id="demo-vmin">0 V</span><span id="demo-vmax"></span></div>
+              </div>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <!-- 6. Rendimiento ------------------------------------------------------------------------------>
+      <section class="seccion" id="rendimiento">
+        <h2>6. Rendimiento</h2>
+        <p>50 componentes animados a la vez, como un circuito grande en el editor. El medidor cuenta cuadros por segundo durante 3 segundos.</p>
+        <div class="fila">
+          <button id="medir" class="boton boton--primario" type="button"><span data-icono="reproducir"></span>Medir cuadros por segundo</button>
+          <span class="medidor" id="medidor">—</span>
+          <div class="conmutador" role="group" aria-label="Vista de la prueba" id="carga-vista">
+            <button type="button" data-vista="ilustrada" aria-pressed="true">Ilustrada</button>
+            <button type="button" data-vista="esquematica" aria-pressed="false">Esquemática</button>
+          </div>
+        </div>
+        <div class="demo__lienzo" id="carga-lienzo"></div>
+      </section>
+    </main>
+  </div>
+</body>
+</html>
