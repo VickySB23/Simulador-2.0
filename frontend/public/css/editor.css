@@ -113,6 +113,12 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 }
 .aviso-version--flotante { position: fixed; right: var(--esp-4); bottom: var(--esp-4); z-index: 11; }
 
+/* --- Modo proyector: la barra ocupa menos lugar ------------------------------------------------- */
+/* Los botones secundarios quedan solo con su ícono (el nombre está en el tooltip); las herramientas
+   conservan el texto. */
+:root[data-proyector="1"] .barra--editor .barra__grupo:not([role="radiogroup"]) .boton span:not(.icono) { display: none; }
+:root[data-proyector="1"] .barra--editor .barra__grupo:not([role="radiogroup"]) .boton { padding: 0 var(--esp-3); }
+
 /* --- Pantallas chicas --------------------------------------------------------------------------- */
 
 @media (max-width: 960px) {

@@ -67,7 +67,7 @@ code, .mono { font-family: var(--fuente-mono); font-size: var(--texto-sm); }
 .boton:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
 .boton[aria-pressed="true"] {
   background: var(--color-mostaza);
-  color: var(--color-encabezado-texto);
+  color: var(--color-sobre-mostaza);
   transform: translate(calc(var(--esp-1) / 2), calc(var(--esp-1) / 2));
   box-shadow: var(--sombra-presionada);
 }
