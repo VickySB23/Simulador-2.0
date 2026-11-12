@@ -67,6 +67,8 @@ services:
       MAX_COMPONENTS: "${MAX_COMPONENTS:-20000}"
       RATE_LIMIT_AVERAGE: "${SIMULATE_RATE_LIMIT_AVERAGE:-100}"
       RATE_LIMIT_BURST: "${SIMULATE_RATE_LIMIT_BURST:-200}"
+      # Hilos de OpenBLAS por réplica (0 = automático, uno por núcleo del host).
+      OPENBLAS_NUM_THREADS: "${OPENBLAS_NUM_THREADS:-1}"
     depends_on:
       consul:
         condition: service_healthy

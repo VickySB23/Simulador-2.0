@@ -1,0 +1,23 @@
+# DENSE_LIMIT del servicio = 200; 20 repeticiones por medición (mediana); 2026-11-12 16:19:33
+nodos,componentes,incognitas,modo,solver,solve_ms,total_ms
+10,19,11,denso,dense,0.916,1.779
+10,19,11,disperso,sparse,1.666,2.667
+10,19,11,auto,dense,1.079,1.965
+50,99,51,denso,dense,1.348,5.699
+50,99,51,disperso,sparse,1.576,4.969
+50,99,51,auto,dense,0.839,3.370
+100,199,101,denso,dense,1.074,5.290
+100,199,101,disperso,sparse,1.187,5.396
+100,199,101,auto,dense,1.220,6.012
+200,399,201,denso,dense,2.396,12.162
+200,399,201,disperso,sparse,1.600,10.921
+200,399,201,auto,sparse,3.396,24.361
+500,999,501,denso,dense,23.501,47.771
+500,999,501,disperso,sparse,4.159,49.185
+500,999,501,auto,sparse,3.309,30.276
+1000,1999,1001,denso,dense,90.287,138.519
+1000,1999,1001,disperso,sparse,5.627,54.712
+1000,1999,1001,auto,sparse,5.119,53.572
+2000,3999,2001,denso,dense,553.645,686.922
+2000,3999,2001,disperso,sparse,8.829,115.820
+2000,3999,2001,auto,sparse,8.529,102.008

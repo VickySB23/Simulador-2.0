@@ -1,0 +1,13 @@
+# 2026-11-12 13:34:34
+simulador-circuit-service-1	simulador-circuit-service:v1.0.0	Up 27 minutes (healthy)
+simulador-consul-1	hashicorp/consul:1.21	Up About an hour (healthy)
+simulador-db-1	mongo:8.0	Up About an hour (healthy)
+simulador-frontend-1	simulador-frontend:v1.0.0	Up 29 minutes (healthy)
+simulador-simulation-service-1	simulador-simulation-service:v1.0.0	Up 3 minutes (healthy)
+simulador-simulation-service-2	simulador-simulation-service:v1.0.0	Up 3 minutes (healthy)
+simulador-simulation-service-3	simulador-simulation-service:v1.0.0	Up 3 minutes (healthy)
+simulador-traefik-1	traefik:v3.6	Up 12 minutes (healthy)
+simulation-service-1  | 2026-11-12 16:31:37,785 INFO simulation-service Configuración: MAX_CONCURRENT=1 QUEUE_TIMEOUT_SECONDS=10 RETRY_AFTER_SECONDS=1 MAX_COMPONENTS=20000
+rate limit de Traefik: {'average': 100000, 'period': '1s', 'burst': 100000}
+OPENBLAS_NUM_THREADS=0
+circuito=circuitos/escalera-100.json vus=100 replicas=3

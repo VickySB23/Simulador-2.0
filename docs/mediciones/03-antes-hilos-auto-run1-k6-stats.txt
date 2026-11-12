@@ -1,0 +1,70 @@
+13:34:47
+NAME                             CPU %     MEM USAGE / LIMIT
+simulador-traefik-1              0.56%     45.2MiB / 256MiB
+simulador-simulation-service-2   0.29%     57.19MiB / 512MiB
+simulador-simulation-service-1   0.25%     57.2MiB / 512MiB
+simulador-simulation-service-3   44.06%    57.18MiB / 512MiB
+simulador-frontend-1             0.00%     10.29MiB / 64MiB
+simulador-circuit-service-1      17.20%    49.88MiB / 512MiB
+simulador-db-1                   96.65%    109.8MiB / 512MiB
+simulador-consul-1               1.68%     125.8MiB / 256MiB
+13:34:53
+NAME                             CPU %     MEM USAGE / LIMIT
+simulador-traefik-1              12.74%    43.74MiB / 256MiB
+simulador-simulation-service-2   0.43%     57.19MiB / 512MiB
+simulador-simulation-service-1   0.32%     57.2MiB / 512MiB
+simulador-simulation-service-3   0.25%     57.18MiB / 512MiB
+simulador-frontend-1             0.00%     10.29MiB / 64MiB
+simulador-circuit-service-1      0.38%     49.88MiB / 512MiB
+simulador-db-1                   100.97%   264.2MiB / 512MiB
+simulador-consul-1               1.65%     125.8MiB / 256MiB
+13:35:00
+NAME                             CPU %     MEM USAGE / LIMIT
+simulador-traefik-1              0.00%     43.74MiB / 256MiB
+simulador-simulation-service-2   0.23%     57.2MiB / 512MiB
+simulador-simulation-service-1   0.24%     57.2MiB / 512MiB
+simulador-simulation-service-3   0.48%     57.18MiB / 512MiB
+simulador-frontend-1             0.00%     10.29MiB / 64MiB
+simulador-circuit-service-1      0.36%     49.88MiB / 512MiB
+simulador-db-1                   89.08%    257.6MiB / 512MiB
+simulador-consul-1               26.27%    126.3MiB / 256MiB
+13:35:07
+NAME                             CPU %     MEM USAGE / LIMIT
+simulador-traefik-1              0.00%     43.78MiB / 256MiB
+simulador-simulation-service-2   0.26%     57.2MiB / 512MiB
+simulador-simulation-service-1   0.24%     57.21MiB / 512MiB
+simulador-simulation-service-3   0.27%     57.19MiB / 512MiB
+simulador-frontend-1             0.00%     10.3MiB / 64MiB
+simulador-circuit-service-1      0.97%     49.88MiB / 512MiB
+simulador-db-1                   5.40%     110.3MiB / 512MiB
+simulador-consul-1               26.74%    125.8MiB / 256MiB
+13:35:13
+NAME                             CPU %     MEM USAGE / LIMIT
+simulador-traefik-1              0.00%     43.82MiB / 256MiB
+simulador-simulation-service-2   0.28%     57.2MiB / 512MiB
+simulador-simulation-service-1   29.52%    67.84MiB / 512MiB
+simulador-simulation-service-3   26.17%    57.19MiB / 512MiB
+simulador-frontend-1             0.00%     10.29MiB / 64MiB
+simulador-circuit-service-1      0.32%     49.88MiB / 512MiB
+simulador-db-1                   1.91%     108.8MiB / 512MiB
+simulador-consul-1               21.78%    125.8MiB / 256MiB
+13:35:20
+NAME                             CPU %     MEM USAGE / LIMIT
+simulador-traefik-1              20.35%    43.86MiB / 256MiB
+simulador-simulation-service-2   41.71%    57.2MiB / 512MiB
+simulador-simulation-service-1   27.26%    57.21MiB / 512MiB
+simulador-simulation-service-3   0.62%     57.19MiB / 512MiB
+simulador-frontend-1             0.00%     10.29MiB / 64MiB
+simulador-circuit-service-1      33.36%    49.88MiB / 512MiB
+simulador-db-1                   1.55%     108.8MiB / 512MiB
+simulador-consul-1               1.43%     125.8MiB / 256MiB
+13:35:26
+NAME                             CPU %     MEM USAGE / LIMIT
+simulador-traefik-1              25.57%    43.84MiB / 256MiB
+simulador-simulation-service-2   32.18%    57.41MiB / 512MiB
+simulador-simulation-service-1   0.24%     57.21MiB / 512MiB
+simulador-simulation-service-3   0.25%     57.2MiB / 512MiB
+simulador-frontend-1             0.00%     10.29MiB / 64MiB
+simulador-circuit-service-1      34.01%    49.95MiB / 512MiB
+simulador-db-1                   1.33%     109.1MiB / 512MiB
+simulador-consul-1               0.92%     125.8MiB / 256MiB
