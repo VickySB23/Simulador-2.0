@@ -1,11 +1,14 @@
-"""Configuración leída de variables de entorno y validada al arrancar."""
+"""Configuración leída de variables de entorno y validada al arrancar (Twelve-Factor III).
+
+Los nombres de los campos coinciden con las variables de entorno (MONGO_URI, SIMULATION_URL...).
+"""
 from functools import lru_cache
 
 from pydantic import PositiveInt
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-class Settings(BaseSettings):
+class Configuracion(BaseSettings):
     mongo_uri: str = "mongodb://localhost:27017"
     mongo_db_name: str = "circuits"
     # En el stack apunta a Traefik, que balancea entre las réplicas de simulation-service.
@@ -20,5 +23,5 @@ class Settings(BaseSettings):
 
 
 @lru_cache
-def get_settings() -> Settings:
-    return Settings()
+def obtener_configuracion() -> Configuracion:
+    return Configuracion()

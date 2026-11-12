@@ -48,7 +48,7 @@ privilegios (copiar el de pdf-extractext).
 | Parte | Estado |
 | --- | --- |
 | `services/simulation-service` | **Terminado.** 53 tests pasan (`uv run pytest -q`). |
-| `services/circuit-service` | **A medias.** Hechos: `core/`, interfaces (`circuit_repository.py`, `simulator.py`), `services/circuit_service.py`, `clients/http_simulator.py`, `clients/consul_registry.py`. Faltan: `repositories/mongo_repository.py`, `presentation/` (schemas y routers, incluido `/health` con ping a Mongo), `main.py`, `pyproject.toml` + `uv.lock`, `Dockerfile`, tests. |
+| `services/circuit-service` | **Terminado.** 84 tests pasan (`uv run pytest -q`); los del repositorio usan un MongoDB real (`MONGO_TEST_URI`, por defecto `localhost:27017`) y se saltean si no hay. Nombres en español como simulation-service; los campos del JSON quedan en inglés. |
 | `frontend/` | Falta todo. |
 | `docker-compose.yml`, `docker-compose.override.yml`, `.env.example`, Traefik file provider para `/` | Faltan. Basarse en los de pdf-extractext. `replicas: ${SIMULATION_REPLICAS:-3}`. |
 | `.github/workflows/ci.yml` | Falta (matriz con ambos servicios, como en pdf-extractext). |
@@ -89,6 +89,7 @@ Todos reproducidos con la app real:
 ```bash
 cd services/simulation-service && uv sync && uv run pytest -q
 uv run uvicorn app.main:app --port 8001      # sin CONSUL_URL corre solo
+cd services/circuit-service && uv sync && uv run pytest -q   # necesita MongoDB para los tests de integración
 docker compose up --build -d --wait           # stack completo (cuando exista el compose)
 ```
 

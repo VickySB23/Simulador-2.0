@@ -1,79 +1,92 @@
 """Casos de uso de los circuitos guardados: orquesta repositorio y simulador."""
 import uuid
 from dataclasses import replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
-from app.application.interfaces.circuit_repository import CircuitRecord, CircuitRepository
-from app.application.interfaces.simulator import Simulator
+from app.application.interfaces.circuit_repository import (
+    CircuitoGuardado,
+    RepositorioCircuitos,
+    ResumenCircuito,
+)
+from app.application.interfaces.simulator import Simulador
 from app.core.logger import logger
 
-LIST_LIMIT = 100
+LIMITE_LISTADO = 100
 
 
-class CircuitNotFoundError(Exception):
+def _ahora() -> datetime:
+    """Hora UTC en milisegundos, la precisión de la base: lo que se devuelve es lo que se guarda."""
+    ahora = datetime.now(UTC)
+    return ahora.replace(microsecond=ahora.microsecond // 1000 * 1000)
+
+
+class CircuitoNoEncontradoError(Exception):
     pass
 
 
-class ConcurrentModificationError(Exception):
-    """El circuito cambió mientras se simulaba: el resultado ya no le corresponde."""
+class ModificacionConcurrenteError(Exception):
+    """El circuito cambió o se borró mientras se simulaba: el resultado ya no le corresponde."""
 
 
-class CircuitService:
-    def __init__(self, repository: CircuitRepository, simulator: Simulator):
-        self._repository = repository
-        self._simulator = simulator
+class ServicioCircuitos:
+    def __init__(self, repositorio: RepositorioCircuitos, simulador: Simulador):
+        self._repositorio = repositorio
+        self._simulador = simulador
 
-    async def create(self, name: str, description: str, circuit: dict, layout: dict | None,
-                     tags: list[str]) -> CircuitRecord:
-        now = datetime.now(UTC)
-        record = CircuitRecord(
+    async def crear(self, name: str, description: str, circuit: dict, layout: dict | None,
+                    tags: list[str]) -> CircuitoGuardado:
+        ahora = _ahora()
+        circuito = CircuitoGuardado(
             id=uuid.uuid4(), name=name, description=description, circuit=circuit,
-            layout=layout, created_at=now, updated_at=now, tags=tags,
+            layout=layout, created_at=ahora, updated_at=ahora, tags=tags,
         )
-        saved = await self._repository.save(record)
-        logger.info("Circuito creado: %s (%s componentes)", saved.id, saved.component_count)
-        return saved
+        guardado = await self._repositorio.guardar(circuito)
+        logger.info("Circuito creado: %s (%s componentes)", guardado.id, guardado.component_count)
+        return guardado
 
-    async def get(self, circuit_id: UUID) -> CircuitRecord:
-        record = await self._repository.get_by_id(circuit_id)
-        if record is None:
-            raise CircuitNotFoundError()
-        return record
+    async def obtener(self, id_circuito: UUID) -> CircuitoGuardado:
+        circuito = await self._repositorio.obtener(id_circuito)
+        if circuito is None:
+            raise CircuitoNoEncontradoError()
+        return circuito
 
-    async def list(self) -> list[CircuitRecord]:
-        return await self._repository.list(LIST_LIMIT)
+    async def listar(self) -> list[ResumenCircuito]:
+        return await self._repositorio.listar(LIMITE_LISTADO)
 
-    async def update(self, circuit_id: UUID, name: str, description: str, circuit: dict,
-                     layout: dict | None, tags: list[str]) -> CircuitRecord:
-        current = await self.get(circuit_id)
+    async def actualizar(self, id_circuito: UUID, name: str, description: str, circuit: dict,
+                         layout: dict | None, tags: list[str]) -> CircuitoGuardado:
+        actual = await self.obtener(id_circuito)
+        # updated_at siempre avanza: si la edición cae en el mismo milisegundo, una simulación
+        # empezada antes encontraría la misma fecha y guardaría un resultado viejo.
+        updated_at = max(_ahora(), actual.updated_at + timedelta(milliseconds=1))
         # Un circuito editado invalida su última simulación.
-        updated = replace(
-            current, name=name, description=description, circuit=circuit, layout=layout,
-            tags=tags, updated_at=datetime.now(UTC), last_simulation=None, simulated_at=None,
+        editado = replace(
+            actual, name=name, description=description, circuit=circuit, layout=layout,
+            tags=tags, updated_at=updated_at, last_simulation=None, simulated_at=None,
         )
-        saved = await self._repository.replace(updated)
-        if saved is None:
-            raise CircuitNotFoundError()
-        logger.info("Circuito actualizado: %s", circuit_id)
-        return saved
+        guardado = await self._repositorio.reemplazar(editado)
+        if guardado is None:
+            raise CircuitoNoEncontradoError()
+        logger.info("Circuito actualizado: %s", id_circuito)
+        return guardado
 
-    async def delete(self, circuit_id: UUID) -> None:
-        if not await self._repository.delete(circuit_id):
-            raise CircuitNotFoundError()
-        logger.info("Circuito eliminado: %s", circuit_id)
+    async def eliminar(self, id_circuito: UUID) -> None:
+        if not await self._repositorio.eliminar(id_circuito):
+            raise CircuitoNoEncontradoError()
+        logger.info("Circuito eliminado: %s", id_circuito)
 
-    async def simulate(self, circuit_id: UUID) -> CircuitRecord:
-        record = await self.get(circuit_id)
-        result = await self._simulator.simulate(record.circuit)
-        simulated_at = datetime.now(UTC)
-        if not await self._repository.save_simulation(
-            circuit_id, record.updated_at, result, simulated_at
+    async def simular(self, id_circuito: UUID) -> CircuitoGuardado:
+        circuito = await self.obtener(id_circuito)
+        resultado = await self._simulador.simular(circuito.circuit)
+        simulated_at = _ahora()
+        if not await self._repositorio.guardar_simulacion(
+            id_circuito, circuito.updated_at, resultado, simulated_at
         ):
-            raise ConcurrentModificationError()
-        logger.info("Circuito %s simulado en %s ms", circuit_id,
-                    result.get("stats", {}).get("total_ms"))
-        return replace(record, last_simulation=result, simulated_at=simulated_at)
+            raise ModificacionConcurrenteError()
+        logger.info("Circuito %s simulado en %s ms", id_circuito,
+                    resultado.get("stats", {}).get("total_ms"))
+        return replace(circuito, last_simulation=resultado, simulated_at=simulated_at)
 
-    async def is_healthy(self) -> bool:
-        return await self._repository.ping()
+    async def esta_sano(self) -> bool:
+        return await self._repositorio.responde()

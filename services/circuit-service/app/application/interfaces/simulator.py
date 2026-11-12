@@ -2,29 +2,32 @@
 from typing import Protocol
 
 
-class SimulationError(Exception):
+class SimulacionError(Exception):
     """Base de los errores al simular."""
 
 
-class InvalidCircuitError(SimulationError):
-    """El simulador rechazó el circuito (nodo flotante, lazo de fuentes, etc.)."""
+class CircuitoInvalidoError(SimulacionError):
+    """El simulador rechazó el circuito (nodo flotante, lazo de fuentes, etc.).
 
-    def __init__(self, code: str, message: str, details: dict | None = None):
-        super().__init__(message)
-        self.code = code
-        self.details = details or {}
+    `codigo` es el de simulation-service (`floating_nodes`, `too_large`...) y se reenvía tal cual.
+    """
+
+    def __init__(self, codigo: str, mensaje: str, detalles: dict | None = None):
+        super().__init__(mensaje)
+        self.codigo = codigo
+        self.detalles = detalles or {}
 
 
-class SimulatorUnavailableError(SimulationError):
-    def __init__(self, message: str, retry_after: str | None = None):
-        super().__init__(message)
+class SimuladorNoDisponibleError(SimulacionError):
+    def __init__(self, mensaje: str, retry_after: str | None = None):
+        super().__init__(mensaje)
         self.retry_after = retry_after
 
 
-class SimulatorProtocolError(SimulationError):
+class RespuestaInvalidaError(SimulacionError):
     """La respuesta del simulador no respeta el contrato."""
 
 
-class Simulator(Protocol):
-    async def simulate(self, circuit: dict) -> dict: ...
-    async def aclose(self) -> None: ...
+class Simulador(Protocol):
+    async def simular(self, circuito: dict) -> dict: ...
+    async def cerrar(self) -> None: ...
