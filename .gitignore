@@ -13,5 +13,5 @@ Thumbs.db
 
 # Pruebas e2e y de carga
 node_modules/
-tests/e2e/capturas/
+tests/e2e/capturas*/
 results/
