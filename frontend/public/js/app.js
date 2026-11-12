@@ -1,21 +1,32 @@
 // Controlador del editor: estado, historial, simulación local y persistencia en el navegador.
+import { Animador } from "./animador.js";
 import { crearEditor } from "./editor.js";
+import { colocarIconos, icono } from "./iconos.js";
 import { descargar, nombreDeArchivo, pngDelCircuito, svgDelCircuito } from "./exportar.js";
 import { Almacen, aArchivo, desdeArchivo } from "./lib/almacen.js";
 import { PREFIJO_HASH, codificar, decodificar } from "./lib/compartir.js";
 import { EJEMPLOS } from "./lib/ejemplos.js";
 import { Historial } from "./lib/historial.js";
 import {
-  TIPOS, aLayout, agregarCable, agregarPieza, buscar, cambiarValor, circuitoVacio, desdeLayout,
-  eliminar, mover, moverTierra, ponerTierra, quitarTierra, restaurar, rotar,
+  TIPOS, aLayout, agregarCable, agregarPieza, alternarInterruptor, buscar, cambiarPotencia, cambiarValor,
+  circuitoVacio, desdeLayout, eliminar, mover, moverTierra, ponerTierra, quitarTierra, restaurar, rotar,
+  tieneValor,
 } from "./lib/modelo.js";
 import { simularEstado } from "./lib/netlist.js";
 import { interpretarValor, normalizarTexto } from "./lib/valores.js";
-import { pedirTexto, renderEcuaciones, renderResultados } from "./paneles.js";
+import { pedirTexto, pedirValores, renderEcuaciones, renderResultados } from "./paneles.js";
 
 const $ = (id) => document.getElementById(id);
-const HERRAMIENTAS = ["seleccionar", "wire", "resistor", "voltage_source", "current_source", "ground"];
-const PIEZAS = new Set(["resistor", "voltage_source", "current_source"]);
+const HERRAMIENTAS = ["seleccionar", "wire", "resistor", "voltage_source", "current_source", "lamp", "switch", "ground"];
+const PIEZAS = new Set(["resistor", "voltage_source", "current_source", "lamp", "switch"]);
+
+function leerPreferencia(clave, porDefecto) {
+  try {
+    return localStorage.getItem(clave) ?? porDefecto;
+  } catch {
+    return porDefecto;
+  }
+}
 const CLAVE_BORRADOR = "simulador-dc:borrador";
 
 const historial = new Historial();
@@ -30,6 +41,8 @@ const ctl = {
   error: null,
   actual: { id: null, name: EJEMPLOS[0].nombre },
   sucio: false,
+  vista: leerPreferencia("vista", "ilustrada") === "esquematica" ? "esquematica" : "ilustrada",
+  interruptorRecienCambiado: null,
   _antesDelArrastre: null,
 
   // --- Acciones que dispara el editor -------------------------------------------------
@@ -50,26 +63,39 @@ const ctl = {
   empezarArrastre() {
     ctl._antesDelArrastre = ctl.estado;
   },
+  /**
+   * Mueve lo seleccionado sin simular ni redibujar (el editor lo desplaza con transform); al
+   * soltar se simula una vez. Devuelve false si el movimiento sale del mundo.
+   */
   arrastrar(dx, dy) {
     const antes = ctl._antesDelArrastre;
-    if (!antes) return;
-    ctl.estado = ctl.seleccion?.tipo === "tierra"
+    if (!antes) return false;
+    const nuevo = ctl.seleccion?.tipo === "tierra"
       ? moverTierra(antes, dx, dy)
       : mover(antes, ctl.seleccion.id, dx, dy);
-    // La simulación es local e instantánea: se ve el resultado mientras se arrastra.
-    simular();
+    if (nuevo === antes && (dx !== 0 || dy !== 0)) return false;
+    ctl.estado = nuevo;
+    return true;
   },
+  /** Devuelve true si el circuito cambió (y entonces ya se simuló y redibujó). */
   terminarArrastre() {
     const antes = ctl._antesDelArrastre;
     ctl._antesDelArrastre = null;
     if (antes && antes !== ctl.estado) {
       historial.registrar(antes);
       circuitoCambiado();
+      return true;
     }
+    return false;
+  },
+  alternarInterruptor(id) {
+    ctl.interruptorRecienCambiado = id;
+    aplicar(alternarInterruptor(ctl.estado, id));
   },
   async editarValor(id) {
     const componente = buscar(ctl.estado, id);
-    if (!componente || componente.type === "wire") return;
+    if (!componente || !tieneValor(componente.type)) return;
+    if (componente.type === "lamp") return editarLampara(componente);
     const { nombre, unidad } = TIPOS[componente.type];
     const texto = await pedirTexto({
       titulo: `Valor de ${id}`,
@@ -92,7 +118,31 @@ const ctl = {
   },
 };
 
-const editor = crearEditor($("editor"), $("contenedor-editor"), ctl);
+/** Valida un valor positivo con prefijos; devuelve el mensaje de error o null. */
+function validarPositivo(t, que) {
+  try {
+    return interpretarValor(t) > 0 ? null : `${que} tiene que ser mayor que 0.`;
+  } catch (e) {
+    return e.message;
+  }
+}
+
+async function editarLampara(lampara) {
+  const valores = await pedirValores({
+    titulo: `Lámpara ${lampara.id}`,
+    ayuda: "Si la potencia que disipa supera la nominal, la lámpara se quema y abre el circuito.",
+    campos: [
+      { etiqueta: "Resistencia (Ω)", valor: lampara.value, validar: (t) => validarPositivo(t, "La resistencia") },
+      { etiqueta: "Potencia nominal (W)", valor: lampara.potencia, validar: (t) => validarPositivo(t, "La potencia nominal") },
+    ],
+  });
+  if (!valores) return;
+  const [resistencia, potencia] = valores.map(normalizarTexto);
+  aplicar(cambiarPotencia(cambiarValor(ctl.estado, lampara.id, resistencia), lampara.id, potencia));
+}
+
+const animador = new Animador();
+const editor = crearEditor($("editor"), $("contenedor-editor"), ctl, animador);
 
 // --- Simulación (en el navegador, al instante) -----------------------------------------------
 
@@ -203,9 +253,10 @@ function actualizarEncabezado() {
 
 function actualizarBotones() {
   const sel = ctl.seleccion;
-  const pieza = sel?.tipo === "componente" && PIEZAS.has(buscar(ctl.estado, sel.id)?.type);
+  const tipo = sel?.tipo === "componente" ? buscar(ctl.estado, sel.id)?.type : null;
+  const pieza = PIEZAS.has(tipo);
   $("accion-rotar").disabled = !pieza && !PIEZAS.has(ctl.herramienta);
-  $("accion-valor").disabled = !pieza;
+  $("accion-valor").disabled = !tieneValor(tipo) || tipo === "wire" || !tipo;
   $("accion-borrar").disabled = !sel;
   $("accion-deshacer").disabled = !historial.puedeDeshacer;
   $("accion-rehacer").disabled = !historial.puedeRehacer;
@@ -283,10 +334,10 @@ function guardarEnAlmacen(id, name) {
     ctl.sucio = false;
     actualizarEncabezado();
     guardarBorrador();
-    mensajeCircuitos(`Guardado en este navegador: ${ctl.actual.name}.`, "mensaje-ok");
+    mensajeCircuitos(`Guardado en este navegador: ${ctl.actual.name}.`, "mensaje--ok");
     renderLista();
   } catch (e) {
-    mensajeCircuitos(e.message, "mensaje-error");
+    mensajeCircuitos(e.message, "mensaje--error");
   }
 }
 
@@ -322,7 +373,7 @@ function abrir(id) {
     if (!guardado) throw new Error("Ese circuito ya no existe.");
     cargar(guardado.estado, { id: guardado.id, name: guardado.name });
   } catch (e) {
-    mensajeCircuitos(e.message, "mensaje-error");
+    mensajeCircuitos(e.message, "mensaje--error");
   }
 }
 
@@ -340,7 +391,7 @@ async function renombrar(item) {
     }
     renderLista();
   } catch (e) {
-    mensajeCircuitos(e.message, "mensaje-error");
+    mensajeCircuitos(e.message, "mensaje--error");
   }
 }
 
@@ -356,7 +407,7 @@ function borrar(item) {
     mensajeCircuitos(`Borrado: ${item.name}.`);
     renderLista();
   } catch (e) {
-    mensajeCircuitos(e.message, "mensaje-error");
+    mensajeCircuitos(e.message, "mensaje--error");
   }
 }
 
@@ -375,16 +426,16 @@ async function importarJson(archivo) {
     const { name, estado } = desdeArchivo(await archivo.text());
     if (!confirmarDescarte()) return;
     cargar(estado, { id: null, name }, { sucio: true });
-    mensajeCircuitos(`Importado: ${name}. Guardalo para tenerlo en la lista.`, "mensaje-ok");
+    mensajeCircuitos(`Importado: ${name}. Guardalo para tenerlo en la lista.`, "mensaje--ok");
   } catch (e) {
-    mensajeCircuitos(e.message, "mensaje-error");
+    mensajeCircuitos(e.message, "mensaje--error");
   }
 }
 
 function boton(texto, alHacerClic, clase = "") {
   const b = document.createElement("button");
   b.type = "button";
-  b.className = `boton boton-chico ${clase}`;
+  b.className = `boton boton--chico ${clase}`;
   b.textContent = texto;
   b.addEventListener("click", alHacerClic);
   return b;
@@ -392,19 +443,19 @@ function boton(texto, alHacerClic, clase = "") {
 
 function elemento(nombre, meta, acciones, actual = false) {
   const li = document.createElement("li");
-  li.className = actual ? "elemento actual" : "elemento";
+  li.className = actual ? "elemento elemento--actual" : "elemento";
   const texto = document.createElement("div");
-  texto.className = "elemento-texto";
+  texto.className = "elemento__texto";
   const n = document.createElement("div");
-  n.className = "elemento-nombre";
+  n.className = "elemento__nombre";
   n.textContent = nombre;
   n.title = nombre;
   const m = document.createElement("div");
-  m.className = "elemento-meta";
+  m.className = "elemento__meta";
   m.textContent = meta;
   texto.append(n, m);
   const acc = document.createElement("div");
-  acc.className = "elemento-acciones";
+  acc.className = "acciones";
   acc.append(...acciones);
   li.append(texto, acc);
   return li;
@@ -418,7 +469,7 @@ function renderLista() {
   try {
     guardados = almacen.listar();
   } catch (e) {
-    mensajeCircuitos(e.message, "mensaje-error");
+    mensajeCircuitos(e.message, "mensaje--error");
   }
   if (!guardados.length) {
     const li = document.createElement("li");
@@ -432,7 +483,7 @@ function renderLista() {
       [
         boton("Abrir", () => abrir(item.id)),
         boton("Renombrar", () => renombrar(item)),
-        boton("Borrar", () => borrar(item), "boton-peligro"),
+        boton("Borrar", () => borrar(item), "boton--peligro"),
       ],
       item.id === ctl.actual.id,
     )));
@@ -528,6 +579,7 @@ function aplicarTema(indice) {
   else delete document.documentElement.dataset.theme;
   $("texto-tema").textContent = texto;
   guardarPreferencia("tema", valor);
+  animador.releerTokens();
   editor.render();
 }
 
@@ -537,8 +589,36 @@ function alternarProyector() {
   else delete document.documentElement.dataset.proyector;
   $("boton-proyector").setAttribute("aria-pressed", String(activo));
   guardarPreferencia("proyector", activo ? "1" : null);
+  animador.releerTokens();
   editor.ajustar();
   editor.render();
+}
+
+// --- Vista y animaciones ------------------------------------------------------------------------
+
+function pulsar(grupo, boton) {
+  for (const b of grupo.querySelectorAll("button")) b.setAttribute("aria-pressed", String(b === boton));
+}
+
+function elegirVista(vista) {
+  ctl.vista = vista;
+  pulsar($("control-vista"), $("control-vista").querySelector(`[data-vista="${vista}"]`));
+  guardarPreferencia("vista", vista);
+  editor.render();
+}
+
+function elegirSentido(sentido) {
+  pulsar($("control-sentido"), $("control-sentido").querySelector(`[data-sentido="${sentido}"]`));
+  animador.sentidoElectrones(sentido === "electrones");
+}
+
+function alternarPausa() {
+  const boton = $("accion-pausa");
+  const pausadas = boton.getAttribute("aria-pressed") !== "true";
+  boton.setAttribute("aria-pressed", String(pausadas));
+  boton.querySelector("svg").replaceWith(icono(pausadas ? "reproducir" : "pausa"));
+  boton.querySelector("span").textContent = pausadas ? "Reanudar" : "Pausa";
+  animador.pausar(pausadas);
 }
 
 // --- Eventos ------------------------------------------------------------------------------------
@@ -569,6 +649,15 @@ $("entrada-archivo").addEventListener("change", (evento) => {
   evento.target.value = "";
 });
 $("boton-compartir").addEventListener("click", compartir);
+$("control-vista").addEventListener("click", (e) => {
+  const b = e.target.closest("button");
+  if (b) elegirVista(b.dataset.vista);
+});
+$("control-sentido").addEventListener("click", (e) => {
+  const b = e.target.closest("button");
+  if (b) elegirSentido(b.dataset.sentido);
+});
+$("accion-pausa").addEventListener("click", alternarPausa);
 $("boton-proyector").addEventListener("click", alternarProyector);
 $("boton-tema").addEventListener("click", () => aplicarTema((temaActual() + 1) % TEMAS.length));
 
@@ -611,7 +700,9 @@ document.addEventListener("keydown", (evento) => {
     }
   } else if (tecla === "p" || tecla === "P") {
     alternarProyector();
-  } else if (/^[1-6]$/.test(tecla)) {
+  } else if (tecla === "v" || tecla === "V") {
+    elegirVista(ctl.vista === "ilustrada" ? "esquematica" : "ilustrada");
+  } else if (/^[1-8]$/.test(tecla)) {
     elegirHerramienta(HERRAMIENTAS[Number(tecla) - 1]);
   }
 });
@@ -622,7 +713,9 @@ window.addEventListener("hashchange", () => {
 
 // --- Arranque ------------------------------------------------------------------------------------
 
+colocarIconos();
 $("texto-tema").textContent = TEMAS[temaActual()].texto;
+pulsar($("control-vista"), $("control-vista").querySelector(`[data-vista="${ctl.vista}"]`));
 $("boton-proyector").setAttribute("aria-pressed", String(document.documentElement.dataset.proyector === "1"));
 editor.ajustar();
 renderLista();

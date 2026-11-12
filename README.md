@@ -17,8 +17,8 @@ nueva — Actualizar"**: con un clic se recarga con la versión nueva (el circui
 
 ## Armar un circuito en un minuto
 
-1. **Elegí una herramienta** en la barra de arriba: **R** (resistencia), **V** (fuente de
-   tensión), **I** (fuente de corriente), **Cable** o **GND** (tierra).
+1. **Elegí una herramienta** en la barra de arriba: **R** (resistencia), **Batería** (fuente de
+   tensión), **I** (fuente de corriente), **Lámpara**, **Interruptor**, **Cable** o **GND** (tierra).
 2. **Hacé clic en la grilla** para poner la pieza. Antes de hacer clic podés girarla con la tecla
    **R** o la **barra espaciadora**.
 3. **Uní las piezas.** Dos terminales quedan conectados si caen en el mismo punto de la grilla o si
@@ -26,7 +26,9 @@ nueva — Actualizar"**: con un clic se recarga con la versión nueva (el circui
    final).
 4. **Poné la tierra** con **GND** en algún nodo. Sin tierra no hay referencia y el simulador lo avisa.
 5. **Cambiá los valores** con **doble clic** sobre la pieza. Se aceptan prefijos: `10k`, `4.7k`
-   (o `4,7k`), `1MEG`, `5m`, `2.2u`. `M` y `MEG` son mega; `m` es mili.
+   (o `4,7k`), `1MEG`, `5m`, `2.2u`. `M` y `MEG` son mega; `m` es mili. La lámpara pide dos:
+   su resistencia y su potencia nominal.
+6. **Abrí o cerrá un interruptor** con un clic (con la herramienta Seleccionar).
 
 Listo: los resultados aparecen solos mientras dibujás. Con **Seleccionar** podés mover piezas
 (arrastrando), borrarlas (**Supr**) o deshacer (**Ctrl+Z**).
@@ -44,10 +46,19 @@ Listo: los resultados aparecen solos mientras dibujás. Con **Seleccionar** pod�
 
 ## Cómo leer los resultados
 
-- **Color de los nodos y cables:** azul para la tensión más baja y rojo para la más alta. Al lado
-  de cada nodo se ve su tensión respecto de tierra.
+- **Color de los cables:** azul oscuro para la tensión más baja y rojo para la más alta (la
+  leyenda está en Resultados). Al lado de cada nodo se ve su tensión respecto de tierra.
+- **Puntos naranjas que avanzan:** la corriente, también por cada cable. Van más rápido cuanto
+  más corriente hay (en escala logarítmica). El botón **Convencional / Electrones** cambia entre el
+  sentido convencional (de + a −) y el flujo de electrones (de − a +); **Pausa** las detiene.
 - **Flechas verdes:** el sentido real de la corriente en cada pieza, con su valor.
-- **Fuentes:** la de tensión muestra su **+** y su **−**; la de corriente, una flecha con su sentido.
+- **Lámparas:** brillan según la potencia que reciben respecto de la nominal. Si la superan, **se
+  queman y abren el circuito**, como una real: en serie se apagan todas y en paralelo siguen las
+  demás. Las resistencias toman un brillo cálido según la potencia que disipan.
+- **Fuentes:** la batería muestra **+** y **−** grandes y late cuando entrega energía; la fuente de
+  corriente, una flecha con su sentido.
+- **Vista ilustrada o esquemática:** el botón **Ilustrada / Esquemática** (o la tecla **V**) cambia
+  entre los dibujos y los símbolos IEC de los libros.
 - **Pestaña Resultados:** tensión, corriente y potencia de cada componente; tensión de cada nodo;
   potencia entregada y absorbida (tienen que ser iguales: **Balance OK**) y el residuo de la ley
   de Kirchhoff de corrientes (KCL), que debería ser prácticamente cero. Una potencia negativa (↑)
@@ -72,6 +83,10 @@ rojo el lugar del problema.
 | La resistencia debe ser mayor que 0 Ω | Se cargó 0 o un valor negativo | Para un corto, usá un cable |
 
 ![Una resistencia suelta: sus dos nodos aparecen en rojo](docs/capturas/nodo-suelto.png)
+
+![Una batería, un interruptor y una lámpara al 69 %](docs/capturas/lampara-interruptor.png)
+
+![El mismo circuito en vista esquemática (símbolos IEC)](docs/capturas/esquematica.png)
 
 ## Compartir un circuito
 
@@ -103,9 +118,11 @@ al lado.
 
 | Tecla | Acción |
 | --- | --- |
-| 1 a 6 | Seleccionar, Cable, R, V, I, GND |
+| 1 a 8 | Seleccionar, Cable, R, Batería, I, Lámpara, Interruptor, GND |
 | R o espacio | Girar la pieza (la que vas a poner o la seleccionada) |
 | Doble clic | Editar el valor |
+| Clic en un interruptor | Abrirlo o cerrarlo |
+| V | Vista ilustrada / esquemática |
 | Supr | Borrar lo seleccionado |
 | Ctrl+Z / Ctrl+Y | Deshacer / rehacer |
 | Esc | Cancelar el cable o deseleccionar |
@@ -131,7 +148,12 @@ Página estática: HTML, CSS y JavaScript sin librerías ni paso de compilación
   5,5·10⁻¹⁰ (relativa a la escala de cada circuito) en los 222 válidos
   ([`docs/comparacion/`](docs/comparacion/)).
 - **Resto de la lógica sin DOM** (`js/lib/`): modelo del circuito, historial, valores, ejemplos,
-  almacenamiento local, link para compartir y ecuaciones. Tiene sus tests.
+  almacenamiento local, link para compartir, ecuaciones, corriente en cada cable (por KCL) y los
+  cálculos de las animaciones. Tiene sus tests.
+- **Diseño:** `css/tokens.css` (colores, tipografía Nunito incluida, radios y espaciados, en
+  variantes clara, oscura y proyector) y una galería de todo el sistema en
+  [`galeria.html`](https://vickysb23.github.io/Simulador-2.0/galeria.html). Las animaciones van en un
+  canvas sobre el dibujo, para que ande fluido con 50 componentes en un celular.
 - **Sin internet y actualizaciones:** `sw.js` guarda todos los archivos en una caché con versión.
   Pide primero a la red (HTML, JS y CSS, para no mezclar versiones) y usa la caché si no hay
   conexión o la red tarda más de 4 s. El workflow pone la versión (`simulador-dc-<hash del

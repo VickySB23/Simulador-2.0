@@ -1,7 +1,8 @@
-// Paneles de resultados y ecuaciones, y diálogo de texto.
+// Paneles de resultados y ecuaciones, y diálogos de texto.
+import { colorTension } from "./lib/animacion.js";
 import { MAXIMO_MATRIZ, ecuacionesDe, numeroCorto } from "./lib/ecuaciones.js";
 import { nombreNodo, nodosElectricos } from "./lib/modelo.js";
-import { colorTension, puntosDeEtiqueta, tensionesPorPunto } from "./lib/netlist.js";
+import { puntosDeEtiqueta, tensionesPorPunto } from "./lib/netlist.js";
 import { formatearSI } from "./lib/valores.js";
 
 const $ = (id) => document.getElementById(id);
@@ -40,30 +41,43 @@ export function renderResultados({ estado, resultado, error }) {
   // Con balance OK el neto es ruido de punto flotante: va al tooltip, no a la tarjeta.
   balance.textContent = power.ok ? "OK" : `Neto ${formatearSI(power.net, "W")}`;
   balance.title = `Entregada − absorbida = ${power.net.toExponential(2)} W`;
-  balance.className = `tarjeta-valor ${power.ok ? "ok" : "mal"}`;
+  balance.className = `metrica__valor ${power.ok ? "metrica__valor--ok" : "metrica__valor--mal"}`;
   const residuo = $("residuo-kcl");
   residuo.textContent = `${kcl.toExponential(1)} A`;
-  residuo.className = `tarjeta-valor ${kcl < 1e-6 ? "ok" : "mal"}`;
+  residuo.className = `metrica__valor ${kcl < 1e-6 ? "metrica__valor--ok" : "metrica__valor--mal"}`;
+
+  // Lámparas quemadas: abrieron el circuito.
+  const quemadas = resultado.stats.burned_lamps ?? [];
+  const avisoLamparas = $("aviso-lamparas");
+  avisoLamparas.hidden = !quemadas.length;
+  avisoLamparas.textContent = quemadas.length
+    ? `${quemadas.length === 1 ? `La lámpara ${quemadas[0]} se quemó` : `Se quemaron ${quemadas.join(", ")}`}: `
+      + "superó su potencia nominal y abrió el circuito."
+    : "";
 
   const conError = new Set(error?.details?.components ?? []);
   const cuerpo = $("tabla-componentes");
   cuerpo.replaceChildren(...resultado.components
-    .filter((c) => c.type !== "wire")
+    .filter((c) => c.type !== "wire" && c.type !== "switch")
     .map((c) => {
       const potencia = formatearSI(c.power, "W") + (c.power < -1e-15 ? " ↑" : "");
+      const nombre = c.type !== "lamp" ? c.id
+        : `${c.id} · ${c.burned ? "quemada" : `${Math.round(Math.min(1, c.brightness) * 100)} %`}`;
       return fila([
-        { contenido: c.id },
-        { contenido: formatearSI(c.voltage, "V"), num: true },
+        { contenido: nombre },
+        { contenido: c.voltage === null ? "—" : formatearSI(c.voltage, "V"), num: true },
         { contenido: formatearSI(c.current, "A"), num: true },
         { contenido: potencia, num: true },
       ], conError.has(c.id) ? "con-error" : "");
     }));
 
   // Una fila por nodo eléctrico, con el mismo color que en el dibujo.
-  const tensiones = tensionesPorPunto(resultado);
+  const tensiones = new Map([...tensionesPorPunto(resultado)].filter(([, v]) => v !== null));
   const valores = [...tensiones.values()];
   const minimo = Math.min(0, ...valores);
   const maximo = Math.max(0, ...valores);
+  $("leyenda-minima").textContent = `${formatearSI(minimo, "V")} (más bajo)`;
+  $("leyenda-maxima").textContent = `${formatearSI(maximo, "V")} (más alto)`;
   const puntos = puntosDeEtiqueta(estado);
   if (estado.ground) puntos.unshift(estado.ground);
   const nodos = nodosElectricos(estado);
@@ -101,7 +115,7 @@ export function renderEcuaciones(estado) {
     error.textContent = e.error.code === "empty"
       ? e.error.message
       : `No se pueden plantear las ecuaciones: ${e.error.message}`;
-    error.className = e.error.code === "empty" ? "mensaje" : "mensaje mensaje-error";
+    error.className = e.error.code === "empty" ? "mensaje" : "mensaje mensaje--error";
     return;
   }
   const lista = (id, items) => $(id).replaceChildren(...items.map(({ nombre, ecuacion }) => {
@@ -144,6 +158,40 @@ export function renderEcuaciones(estado) {
   tbody.append(...cuerpo);
   tabla.append(thead, tbody);
   contenedor.replaceChildren(tabla);
+}
+
+/**
+ * Pide varios valores en el diálogo (por ahora, hasta dos campos). Devuelve la lista de textos o
+ * null si se cancela. Cada campo: {etiqueta, valor, validar(texto) -> mensaje | null}.
+ */
+export function pedirValores({ titulo, ayuda = "", campos }) {
+  const [primero, segundo] = campos;
+  const etiqueta2 = $("dialogo-campo-2");
+  const entrada2 = $("dialogo-entrada-2");
+  etiqueta2.hidden = !segundo;
+  if (segundo) {
+    $("dialogo-etiqueta-2").textContent = segundo.etiqueta;
+    entrada2.value = segundo.valor;
+  }
+  const limpiar = () => {
+    etiqueta2.hidden = true;
+    entrada2.removeAttribute("aria-invalid");
+  };
+  return pedirTexto({
+    titulo, etiqueta: primero.etiqueta, valor: primero.valor, ayuda,
+    validar: (t) => {
+      const problema = primero.validar(t);
+      if (problema || !segundo) return problema;
+      const otro = segundo.validar(entrada2.value.trim());
+      if (otro) entrada2.setAttribute("aria-invalid", "true");
+      else entrada2.removeAttribute("aria-invalid");
+      return otro;
+    },
+  }).then((texto) => {
+    const valores = texto === null ? null : segundo ? [texto, entrada2.value.trim()] : [texto];
+    limpiar();
+    return valores;
+  });
 }
 
 /**

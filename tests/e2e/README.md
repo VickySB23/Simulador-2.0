@@ -40,6 +40,12 @@ con el hash del commit; en local, cambiá `simulador-dc-dev` en `sw.js` y `js/ve
 "Hay una versión nueva — Actualizar", tocarlo y terminar con la versión nueva activa.
 `ESPERA_MINUTOS` fija cuánto espera (por defecto 15).
 
+`editor.mjs` prueba el editor rediseñado: arma con las herramientas un circuito con batería,
+interruptor y lámpara, abre y cierra el interruptor con un clic, quema la lámpara bajando su
+potencia nominal, alterna la vista ilustrada/esquemática y el sentido de la corriente, arrastra
+una pieza y mide cuadros por segundo con 50 componentes, animando y arrastrando, también con la
+CPU 4× más lenta.
+
 `galeria.mjs` saca capturas de `galeria.html` (claro, oscuro, proyector y celular), comprueba que
 los canvas de animación queden sobre su SVG, que las animaciones se pausen y respeten
 `prefers-reduced-motion`, y mide cuadros por segundo con 50 componentes animados, también con la

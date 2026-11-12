@@ -162,9 +162,9 @@ function puntosDeCorriente(animaciones, c, vista, corriente) {
   const enA = (d) => ({ x: c.a.x + ((c.b.x - c.a.x) * d) / largo, y: c.a.y + ((c.b.y - c.a.y) * d) / largo });
   for (const [inicio, fin] of tramos) {
     if (corriente > 0) {
-      animaciones.push({ tipo: "puntos", desde: enA(inicio), hasta: enA(fin), velocidad, desfase: inicio });
+      animaciones.push({ tipo: "puntos", id: c.id, desde: enA(inicio), hasta: enA(fin), velocidad, desfase: inicio });
     } else {
-      animaciones.push({ tipo: "puntos", desde: enA(fin), hasta: enA(inicio), velocidad, desfase: largo - fin });
+      animaciones.push({ tipo: "puntos", id: c.id, desde: enA(fin), hasta: enA(inicio), velocidad, desfase: largo - fin });
     }
   }
 }
@@ -176,22 +176,22 @@ function efectosDeForma(animaciones, c, vista, { brillo, calor, entrega }) {
   const angulo = Math.atan2(c.b.y - c.a.y, c.b.x - c.a.x);
   if (efectos.halo && brillo > 0) {
     const [x, y, radio] = efectos.halo;
-    animaciones.push({ tipo: "halo", ...puntoEnMundo(c.a, c.b, { x, y }), radio, intensidad: brillo });
+    animaciones.push({ tipo: "halo", id: c.id, ...puntoEnMundo(c.a, c.b, { x, y }), radio, intensidad: brillo });
   }
   if (efectos.calor && calor > 0) {
     const [x, y, ancho, alto] = efectos.calor;
-    animaciones.push({ tipo: "calor", ...puntoEnMundo(c.a, c.b, { x, y }), ancho, alto, angulo, intensidad: calor });
+    animaciones.push({ tipo: "calor", id: c.id, ...puntoEnMundo(c.a, c.b, { x, y }), ancho, alto, angulo, intensidad: calor });
   }
   if (efectos.pulso && entrega) {
     const [x, y, ancho, alto] = efectos.pulso;
-    animaciones.push({ tipo: "pulso", ...puntoEnMundo(c.a, c.b, { x, y }), ancho, alto, angulo });
+    animaciones.push({ tipo: "pulso", id: c.id, ...puntoEnMundo(c.a, c.b, { x, y }), ancho, alto, angulo });
   }
 }
 
 /**
  * Dibuja un componente. `c` = {type, a, b} con a y b en píxeles del SVG (y opcionalmente id,
- * etiqueta, valor y closed). `estado` = {corriente, potencia, potenciaNominal, calor, color,
- * seleccionado, error} con los resultados de la simulación ya calculados. Si se pasa la lista
+ * etiqueta, valor y closed). `estado` = {corriente, potencia, potenciaNominal, quemada, calor,
+ * color, seleccionado, error} con los resultados de la simulación ya calculados. Si se pasa la lista
  * `animaciones`, se le agregan los efectos animados del componente para el animador.
  */
 export function dibujarComponente(c, { vista = "ilustrada", estado = {}, etiquetas = true, animaciones = null } = {}) {
@@ -202,7 +202,11 @@ export function dibujarComponente(c, { vista = "ilustrada", estado = {}, etiquet
   const entrega = c.type === "voltage_source" && entregaEnergia(estado.potencia);
   if (entrega) clases.push("entregando");
   let lampara = null;
-  if (c.type === "lamp" && estado.potenciaNominal > 0) {
+  if (c.type === "lamp" && estado.quemada) {
+    // Quemada: ya no conduce (potencia 0), así que no se puede deducir de la potencia.
+    lampara = { brillo: 0, quemada: true };
+    clases.push("quemada");
+  } else if (c.type === "lamp" && estado.potenciaNominal > 0) {
     lampara = brilloLampara(estado.potencia, estado.potenciaNominal);
     if (lampara.quemada) clases.push("quemada");
     else if (lampara.brillo > 0.02) clases.push("encendida");

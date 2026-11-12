@@ -20,16 +20,17 @@ Autora: Victoria Sanchez Bujaldon. Idioma del código, comentarios y documentaci
 frontend/public/          lo que se publica (HTML + CSS + JS vanilla con módulos ES, sin build)
   js/lib/                 lógica sin DOM, con tests: mna, modelo, netlist, historial, valores,
                           ejemplos, almacen (localStorage + .json), compartir (hash), ecuaciones
-  js/app.js, editor.js, paneles.js, exportar.js, tema.js     interfaz
+  js/app.js, editor.js, paneles.js, exportar.js, tema.js     interfaz (css/editor.css)
   sw.js                   service worker: caché con versión, red primero (4 s) y caché sin conexión
   js/version.js, js/actualizacion.js   versión de la página y aviso "Hay una versión nueva — Actualizar"
   css/tokens.css          sistema de diseño (único lugar con valores literales): claro, oscuro, proyector
   css/ui.css, circuito.css, galeria.css   interfaz nueva y dibujo del circuito, solo con tokens (test)
   fonts/                  Nunito (OFL), subconjunto latino, sin CDN
-  galeria.html, js/galeria.js   galería del rediseño (en revisión: el editor todavía usa app.css)
+  galeria.html, js/galeria.js   galería del sistema de diseño (aprobada; el editor usa el mismo diseño)
   js/dibujo.js            componentes en vista ilustrada y esquemática (IEC); describe lo animado
   js/animador.js          animaciones en un canvas sobre el SVG (puntos, halo, calor, pulso)
   js/iconos.js            íconos propios; js/lib/animacion.js: velocidad, brillo, calor y color (tests)
+  js/lib/corrientes.js    corriente de cada cable e interruptor cerrado por KCL (lazos: por largo)
 frontend/tests/           node --test (sin dependencias)
 tests/e2e/                verificar.mjs (Chrome real con playwright-core) y servir.mjs
 tests/comparacion/        motor JS contra POST /simulate de la rama microservicios
@@ -85,21 +86,25 @@ render reemplaza los elementos del SVG.
   se sube a mano. El service worker nuevo no se activa solo: espera a que el usuario toque Actualizar. Si la página
   ya cargó la versión nueva desde la red, se activa sin avisar.
 - Sin librerías externas ni CDN.
-- **Rediseño:** `ui.css`, `circuito.css` y `galeria.css` usan solo variables de `tokens.css` (sin
+- **Rediseño:** `ui.css`, `circuito.css`, `galeria.css` y `editor.css` usan solo variables de `tokens.css` (sin
   colores ni px/rem literales; lo verifica `tests/tokens.test.js`).
 - **Animaciones en canvas, no en el SVG:** animar dentro del SVG lo repinta entero en cada cuadro
   (medido: 116 → 15 cuadros/s con 50 componentes y la CPU 4× más lenta). El SVG queda estático y
   `animador.js` dibuja lo que se mueve; solo anima lo visible, se pausa y respeta
   `prefers-reduced-motion`.
+- **Arrastrar sin redibujar:** al arrastrar, la pieza pasa a un SVG superpuesto (`.capa-arrastre`)
+  que se mueve con transform de CSS; al soltar se simula y se redibuja una vez. Reconstruir el SVG
+  en cada movimiento daba 3,6 cuadros/s con 50 componentes y la CPU 4× más lenta; así, ~60.
 
 ## Comandos
 
 ```bash
-cd frontend && node --test                  # 117 tests
+cd frontend && node --test                  # 124 tests
 node tests/e2e/servir.mjs                   # http://localhost:8000/Simulador-2.0/
 cd tests/e2e && npm install && node verificar.mjs capturas   # 31 comprobaciones en Chrome
 node tests/e2e/actualizacion.mjs            # aviso de versión nueva (publicar mientras espera)
 node tests/e2e/galeria.mjs capturas         # capturas de la galería y cuadros/s con 50 componentes
+node tests/e2e/editor.mjs capturas          # editor: lámpara, interruptor, vista, arrastre y cuadros/s
 ```
 
 ## Cómo trabajar

@@ -1,0 +1,135 @@
+/* Diagramación del editor (index.html). Solo usa variables de tokens.css (tests/tokens.test.js). */
+
+body { display: flex; flex-direction: column; min-height: 100vh; }
+
+/* --- Encabezado y barra -------------------------------------------------------------------- */
+
+.encabezado { flex-wrap: nowrap; }
+.circuito-actual { flex: 1; min-width: 0; display: flex; align-items: center; gap: var(--esp-2); }
+.nombre-circuito {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: var(--peso-fuerte);
+  color: var(--color-texto-suave);
+}
+.marca-sucio { color: var(--color-aviso); font-size: var(--texto-xs); }
+
+/* En escritorio la barra pasa a dos filas en lugar de esconder controles; en el celular se desplaza. */
+.barra--editor {
+  flex-wrap: wrap;
+  align-items: center;
+  border-bottom: var(--borde) solid var(--color-borde-suave);
+  background: var(--color-fondo);
+}
+.barra--editor .conmutador { flex-shrink: 0; }
+
+/* --- Área principal --------------------------------------------------------------------------- */
+
+.area {
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--ancho-panel);
+  min-height: 0;
+}
+
+.lienzo {
+  position: relative;
+  min-width: 0;
+  min-height: calc(var(--esp-7) * 9);
+  display: flex;
+  flex-direction: column;
+  border-right: var(--borde) solid var(--color-borde-suave);
+}
+.contenedor-editor { flex: 1; overflow: auto; background: var(--color-fondo-hundido); }
+
+.editor { display: block; touch-action: none; cursor: crosshair; }
+.editor.herramienta-seleccionar { cursor: default; }
+.editor.herramienta-seleccionar .comp { cursor: pointer; }
+.editor .fondo { fill: var(--color-fondo-hundido); }
+.editor .golpe { fill: transparent; stroke: none; }
+.editor .flecha { fill: none; stroke: var(--color-flecha-corriente); stroke-width: var(--borde); stroke-linecap: round; }
+.editor .punta { fill: var(--color-flecha-corriente); }
+.editor .fantasma { opacity: 0.45; pointer-events: none; }
+.editor .cursor { fill: var(--color-primario); opacity: 0.7; pointer-events: none; }
+.editor .cable-pendiente { stroke: var(--color-primario); stroke-width: var(--borde); stroke-dasharray: 5 4; pointer-events: none; }
+
+.contenedor-editor { position: relative; }
+/* Pieza que se está arrastrando: SVG aparte, movido por el compositor. */
+.capa-arrastre { position: absolute; pointer-events: none; will-change: transform; }
+
+.zoom { position: absolute; top: var(--esp-3); right: var(--esp-4); display: flex; gap: var(--esp-1); z-index: 2; }
+
+.estado-simulacion {
+  min-height: var(--alto-control);
+  padding: var(--esp-2) var(--esp-4);
+  border-top: var(--borde) solid var(--color-borde-suave);
+  background: var(--color-superficie);
+}
+
+/* --- Panel lateral ---------------------------------------------------------------------------- */
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-3);
+  padding: var(--esp-3);
+  min-height: 0;
+  overflow-y: auto;
+  background: var(--color-fondo);
+}
+.resultados { display: flex; flex-direction: column; gap: var(--esp-3); }
+.subtitulo {
+  margin: var(--esp-1) 0 0;
+  font-size: var(--texto-xs);
+  font-weight: var(--peso-titulo);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-texto-suave);
+}
+
+.ecuaciones { margin: 0; padding-left: var(--esp-5); display: flex; flex-direction: column; gap: var(--esp-2); }
+.ecuaciones code { overflow-wrap: anywhere; }
+.ecuacion-nombre { font-weight: var(--peso-fuerte); color: var(--color-texto-suave); }
+.matriz th, .matriz td { padding: var(--esp-1) var(--esp-2); }
+.matriz tbody th { font-weight: var(--peso-fuerte); color: var(--color-texto-suave); white-space: nowrap; }
+.matriz .separador { border-left: var(--borde) solid var(--color-borde-suave); }
+
+.atajos { margin-top: auto; padding: var(--esp-3); color: var(--color-texto-suave); font-size: var(--texto-sm); }
+.atajos summary { cursor: pointer; font-weight: var(--peso-fuerte); }
+.atajos dl { display: grid; grid-template-columns: max-content 1fr; gap: var(--esp-1) var(--esp-3); margin: var(--esp-2) 0; }
+.atajos dt { font-family: var(--fuente-mono); color: var(--color-texto); }
+.atajos dd { margin: 0; }
+
+/* --- Avisos flotantes --------------------------------------------------------------------------- */
+
+.aviso--flotante {
+  position: fixed;
+  left: 50%;
+  bottom: var(--esp-5);
+  transform: translateX(-50%);
+  max-width: calc(100vw - var(--esp-6));
+  z-index: 10;
+}
+.aviso-version--flotante { position: fixed; right: var(--esp-4); bottom: var(--esp-4); z-index: 11; }
+
+/* --- Pantallas chicas --------------------------------------------------------------------------- */
+
+@media (max-width: 960px) {
+  .area { grid-template-columns: minmax(0, 1fr); }
+  .lienzo { min-height: 60vh; border-right: 0; border-bottom: var(--borde) solid var(--color-borde-suave); }
+  .panel { overflow: visible; }
+}
+
+@media (max-width: 760px) {
+  .texto-opcional { display: none; }
+}
+
+@media (max-width: 640px) {
+  .barra--editor { flex-wrap: nowrap; }
+  .barra--editor .barra__grupo .boton span:not(.icono) { display: none; }
+  .barra--editor .barra__grupo .boton { padding: 0 var(--esp-2); }
+  .encabezado { padding: var(--esp-2) var(--esp-3); gap: var(--esp-2); }
+  .marca h1 { font-size: var(--texto-lg); }
+  .aviso-version--flotante { left: var(--esp-4); justify-content: space-between; }
+}

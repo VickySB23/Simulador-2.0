@@ -1,5 +1,5 @@
 // Exportación del circuito a SVG y PNG.
-// El dibujo del editor toma colores y grosores de app.css; un archivo suelto no tiene esa hoja, así
+// El dibujo del editor toma colores y grosores de las hojas CSS (tokens); un archivo suelto no las tiene, así
 // que se copian los estilos calculados como atributos de presentación (fill, stroke...). Se usan
 // atributos y no style="" porque la CSP de la página no permite estilos en línea.
 

@@ -414,9 +414,9 @@ function montarCircuito(contenedor, def) {
         animaciones,
         estado: {
           corriente,
-          // Quemada: la potencia que la quemó no está en el resultado (ya no conduce); basta con pasar la nominal.
-          potencia: res.burned ? p.rated_power * 2 : res.power,
+          potencia: res.power,
           potenciaNominal: p.rated_power,
+          quemada: res.burned,
           calor: p.type === "resistor" ? calorResistencia(res.power, Math.max(...potencias, 1e-12)) : 0,
         },
       });

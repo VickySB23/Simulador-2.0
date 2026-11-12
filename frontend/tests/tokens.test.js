@@ -5,9 +5,9 @@ import { test } from "node:test";
 
 const css = (nombre) => readFileSync(new URL(`../public/css/${nombre}`, import.meta.url), "utf-8");
 const sinComentarios = (texto) => texto.replace(/\/\*[\s\S]*?\*\//g, "");
-const HOJAS = ["ui.css", "circuito.css", "galeria.css"];
+const HOJAS = ["ui.css", "circuito.css", "galeria.css", "editor.css"];
 
-test("ui.css, circuito.css y galeria.css no tienen colores literales", () => {
+test("ui.css, circuito.css, galeria.css y editor.css no tienen colores literales", () => {
   for (const hoja of HOJAS) {
     const texto = sinComentarios(css(hoja));
     const colores = texto.match(/#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?|oklch|lab)\(/g) ?? [];
@@ -17,7 +17,7 @@ test("ui.css, circuito.css y galeria.css no tienen colores literales", () => {
   }
 });
 
-test("ui.css, circuito.css y galeria.css no tienen tamaños literales en px o rem (salvo media queries)", () => {
+test("ui.css, circuito.css, galeria.css y editor.css no tienen tamaños literales en px o rem (salvo media queries)", () => {
   for (const hoja of HOJAS) {
     const lineas = sinComentarios(css(hoja)).split("\n").filter((l) => !l.trim().startsWith("@media"));
     const tamanos = lineas.join("\n").match(/\b\d+(?:\.\d+)?(?:px|rem)\b/g) ?? [];

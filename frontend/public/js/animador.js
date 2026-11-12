@@ -85,6 +85,12 @@ export class Animador {
     this.capas.delete(capa);
   }
 
+  /** Volver a medir el SVG (por ejemplo, después de un zoom que no cambia el contenedor). */
+  reajustar(capa) {
+    this._ajustar(capa);
+    this._dibujar(capa);
+  }
+
   pausar(pausado) {
     this.pausado = pausado;
     this.ultimo = null;
@@ -217,7 +223,7 @@ export class Animador {
     ctx.save();
     ctx.translate(e.x, e.y);
     ctx.rotate(e.angulo);
-    ctx.globalAlpha = e.intensidad * 0.45 * latido;
+    ctx.globalAlpha = e.intensidad * 0.3 * latido;
     ctx.fillStyle = this.tokens.calor;
     ctx.beginPath();
     ctx.roundRect(-e.ancho / 2, -e.alto / 2, e.ancho, e.alto, e.alto / 2);

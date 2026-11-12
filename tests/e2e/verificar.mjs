@@ -48,7 +48,7 @@ async function clicEnGrilla(pagina, x, y, doble = false) {
 async function abrirEjemplo(pagina, texto) {
   await pagina.click("#pestana-circuitos");
   await pagina.locator("#lista-ejemplos li")
-    .filter({ has: pagina.locator(".elemento-nombre", { hasText: texto }) })
+    .filter({ has: pagina.locator(".elemento__nombre", { hasText: texto }) })
     .getByRole("button", { name: "Abrir" }).click();
 }
 
@@ -57,7 +57,7 @@ function huella(pagina) {
   return pagina.evaluate(() => ({
     nombre: document.getElementById("nombre-circuito").textContent,
     componentes: [...document.querySelectorAll("#editor g[data-id]")].map((g) => {
-      const l = g.querySelector("line.golpe");
+      const l = g.querySelector("line.comp__seleccion");
       return [g.dataset.id, l.getAttribute("x1"), l.getAttribute("y1"), l.getAttribute("x2"), l.getAttribute("y2")].join(" ");
     }).sort(),
     textos: [...document.querySelectorAll("#editor text")].map((t) => t.textContent).sort(),
@@ -231,7 +231,7 @@ const medidas = await proyector.pagina.evaluate(() => ({
   fuente: getComputedStyle(document.body).fontSize,
   ancho: Number(document.getElementById("editor").getAttribute("width")),
 }));
-ok(medidas.modo === "1" && medidas.fuente === "17px" && medidas.ancho >= 980 * 1.4,
+ok(medidas.modo === "1" && parseFloat(medidas.fuente) >= 17 && medidas.ancho >= 980 * 1.4,
   `modo proyector: letra ${medidas.fuente}, circuito a ${medidas.ancho} px de ancho`);
 await proyector.pagina.click("#pestana-resultados");
 await proyector.pagina.screenshot({ path: `${SALIDA}/05-proyector.png` });

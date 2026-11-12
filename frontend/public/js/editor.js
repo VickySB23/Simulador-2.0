@@ -1,30 +1,29 @@
-// Editor SVG: dibuja el estado del controlador y traduce el puntero en acciones.
-// El dibujo se rehace completo en cada render: los circuitos del editor son chicos.
+// Editor SVG: dibuja el estado del controlador con js/dibujo.js (vista ilustrada o esquemática) y
+// traduce el puntero en acciones. El SVG queda estático; lo que se mueve (puntos de corriente, halo,
+// calor, pulso) lo dibuja el animador en un canvas encima. El circuito se redibuja entero en cada
+// cambio, salvo en dos casos que tienen que ser fluidos con 50 componentes en un celular:
+// - el fantasma de la pieza a colocar se redibuja solo;
+// - al arrastrar, la pieza (con su flecha y su etiqueta) pasa a un SVG superpuesto que se desplaza
+//   con transform de CSS, sin repintar el circuito; al soltar se simula y se redibuja una vez.
+//   Reconstruir el SVG en cada movimiento costaba ~280 ms con la CPU 4× más lenta.
+import { dibujarComponente, dibujarNodo, dibujarTierra, el } from "./dibujo.js";
+import { calorResistencia, colorTension } from "./lib/animacion.js";
+import { corrientesDeTramos } from "./lib/corrientes.js";
 import {
-  ALTO_MUNDO, ANCHO_MUNDO, LARGO, TIPOS, centro, esVertical, mismoPunto, nombreNodo,
-  nodosElectricos, puntosConTerminal, rotacionDe, terminalesDesdeCentro,
+  ALTO_MUNDO, ANCHO_MUNDO, TIPOS, centro, esVertical, mismoPunto, nombreNodo, nodosElectricos,
+  puntosConTerminal, terminalesDesdeCentro,
 } from "./lib/modelo.js";
-import { colorTension, puntosDeEtiqueta, sentidoCorriente, tensionesPorPunto } from "./lib/netlist.js";
+import { puntosDeEtiqueta, sentidoCorriente, tensionesPorPunto } from "./lib/netlist.js";
 import { formatearCompacto, formatearSI, interpretarValor } from "./lib/valores.js";
 
 export const PASO = 20;
 const MARGEN = 10;
-const SVG_NS = "http://www.w3.org/2000/svg";
 const ANCHO_PX = ANCHO_MUNDO * PASO + 2 * MARGEN;
 const ALTO_PX = ALTO_MUNDO * PASO + 2 * MARGEN;
-const PIEZAS = new Set(["resistor", "voltage_source", "current_source"]);
+const PIEZAS = new Set(["resistor", "voltage_source", "current_source", "lamp", "switch"]);
 const DOBLE_CLIC_MS = 400;
 
 const px = (punto) => ({ x: punto.x * PASO + MARGEN, y: punto.y * PASO + MARGEN });
-
-function el(etiqueta, atributos = {}, padre = null) {
-  const nodo = document.createElementNS(SVG_NS, etiqueta);
-  for (const [clave, valor] of Object.entries(atributos)) {
-    if (valor !== undefined && valor !== null) nodo.setAttribute(clave, valor);
-  }
-  padre?.appendChild(nodo);
-  return nodo;
-}
 
 function texto(contenido, atributos, padre) {
   const nodo = el("text", atributos, padre);
@@ -32,32 +31,19 @@ function texto(contenido, atributos, padre) {
   return nodo;
 }
 
-// Símbolos dibujados de a hacia b sobre el eje x, en píxeles; después se rotan.
-const LP = LARGO * PASO;
-const SIMBOLOS = {
-  resistor: (g) => {
-    el("path", { class: "trazo", d: `M0 0H20l3.33-7 6.67 14 6.67-14 6.67 14 6.67-14 6.67 14 3.33-7H${LP}` }, g);
-  },
-  voltage_source: (g) => {
-    el("path", { class: "trazo", d: `M0 0H26M54 0H${LP}` }, g);
-    el("circle", { class: "trazo relleno-lienzo", cx: 40, cy: 0, r: 14 }, g);
-  },
-  current_source: (g) => {
-    el("path", { class: "trazo", d: `M0 0H26M54 0H${LP}` }, g);
-    el("circle", { class: "trazo relleno-lienzo", cx: 40, cy: 0, r: 14 }, g);
-    // Sentido de la fuente: de a hacia b por dentro.
-    el("path", { class: "trazo", d: "M31 0H48M43-5L48 0 43 5" }, g);
-  },
-};
+function compacto(valor, unidad) {
+  try {
+    return formatearCompacto(interpretarValor(valor), unidad);
+  } catch {
+    return String(valor);
+  }
+}
 
-function dibujarSimbolo(componente, padre, clase = "") {
-  const a = px(componente.a);
-  const g = el("g", {
-    class: clase,
-    transform: `translate(${a.x} ${a.y}) rotate(${rotacionDe(componente) * 90})`,
-  }, padre);
-  SIMBOLOS[componente.type](g);
-  return g;
+/** Texto del valor que acompaña al nombre del componente. */
+function valorTexto(c) {
+  if (c.type === "lamp") return `${compacto(c.value, "Ω")} · ${compacto(c.potencia, "W")}`;
+  if (c.type === "switch" || c.type === "wire") return null;
+  return compacto(c.value, TIPOS[c.type].unidad);
 }
 
 function unidadDireccion(desde, hasta) {
@@ -67,35 +53,57 @@ function unidadDireccion(desde, hasta) {
   return { x: dx / largo, y: dy / largo };
 }
 
-function dibujarTierra(punto, padre, atributos = {}) {
-  const p = px(punto);
-  const g = el("g", atributos, padre);
-  el("rect", { class: "golpe", x: p.x - 14, y: p.y - 2, width: 28, height: 28 }, g);
+/** Flecha fija con el sentido real y el valor de la corriente (se ve también en pausa). */
+function dibujarFlecha(capaTextos, c, corriente) {
+  const sentido = sentidoCorriente(c, corriente);
+  if (!sentido) return;
+  const capa = el("g", { "data-de": c.id }, capaTextos);
+  const m = px(centro(c));
+  const vertical = esVertical(c);
+  const u = unidadDireccion(sentido.desde, sentido.hasta);
+  // Del lado opuesto a la etiqueta; la lámpara ilustrada tiene el bulbo arriba, así que va abajo igual.
+  const base = vertical ? { x: m.x - 18, y: m.y } : { x: m.x, y: m.y + 18 };
+  const inicio = { x: base.x - u.x * 11, y: base.y - u.y * 11 };
+  const punta = { x: base.x + u.x * 11, y: base.y + u.y * 11 };
+  el("line", { class: "flecha", x1: inicio.x, y1: inicio.y, x2: punta.x - u.x * 4, y2: punta.y - u.y * 4 }, capa);
+  const n = { x: -u.y, y: u.x };
   el("path", {
-    class: "trazo",
-    d: `M${p.x} ${p.y}v12M${p.x - 10} ${p.y + 12}h20M${p.x - 6} ${p.y + 17}h12M${p.x - 2.5} ${p.y + 22}h5`,
-  }, g);
-  return g;
+    class: "punta",
+    d: `M${punta.x} ${punta.y}L${punta.x - u.x * 7 + n.x * 4} ${punta.y - u.y * 7 + n.y * 4}` +
+      `L${punta.x - u.x * 7 - n.x * 4} ${punta.y - u.y * 7 - n.y * 4}Z`,
+  }, capa);
+  const etiqueta = formatearSI(sentido.magnitud, "A");
+  if (vertical) {
+    texto(etiqueta, { class: "etiqueta etiqueta--corriente texto-corriente", x: base.x - 8, y: base.y, "text-anchor": "end", "dominant-baseline": "central" }, capa);
+  } else {
+    texto(etiqueta, { class: "etiqueta etiqueta--corriente texto-corriente", x: base.x, y: base.y + 16, "text-anchor": "middle" }, capa);
+  }
 }
 
 /**
  * @param {SVGSVGElement} svg
- * @param {object} ctl controlador (app.js): estado, seleccion, herramienta, rotacion, resultado,
- *   error y las acciones colocarPieza, agregarCable, ponerTierra, seleccionar, empezarArrastre,
- *   arrastrar, terminarArrastre, editarValor.
+ * @param {HTMLElement} contenedor  elemento con scroll que contiene al SVG
+ * @param {object} ctl  controlador (app.js): estado, seleccion, herramienta, rotacion, vista,
+ *   resultado, error y las acciones colocarPieza, agregarCable, ponerTierra, seleccionar,
+ *   empezarArrastre, arrastrar, terminarArrastre, editarValor y alternarInterruptor.
+ * @param {import("./animador.js").Animador} animador
  */
-export function crearEditor(svg, contenedor, ctl) {
+export function crearEditor(svg, contenedor, ctl, animador) {
   svg.setAttribute("viewBox", `0 0 ${ANCHO_PX} ${ALTO_PX}`);
   let zoom = 1;
   let puntero = null;
   let cablePendiente = null;
   let arrastre = null;
   let ultimoToque = null;
+  let capaFantasma = null;
+  let animacionesActuales = [];
+  const capa = animador.registrar(contenedor, svg, []);
 
   function aplicarZoom(nuevo) {
     zoom = Math.min(2, Math.max(0.5, nuevo));
     svg.setAttribute("width", Math.round(ANCHO_PX * zoom));
     svg.setAttribute("height", Math.round(ALTO_PX * zoom));
+    animador.reajustar(capa);
   }
 
   function puntoDe(evento) {
@@ -127,15 +135,17 @@ export function crearEditor(svg, contenedor, ctl) {
     el("rect", { class: "fondo", width: ANCHO_PX, height: ALTO_PX }, svg);
     el("rect", { width: ANCHO_PX, height: ALTO_PX, fill: "url(#grilla)" }, svg);
 
-    const tensiones = tensionesPorPunto(resultado);
+    const tensiones = new Map([...tensionesPorPunto(resultado)].filter(([, v]) => v !== null));
     const valores = [...tensiones.values()];
-    const minimo = Math.min(0, ...valores);
-    const maximo = Math.max(0, ...valores);
+    const minima = Math.min(0, ...valores);
+    const maxima = Math.max(0, ...valores);
     const colorDe = (punto) => {
       const v = tensiones.get(nombreNodo(punto));
-      return v === undefined ? null : colorTension(v, minimo, maximo);
+      return v === undefined ? null : colorTension(v, minima, maxima);
     };
-    const corrientes = new Map((resultado?.components ?? []).map((c) => [c.id, c.current]));
+    const porId = new Map((resultado?.components ?? []).map((c) => [c.id, c]));
+    const tramos = corrientesDeTramos(estado, resultado);
+    const potenciaMaxima = Math.max(0, ...[...porId.values()].filter((c) => c.type === "resistor").map((c) => c.power));
     const nodosConError = new Set(error?.details?.nodes ?? []);
     const componentesConError = new Set(error?.details?.components ?? []);
 
@@ -144,40 +154,57 @@ export function crearEditor(svg, contenedor, ctl) {
     const capaNodos = el("g", {}, svg);
     const capaTextos = el("g", {}, svg);
     const capaTierra = el("g", {}, svg);
-    const capaFantasma = el("g", { class: "fantasma" }, svg);
+    capaFantasma = el("g", { class: "fantasma" }, svg);
+    const animaciones = [];
 
     for (const c of estado.components) {
-      const clases = ["componente"];
-      if (seleccion?.tipo === "componente" && seleccion.id === c.id) clases.push("seleccionado");
-      if (componentesConError.has(c.id)) clases.push("con-error");
-      const a = px(c.a);
-      const b = px(c.b);
-      const capa = c.type === "wire" ? capaCables : capaPiezas;
-      const g = el("g", { class: clases.join(" "), "data-id": c.id }, capa);
+      const res = porId.get(c.id);
+      const esTramo = c.type === "wire" || c.type === "switch";
+      let corriente = res?.current ?? 0;
+      if (esTramo) corriente = c.type === "switch" && c.closed === false ? 0 : tramos.get(c.id) ?? 0;
+      let potenciaNominal;
+      if (c.type === "lamp") {
+        try {
+          potenciaNominal = interpretarValor(c.potencia);
+        } catch {
+          potenciaNominal = undefined;
+        }
+      }
+      const g = dibujarComponente({
+        id: c.id, type: c.type, a: px(c.a), b: px(c.b), closed: c.closed,
+        etiqueta: c.type === "wire" ? null : c.id, valor: valorTexto(c),
+      }, {
+        vista: ctl.vista,
+        animaciones,
+        estado: {
+          corriente,
+          potencia: res?.power,
+          potenciaNominal,
+          quemada: res?.burned,
+          calor: c.type === "resistor" ? calorResistencia(res?.power, potenciaMaxima) : 0,
+          color: c.type === "wire" ? colorDe(c.a) : null,
+          seleccionado: seleccion?.tipo === "componente" && seleccion.id === c.id,
+          error: componentesConError.has(c.id),
+        },
+      });
       el("title", {}, g).textContent = c.type === "wire" ? c.id : `${c.id} · ${TIPOS[c.type].nombre}`;
-      el("line", { class: "golpe", x1: a.x, y1: a.y, x2: b.x, y2: b.y }, g);
-      if (c.type === "wire") {
-        const linea = el("line", { class: "trazo cable", x1: a.x, y1: a.y, x2: b.x, y2: b.y }, g);
-        const color = colorDe(c.a);
-        if (color && !componentesConError.has(c.id)) linea.style.stroke = color;
-        continue;
+      // La palanca se anima: se dibuja en el estado anterior y se cambia en el cuadro siguiente.
+      if (c.type === "switch" && ctl.interruptorRecienCambiado === c.id) {
+        g.classList.toggle("abierto", c.closed !== false);
+        requestAnimationFrame(() => g.classList.toggle("abierto", c.closed === false));
       }
-      dibujarSimbolo(c, g);
-      dibujarTextosPieza(c, capaTextos, corrientes.get(c.id));
+      (c.type === "wire" ? capaCables : capaPiezas).append(g);
+      if (!esTramo) dibujarFlecha(capaTextos, c, corriente);
     }
+    ctl.interruptorRecienCambiado = null;
 
-    // Nodos: un punto por terminal, coloreado por tensión.
+    // Nodos: un punto por terminal, del color de su tensión.
     for (const [nombre, punto] of puntosConTerminal(estado)) {
-      const p = px(punto);
+      const g = dibujarNodo(px(punto), capaNodos, { error: nodosConError.has(nombre) });
       const color = colorDe(punto);
-      const nodo = el("circle", { class: color ? "nodo" : "nodo nodo-neutro", cx: p.x, cy: p.y, r: 4 }, capaNodos);
-      if (color) nodo.style.fill = color;
-      el("title", {}, nodo).textContent = tensiones.has(nombre)
-        ? `Nodo ${nombre}: ${formatearSI(tensiones.get(nombre), "V")}`
-        : `Nodo ${nombre}`;
-      if (nodosConError.has(nombre)) {
-        el("circle", { class: "anillo-error", cx: p.x, cy: p.y, r: 9 }, capaNodos);
-      }
+      if (color && !nodosConError.has(nombre)) g.firstChild.style.fill = color;
+      el("title", {}, g).textContent = tensiones.has(nombre)
+        ? `Nodo ${nombre}: ${formatearSI(tensiones.get(nombre), "V")}` : `Nodo ${nombre}`;
     }
 
     // Una etiqueta de tensión por nodo eléctrico.
@@ -186,92 +213,65 @@ export function crearEditor(svg, contenedor, ctl) {
         const v = tensiones.get(nombreNodo(punto));
         if (v === undefined) continue;
         const p = px(punto);
-        texto(formatearSI(v, "V"), { class: "texto tension", x: p.x - 7, y: p.y - 8, "text-anchor": "end" }, capaTextos);
+        texto(formatearSI(v, "V"), { class: "etiqueta etiqueta--tension tension", x: p.x - 7, y: p.y - 9, "text-anchor": "end" }, capaTextos);
       }
     }
 
     if (estado.ground) {
-      dibujarTierra(estado.ground, capaTierra, {
-        class: seleccion?.tipo === "tierra" ? "componente seleccionado" : "componente",
-        "data-tierra": "1",
-      });
+      const p = px(estado.ground);
+      const g = el("g", {
+        class: seleccion?.tipo === "tierra" ? "comp seleccionado" : "comp", "data-tierra": "1",
+      }, capaTierra);
+      el("rect", { class: "golpe", x: p.x - 14, y: p.y - 2, width: 28, height: 28 }, g);
+      dibujarTierra(p, g);
     }
 
-    dibujarFantasma(capaFantasma);
+    renderFantasma();
+    animacionesActuales = animaciones;
+    animador.actualizar(capa, animaciones);
   }
 
-  function dibujarTextosPieza(c, capa, corriente) {
-    const m = px(centro(c));
-    const vertical = esVertical(c);
-    const unidad = TIPOS[c.type].unidad;
-    let valorTexto;
-    let valido = true;
-    try {
-      valorTexto = formatearCompacto(interpretarValor(c.value), unidad);
-    } catch {
-      valorTexto = String(c.value);
-      valido = false;
-    }
-    const claseValor = valido ? "texto texto-valor" : "texto texto-valor invalido";
-    if (vertical) {
-      texto(c.id, { class: "texto texto-id", x: m.x + 20, y: m.y - 3 }, capa);
-      texto(valorTexto, { class: claseValor, x: m.x + 20, y: m.y + 12 }, capa);
-    } else {
-      const t = texto("", { class: "texto", x: m.x, y: m.y - 20, "text-anchor": "middle" }, capa);
-      el("tspan", { class: "texto-id" }, t).textContent = `${c.id} `;
-      el("tspan", { class: claseValor }, t).textContent = valorTexto;
-    }
-
-    // Polaridad de la fuente de tensión: + en a, − en b, siempre derecho aunque esté vertical.
-    if (c.type === "voltage_source") {
-      const u = unidadDireccion(c.a, c.b);
-      for (const [signo, k] of [["+", -7], ["−", 7]]) {
-        texto(signo, {
-          class: "polaridad", x: m.x + u.x * k, y: m.y + u.y * k,
-          "text-anchor": "middle", "dominant-baseline": "central",
-        }, capa);
-      }
-    }
-
-    // Flecha con el sentido real de la corriente, del lado opuesto a la etiqueta.
-    const sentido = sentidoCorriente(c, corriente);
-    if (!sentido) return;
-    const u = unidadDireccion(sentido.desde, sentido.hasta);
-    const base = vertical ? { x: m.x - 16, y: m.y } : { x: m.x, y: m.y + 16 };
-    const inicio = { x: base.x - u.x * 11, y: base.y - u.y * 11 };
-    const punta = { x: base.x + u.x * 11, y: base.y + u.y * 11 };
-    el("line", { class: "flecha", x1: inicio.x, y1: inicio.y, x2: punta.x - u.x * 4, y2: punta.y - u.y * 4 }, capa);
-    const n = { x: -u.y, y: u.x };
-    el("path", {
-      class: "punta",
-      d: `M${punta.x} ${punta.y}L${punta.x - u.x * 7 + n.x * 4} ${punta.y - u.y * 7 + n.y * 4}` +
-        `L${punta.x - u.x * 7 - n.x * 4} ${punta.y - u.y * 7 - n.y * 4}Z`,
-    }, capa);
-    const etiqueta = formatearSI(sentido.magnitud, "A");
-    if (vertical) {
-      texto(etiqueta, {
-        class: "texto texto-corriente", x: base.x - 8, y: base.y,
-        "text-anchor": "end", "dominant-baseline": "central",
-      }, capa);
-    } else {
-      texto(etiqueta, { class: "texto texto-corriente", x: base.x, y: base.y + 16, "text-anchor": "middle" }, capa);
-    }
+  /**
+   * Pasa los elementos arrastrados a un SVG encima del circuito, con su mismo tamaño y viewBox:
+   * moverlo con transform de CSS lo resuelve el compositor, sin repintar el SVG del circuito.
+   */
+  function crearCapaArrastre(elementos) {
+    const capaSvg = el("svg", {
+      class: "editor capa-arrastre", viewBox: svg.getAttribute("viewBox"),
+      width: svg.getAttribute("width"), height: svg.getAttribute("height"), "aria-hidden": "true",
+    });
+    const caja = svg.getBoundingClientRect();
+    const marco = contenedor.getBoundingClientRect();
+    capaSvg.style.left = `${caja.left - marco.left - contenedor.clientLeft + contenedor.scrollLeft}px`;
+    capaSvg.style.top = `${caja.top - marco.top - contenedor.clientTop + contenedor.scrollTop}px`;
+    capaSvg.append(...elementos);
+    contenedor.append(capaSvg);
+    return capaSvg;
   }
 
-  function dibujarFantasma(capa) {
+  /** Elementos del SVG que se mueven con lo que se arrastra (la pieza, su flecha y su etiqueta). */
+  function elementosDe(sel) {
+    if (sel.tipo === "tierra") return [...svg.querySelectorAll("[data-tierra]")];
+    return [...svg.querySelectorAll(`[data-id="${CSS.escape(sel.id)}"], [data-de="${CSS.escape(sel.id)}"]`)];
+  }
+
+  function renderFantasma() {
+    if (!capaFantasma) return;
+    capaFantasma.replaceChildren();
     if (!puntero || ctl.herramienta === "seleccionar") return;
     const p = px(puntero);
     if (PIEZAS.has(ctl.herramienta)) {
       const { a, b } = terminalesDesdeCentro(puntero, ctl.rotacion);
-      dibujarSimbolo({ type: ctl.herramienta, a, b }, capa);
+      capaFantasma.append(dibujarComponente(
+        { type: ctl.herramienta, a: px(a), b: px(b), closed: true }, { vista: ctl.vista, etiquetas: false }));
     } else if (ctl.herramienta === "ground") {
-      dibujarTierra(puntero, capa);
+      dibujarTierra(p, capaFantasma);
     }
     if (cablePendiente) {
       const q = px(cablePendiente);
-      el("line", { class: "cable-pendiente", x1: q.x, y1: q.y, x2: p.x, y2: p.y }, svg);
+      el("line", { class: "cable-pendiente", x1: q.x, y1: q.y, x2: p.x, y2: p.y }, capaFantasma);
     }
-    el("circle", { class: "cursor", cx: p.x, cy: p.y, r: 4 }, svg);
+    el("circle", { class: "cursor", cx: p.x, cy: p.y, r: 4 }, capaFantasma);
   }
 
   // --- Puntero ---------------------------------------------------------------------------
@@ -284,12 +284,12 @@ export function crearEditor(svg, contenedor, ctl) {
     const herramienta = ctl.herramienta;
     if (herramienta === "seleccionar") {
       const sel = objetivo(evento);
+      const tipo = sel?.tipo === "componente" ? ctl.estado.components.find((c) => c.id === sel.id)?.type : null;
       // Doble clic (o doble toque) detectado a mano: cada render reemplaza los elementos del SVG,
       // así que el evento dblclick del navegador no siempre llega al componente.
       const ahora = evento.timeStamp;
-      const esDoble = sel?.tipo === "componente" && ultimoToque?.id === sel.id &&
-        ahora - ultimoToque.tiempo < DOBLE_CLIC_MS;
-      ultimoToque = sel?.tipo === "componente" ? { id: sel.id, tiempo: ahora } : null;
+      const esDoble = tipo && tipo !== "switch" && ultimoToque?.id === sel.id && ahora - ultimoToque.tiempo < DOBLE_CLIC_MS;
+      ultimoToque = tipo ? { id: sel.id, tiempo: ahora } : null;
       if (esDoble) {
         ultimoToque = null;
         ctl.editarValor(sel.id);
@@ -297,20 +297,21 @@ export function crearEditor(svg, contenedor, ctl) {
         return;
       }
       ctl.seleccionar(sel);
+      render();
       if (sel) {
-        arrastre = { inicio: punto, dx: 0, dy: 0 };
+        arrastre = { inicio: punto, dx: 0, dy: 0, sel, tipo, elementos: elementosDe(sel), movio: false };
         ctl.empezarArrastre();
         svg.setPointerCapture(evento.pointerId);
       }
     } else if (herramienta === "wire") {
       if (!cablePendiente) cablePendiente = punto;
       svg.setPointerCapture(evento.pointerId);
+      renderFantasma();
     } else if (herramienta === "ground") {
       ctl.ponerTierra(punto);
     } else if (PIEZAS.has(herramienta)) {
       ctl.colocarPieza(herramienta, punto);
     }
-    render();
     evento.preventDefault();
   });
 
@@ -322,41 +323,56 @@ export function crearEditor(svg, contenedor, ctl) {
     if (arrastre) {
       const dx = punto.x - arrastre.inicio.x;
       const dy = punto.y - arrastre.inicio.y;
-      if (dx !== arrastre.dx || dy !== arrastre.dy) {
+      if ((dx !== arrastre.dx || dy !== arrastre.dy) && ctl.arrastrar(dx, dy)) {
         arrastre.dx = dx;
         arrastre.dy = dy;
-        ctl.arrastrar(dx, dy);
+        if (!arrastre.movio) {
+          // Sus puntos de corriente quedarían en el lugar viejo: se sacan hasta soltar.
+          arrastre.movio = true;
+          const id = arrastre.sel.id;
+          animador.actualizar(capa, animacionesActuales.filter((e) => e.id !== id));
+          arrastre.capaSvg = crearCapaArrastre(arrastre.elementos);
+        }
+        arrastre.capaSvg.style.transform = `translate(${dx * PASO * zoom}px, ${dy * PASO * zoom}px)`;
       }
     } else if (cambio && ctl.herramienta !== "seleccionar") {
-      render();
+      renderFantasma();
     }
   });
 
   svg.addEventListener("pointerup", (evento) => {
     const punto = puntoDe(evento) ?? puntero;
     if (arrastre) {
+      const { dx, dy, sel, tipo, movio, capaSvg } = arrastre;
       arrastre = null;
-      ctl.terminarArrastre();
+      capaSvg?.remove();
+      // Si cambió, terminarArrastre simula y redibuja; si volvió al lugar, se redibuja acá.
+      if (!ctl.terminarArrastre() && movio) render();
+      // Un clic sin arrastrar sobre un interruptor lo abre o lo cierra.
+      if (tipo === "switch" && dx === 0 && dy === 0) ctl.alternarInterruptor(sel.id);
     } else if (ctl.herramienta === "wire" && cablePendiente && punto && !mismoPunto(punto, cablePendiente)) {
       // Arrastrar o hacer clic en dos puntos: las dos formas terminan acá.
       const inicio = cablePendiente;
       cablePendiente = null;
       ctl.agregarCable(inicio, punto);
+    } else {
+      renderFantasma();
     }
-    render();
   });
 
   svg.addEventListener("pointercancel", () => {
     if (arrastre) {
+      const { movio, capaSvg } = arrastre;
       arrastre = null;
-      ctl.terminarArrastre();
+      capaSvg?.remove();
+      if (!ctl.terminarArrastre() && movio) render();
     }
   });
 
   svg.addEventListener("pointerleave", (evento) => {
     if (evento.pointerType === "mouse" && !arrastre) {
       puntero = null;
-      render();
+      renderFantasma();
     }
   });
 
@@ -367,18 +383,17 @@ export function crearEditor(svg, contenedor, ctl) {
     cancelarCable() {
       const habia = cablePendiente !== null;
       cablePendiente = null;
-      render();
+      renderFantasma();
       return habia;
     },
-    acercar: () => { aplicarZoom(zoom * 1.2); },
-    alejar: () => { aplicarZoom(zoom / 1.2); },
+    acercar: () => aplicarZoom(zoom * 1.2),
+    alejar: () => aplicarZoom(zoom / 1.2),
     ajustar() {
       // En modo proyector el circuito se agranda aunque haga falta desplazarse.
       const proyector = document.documentElement.dataset.proyector === "1";
       const [minimo, maximo] = proyector ? [1.4, 2] : [0.6, 1.4];
       aplicarZoom(Math.max(minimo, Math.min(maximo, (contenedor.clientWidth - 4) / ANCHO_PX)));
     },
-    /** Grupo de nodos eléctricos, para la tabla de resultados. */
     nodos: () => nodosElectricos(ctl.estado),
   };
 }

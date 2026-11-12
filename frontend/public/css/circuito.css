@@ -50,7 +50,7 @@
 .res-banda-1 { fill: var(--ilus-banda-1); }
 .res-banda-2 { fill: var(--ilus-banda-2); }
 .res-banda-3 { fill: var(--ilus-banda-3); }
-.res-calor { fill: var(--ilus-calor); opacity: calc(var(--calor) * 0.4); }
+.res-calor { fill: var(--ilus-calor); opacity: calc(var(--calor) * 0.25); }
 
 /* --- Batería (fuente de tensión) ---------------------------------------------------------------- */
 
