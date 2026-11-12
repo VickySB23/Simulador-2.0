@@ -620,13 +620,6 @@ window.addEventListener("hashchange", () => {
   if (location.hash.startsWith(PREFIJO_HASH) && confirmarDescarte()) cargarDesdeHash();
 });
 
-// Funciona sin internet una vez cargado: el service worker guarda todos los archivos.
-if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("./sw.js").catch(() => {
-    // Sin service worker (por ejemplo, abierto como archivo local): funciona igual, pero online.
-  });
-}
-
 // --- Arranque ------------------------------------------------------------------------------------
 
 $("texto-tema").textContent = TEMAS[temaActual()].texto;

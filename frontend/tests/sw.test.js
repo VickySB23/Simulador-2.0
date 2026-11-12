@@ -26,3 +26,16 @@ test("index.html solo usa rutas relativas (GitHub Pages publica en /Simulador-2.
   assert.ok(rutas.length > 0);
   for (const ruta of rutas) assert.ok(!ruta.startsWith("/") && !ruta.includes("://"), ruta);
 });
+
+test("la versión de la página y la del service worker coinciden", () => {
+  const sw = readFileSync(join(PUBLICO, "sw.js"), "utf-8").match(/const VERSION = "([^"]+)"/)[1];
+  const pagina = readFileSync(join(PUBLICO, "js/version.js"), "utf-8").match(/VERSION = "([^"]+)"/)[1];
+  assert.equal(pagina, sw);
+});
+
+test("el service worker no se activa solo: espera a que el usuario toque Actualizar", () => {
+  const fuente = readFileSync(join(PUBLICO, "sw.js"), "utf-8");
+  const install = fuente.slice(fuente.indexOf('addEventListener("install"'), fuente.indexOf('addEventListener("activate"'));
+  assert.ok(!/skipWaiting\(\)/.test(install.replace(/\/\/.*$/gm, "")), "install no debe llamar a skipWaiting");
+  assert.ok(fuente.includes('evento.data?.tipo === "ACTIVAR") self.skipWaiting()'));
+});

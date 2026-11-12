@@ -7,7 +7,9 @@ el balance de potencias y las ecuaciones que lo resuelven.
 **Abrilo acá: <https://vickysb23.github.io/Simulador-2.0/>**
 
 No hay que instalar nada ni crear una cuenta. Funciona en la compu, la tablet y el celular, y
-después de abrirlo una vez sigue funcionando **sin internet** (sirve para un aula sin wifi).
+después de abrirlo una vez sigue funcionando **sin internet** (sirve para un aula sin wifi). Si
+mientras está abierto se publica una versión nueva, abajo a la derecha aparece **"Hay una versión
+nueva — Actualizar"**: con un clic se recarga con la versión nueva (el circuito abierto no se pierde).
 
 ![Ejercicio del TP4 resuelto: el nodo del medio queda en 30 V](docs/capturas/tp4.png)
 
@@ -130,7 +132,10 @@ Página estática: HTML, CSS y JavaScript sin librerías ni paso de compilación
   ([`docs/comparacion/`](docs/comparacion/)).
 - **Resto de la lógica sin DOM** (`js/lib/`): modelo del circuito, historial, valores, ejemplos,
   almacenamiento local, link para compartir y ecuaciones. Tiene sus tests.
-- **Sin internet:** `sw.js` guarda todos los archivos en la primera visita.
+- **Sin internet y actualizaciones:** `sw.js` guarda todos los archivos en una caché con versión.
+  Pide primero a la red (HTML, JS y CSS, para no mezclar versiones) y usa la caché si no hay
+  conexión o la red tarda más de 4 s. Al publicar un cambio se sube `VERSION` en `sw.js` y en
+  `js/version.js`: quien tenga la página abierta ve "Hay una versión nueva — Actualizar".
 
 ```bash
 cd frontend && node --test          # tests (Node 22 o más nuevo, sin dependencias)

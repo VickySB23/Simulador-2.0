@@ -1,8 +1,13 @@
-// Service worker: guarda todos los archivos en la primera visita para que el simulador funcione
-// sin internet (por ejemplo, en un aula sin wifi). Responde desde la caché y, si hay red, la
-// actualiza en segundo plano: los cambios publicados se ven en la visita siguiente.
-// tests/sw.test.js verifica que ARCHIVOS incluya todo lo que hay en public/.
-const VERSION = "simulador-dc-v1";
+// Service worker: permite usar el simulador sin internet (por ejemplo, en un aula sin wifi).
+//
+// - Caché con versión: VERSION nombra la caché; al activarse una versión nueva se borran las viejas.
+//   Tiene que coincidir con js/version.js (lo verifica tests/sw.test.js).
+// - Red primero, para el HTML y también para JS y CSS: así una página nunca mezcla un HTML nuevo
+//   con un JS viejo. Si la red no responde en TIEMPO_RED_MS o no hay conexión, se usa la caché.
+// - Una versión nueva se instala en segundo plano y queda esperando: la página muestra
+//   "Hay una versión nueva — Actualizar" y la activa recién cuando el usuario toca el botón.
+const VERSION = "simulador-dc-v2";
+const TIEMPO_RED_MS = 4000;
 const ARCHIVOS = [
   "./",
   "index.html",
@@ -10,6 +15,8 @@ const ARCHIVOS = [
   "icono.svg",
   "css/app.css",
   "js/tema.js",
+  "js/version.js",
+  "js/actualizacion.js",
   "js/app.js",
   "js/editor.js",
   "js/exportar.js",
@@ -26,7 +33,10 @@ const ARCHIVOS = [
 ];
 
 self.addEventListener("install", (evento) => {
-  evento.waitUntil(caches.open(VERSION).then((cache) => cache.addAll(ARCHIVOS)).then(() => self.skipWaiting()));
+  // cache: "reload" saltea la caché HTTP (GitHub Pages cachea 10 minutos): se guarda lo publicado.
+  evento.waitUntil(caches.open(VERSION).then((cache) =>
+    cache.addAll(ARCHIVOS.map((archivo) => new Request(archivo, { cache: "reload" })))));
+  // Sin skipWaiting: si ya hay una versión activa, la nueva espera a que el usuario toque Actualizar.
 });
 
 self.addEventListener("activate", (evento) => {
@@ -37,23 +47,32 @@ self.addEventListener("activate", (evento) => {
   );
 });
 
+self.addEventListener("message", (evento) => {
+  if (evento.data?.tipo === "VERSION") evento.ports[0]?.postMessage({ tipo: "VERSION", version: VERSION });
+  if (evento.data?.tipo === "ACTIVAR") self.skipWaiting();
+});
+
+function conLimite(promesa, ms) {
+  return Promise.race([promesa, new Promise((_, rechazar) => setTimeout(() => rechazar(new Error("lenta")), ms))]);
+}
+
 self.addEventListener("fetch", (evento) => {
   const pedido = evento.request;
-  if (pedido.method !== "GET" || new URL(pedido.url).origin !== self.location.origin) return;
-  evento.respondWith(caches.open(VERSION).then(async (cache) => {
-    // La página se pide con distintas URL (/, /index.html, con ?query): todas son index.html.
-    const clave = pedido.mode === "navigate" ? "index.html" : pedido;
-    const guardada = await cache.match(clave, { ignoreSearch: true });
-    const deRed = fetch(pedido)
-      .then((respuesta) => {
-        if (respuesta.ok) cache.put(clave, respuesta.clone());
-        return respuesta;
-      })
-      .catch(() => guardada);
-    if (guardada) {
-      evento.waitUntil(deRed);
-      return guardada;
+  const url = new URL(pedido.url);
+  if (pedido.method !== "GET" || url.origin !== self.location.origin) return;
+  // La página se pide con distintas URL (/, /index.html, ?query, #c=...): todas son index.html.
+  const esPagina = pedido.mode === "navigate";
+  const clave = esPagina ? "index.html" : url.pathname.endsWith("/") ? "./" : pedido;
+  evento.respondWith((async () => {
+    const cache = await caches.open(VERSION);
+    try {
+      // no-cache: el navegador revalida con el servidor en lugar de usar su caché HTTP.
+      const respuesta = await conLimite(fetch(esPagina ? url.href : pedido, { cache: "no-cache" }), TIEMPO_RED_MS);
+      if (respuesta.ok) evento.waitUntil(cache.put(clave, respuesta.clone()));
+      return respuesta;
+    } catch {
+      const guardada = await cache.match(clave, { ignoreSearch: true });
+      return guardada ?? Response.error();
     }
-    return deRed;
-  }));
+  })());
 });

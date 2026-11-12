@@ -33,5 +33,12 @@ Variables opcionales:
 
 Imprime una línea `OK` o `MAL` por comprobación y termina con código 1 si alguna falla.
 
+`actualizacion.mjs` comprueba el aviso de versión nueva: abre la página, espera a que la
+controle el service worker y revisa cada 10 s si hay versión nueva (como hace la página cada 30
+minutos o al volver a la pestaña). Mientras espera, publicá un cambio subiendo `VERSION` en
+`frontend/public/sw.js` y `frontend/public/js/version.js`; el script tiene que ver
+"Hay una versión nueva — Actualizar", tocarlo y terminar con la versión nueva activa.
+`ESPERA_MINUTOS` fija cuánto espera (por defecto 15).
+
 `servir.mjs` sirve `frontend/public/` en la raíz y en `/Simulador-2.0/`, como GitHub Pages, para
 comprobar que todas las rutas sean relativas.

@@ -441,3 +441,24 @@ body {
 @media (max-width: 960px) {
   :root[data-proyector="1"] .area { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* --- Aviso de versión nueva --------------------------------------------------------------- */
+
+.aviso-version {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px 10px 16px;
+  border: 1px solid var(--acento);
+  border-radius: var(--radio);
+  background: var(--superficie);
+  color: var(--texto);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.2);
+  z-index: 11;
+}
+@media (max-width: 640px) {
+  .aviso-version { left: 16px; justify-content: space-between; }
+}

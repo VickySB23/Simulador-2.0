@@ -21,7 +21,8 @@ frontend/public/          lo que se publica (HTML + CSS + JS vanilla con módulo
   js/lib/                 lógica sin DOM, con tests: mna, modelo, netlist, historial, valores,
                           ejemplos, almacen (localStorage + .json), compartir (hash), ecuaciones
   js/app.js, editor.js, paneles.js, exportar.js, tema.js     interfaz
-  sw.js                   service worker: funciona sin internet (lista de archivos testeada)
+  sw.js                   service worker: caché con versión, red primero (4 s) y caché sin conexión
+  js/version.js, js/actualizacion.js   versión de la página y aviso "Hay una versión nueva — Actualizar"
 frontend/tests/           node --test (sin dependencias)
 tests/e2e/                verificar.mjs (Chrome real con playwright-core) y servir.mjs
 tests/comparacion/        motor JS contra POST /simulate de la rama microservicios
@@ -63,16 +64,19 @@ render reemplaza los elementos del SVG.
   scripts ni estilos en línea, ni `eval`. Colores dinámicos con `element.style.x = ...` (CSSOM) o
   atributos de presentación SVG. Las pruebas de navegador usan locators, no `waitForFunction`.
 - **Rutas relativas** en todo: Pages publica en `/Simulador-2.0/`.
-- **Archivo nuevo en `public/`** → agregarlo a `ARCHIVOS` en `sw.js` (lo verifica un test) y,
-  si cambia algo que deba verse enseguida, subir `VERSION`.
+- **Archivo nuevo en `public/`** → agregarlo a `ARCHIVOS` en `sw.js` (lo verifica un test).
+- **Cada publicación** sube `VERSION` en `sw.js` y en `js/version.js` (un test exige que coincidan).
+  El service worker nuevo no se activa solo: espera a que el usuario toque Actualizar. Si la página
+  ya cargó la versión nueva desde la red, se activa sin avisar.
 - Sin librerías externas ni CDN.
 
 ## Comandos
 
 ```bash
-cd frontend && node --test                  # 86 tests
+cd frontend && node --test                  # 88 tests
 node tests/e2e/servir.mjs                   # http://localhost:8000/Simulador-2.0/
 cd tests/e2e && npm install && node verificar.mjs capturas   # 31 comprobaciones en Chrome
+node tests/e2e/actualizacion.mjs            # aviso de versión nueva (publicar mientras espera)
 ```
 
 ## Cómo trabajar
