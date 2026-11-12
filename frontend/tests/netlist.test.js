@@ -3,7 +3,7 @@ import { test } from "node:test";
 
 import { agregarCable, agregarPieza, circuitoVacio, ponerTierra } from "../public/js/lib/modelo.js";
 import {
-  armarNetlist, colorTension, errorDeRespuesta, problemaLocal, puntosDeEtiqueta, sentidoCorriente,
+  armarNetlist, colorTension, problemaLocal, puntosDeEtiqueta, sentidoCorriente, simularEstado,
 } from "../public/js/lib/netlist.js";
 import { EJEMPLOS } from "../public/js/lib/ejemplos.js";
 
@@ -76,14 +76,15 @@ test("color de tensión: azul en el mínimo, rojo en el máximo", () => {
   assert.equal(colorTension(5, 5, 5), "hsl(110 75% 50%)");
 });
 
-test("errores del simulador y de validación", () => {
-  const flotante = { detail: { code: "floating_nodes", message: "m", details: { nodes: ["3_3"] } } };
-  assert.deepEqual(errorDeRespuesta(422, flotante), { code: "floating_nodes", message: "m", details: { nodes: ["3_3"] } });
-  assert.equal(errorDeRespuesta(422, { detail: [{ loc: [] }] }).code, "invalid_schema");
-  assert.equal(errorDeRespuesta(500, null).code, "http_500");
-  // Respuesta del fallback de nginx con un backend caído.
-  assert.deepEqual(errorDeRespuesta(503, { code: "unavailable", message: "No disponible", details: {} }),
-    { code: "unavailable", message: "No disponible", details: {} });
+test("simularEstado: resultado o error con códigos del motor", () => {
+  const ok = simularEstado(divisorChico());
+  assert.ok(ok.resultado && !ok.error);
+  let e = divisorChico();
+  ({ estado: e } = agregarPieza(e, "resistor", p(20, 20), 0)); // 18_20 a 22_20, suelta
+  const { error } = simularEstado(e);
+  assert.equal(error.code, "floating_nodes");
+  assert.deepEqual(error.details.nodes, ["18_20", "22_20"]);
+  assert.equal(simularEstado(circuitoVacio()).error.code, "empty");
 });
 
 test("los ejemplos precargados no tienen problemas locales", () => {

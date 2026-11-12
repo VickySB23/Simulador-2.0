@@ -1,4 +1,5 @@
-// Paneles de resultados y diálogo de texto.
+// Paneles de resultados y ecuaciones, y diálogo de texto.
+import { MAXIMO_MATRIZ, ecuacionesDe, numeroCorto } from "./lib/ecuaciones.js";
 import { nombreNodo, nodosElectricos } from "./lib/modelo.js";
 import { colorTension, puntosDeEtiqueta, tensionesPorPunto } from "./lib/netlist.js";
 import { formatearSI } from "./lib/valores.js";
@@ -81,6 +82,68 @@ export function renderResultados({ estado, resultado, error }) {
   $("estadisticas").textContent =
     `${stats.electrical_nodes} nodos · ${stats.unknowns} incógnitas · solver ${stats.solver} · ` +
     `${stats.total_ms} ms. ↑ = entrega potencia.`;
+}
+
+function celda(etiqueta, texto, clase) {
+  const c = document.createElement(etiqueta);
+  c.textContent = texto;
+  if (clase) c.className = clase;
+  return c;
+}
+
+/** Panel "Ecuaciones": KCL por nodo, restricciones de las fuentes y el sistema MNA con valores. */
+export function renderEcuaciones(estado) {
+  const e = ecuacionesDe(estado);
+  const error = $("ecuaciones-error");
+  error.hidden = !e.error;
+  $("ecuaciones").hidden = Boolean(e.error);
+  if (e.error) {
+    error.textContent = e.error.code === "empty"
+      ? e.error.message
+      : `No se pueden plantear las ecuaciones: ${e.error.message}`;
+    error.className = e.error.code === "empty" ? "mensaje" : "mensaje mensaje-error";
+    return;
+  }
+  const lista = (id, items) => $(id).replaceChildren(...items.map(({ nombre, ecuacion }) => {
+    const li = document.createElement("li");
+    li.append(celda("span", `${nombre}: `, "ecuacion-nombre"), celda("code", ecuacion));
+    return li;
+  }));
+  lista("ecuaciones-nodos", e.nodos);
+  lista("ecuaciones-fuentes", e.fuentes.length ? e.fuentes : [{ nombre: "—", ecuacion: "no hay fuentes de tensión" }]);
+
+  const contenedor = $("matriz-mna");
+  const solucion = $("solucion-mna");
+  if (e.recortada) {
+    contenedor.replaceChildren(celda("p",
+      `El sistema tiene ${e.incognitas.length} incógnitas; la matriz se muestra hasta ${MAXIMO_MATRIZ}.`, "nota"));
+    solucion.replaceChildren();
+    return;
+  }
+  const unidad = (nombre) => (nombre.startsWith("I(") ? "A" : "V");
+  solucion.replaceChildren(...e.incognitas.map((nombre, i) => {
+    const li = document.createElement("li");
+    li.append(celda("code", `${nombre} = ${numeroCorto(e.x[i])} ${unidad(nombre)}`));
+    return li;
+  }));
+  const tabla = document.createElement("table");
+  tabla.className = "tabla matriz";
+  const cabecera = document.createElement("tr");
+  cabecera.append(celda("th", ""), ...e.incognitas.map((n) => celda("th", n, "num")),
+    celda("th", "z", "num separador"));
+  const cuerpo = e.A.map((fila, i) => {
+    const tr = document.createElement("tr");
+    tr.append(celda("th", i < e.nodos.length ? `KCL ${e.nodos[i].nombre}` : e.fuentes[i - e.nodos.length].nombre),
+      ...fila.map((v) => celda("td", numeroCorto(v), v === 0 ? "num cero" : "num")),
+      celda("td", numeroCorto(e.z[i]), "num separador"));
+    return tr;
+  });
+  const thead = document.createElement("thead");
+  thead.append(cabecera);
+  const tbody = document.createElement("tbody");
+  tbody.append(...cuerpo);
+  tabla.append(thead, tbody);
+  contenedor.replaceChildren(tabla);
 }
 
 /**

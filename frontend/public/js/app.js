@@ -1,22 +1,25 @@
-// Controlador del editor: estado, historial, simulación en vivo y persistencia.
-import { api } from "./api.js";
+// Controlador del editor: estado, historial, simulación local y persistencia en el navegador.
 import { crearEditor } from "./editor.js";
+import { descargar, nombreDeArchivo, pngDelCircuito, svgDelCircuito } from "./exportar.js";
+import { Almacen, aArchivo, desdeArchivo } from "./lib/almacen.js";
+import { PREFIJO_HASH, codificar, decodificar } from "./lib/compartir.js";
 import { EJEMPLOS } from "./lib/ejemplos.js";
 import { Historial } from "./lib/historial.js";
 import {
   TIPOS, aLayout, agregarCable, agregarPieza, buscar, cambiarValor, circuitoVacio, desdeLayout,
   eliminar, mover, moverTierra, ponerTierra, quitarTierra, restaurar, rotar,
 } from "./lib/modelo.js";
-import { armarNetlist, problemaLocal } from "./lib/netlist.js";
-import { SimulacionEnVivo } from "./lib/simulacion.js";
+import { simularEstado } from "./lib/netlist.js";
 import { interpretarValor, normalizarTexto } from "./lib/valores.js";
-import { pedirTexto, renderResultados } from "./paneles.js";
+import { pedirTexto, renderEcuaciones, renderResultados } from "./paneles.js";
 
 const $ = (id) => document.getElementById(id);
 const HERRAMIENTAS = ["seleccionar", "wire", "resistor", "voltage_source", "current_source", "ground"];
 const PIEZAS = new Set(["resistor", "voltage_source", "current_source"]);
+const CLAVE_BORRADOR = "simulador-dc:borrador";
 
 const historial = new Historial();
+const almacen = new Almacen();
 
 const ctl = {
   estado: structuredClone(EJEMPLOS[0].estado),
@@ -53,7 +56,8 @@ const ctl = {
     ctl.estado = ctl.seleccion?.tipo === "tierra"
       ? moverTierra(antes, dx, dy)
       : mover(antes, ctl.seleccion.id, dx, dy);
-    editor.render();
+    // La simulación es local e instantánea: se ve el resultado mientras se arrastra.
+    simular();
   },
   terminarArrastre() {
     const antes = ctl._antesDelArrastre;
@@ -90,22 +94,29 @@ const ctl = {
 
 const editor = crearEditor($("editor"), $("contenedor-editor"), ctl);
 
-const simulacion = new SimulacionEnVivo({
-  alCambiar(cambio) {
-    if (cambio.fase === "ok") {
-      ctl.resultado = cambio.resultado;
-      ctl.error = null;
-    } else if (cambio.fase === "error") {
-      ctl.resultado = null;
-      ctl.error = cambio.error;
-    }
-    mostrarEstado(cambio);
-    if (cambio.fase === "ok" || cambio.fase === "error") {
-      editor.render();
-      renderResultados(ctl);
-    }
-  },
-});
+// --- Simulación (en el navegador, al instante) -----------------------------------------------
+
+function simular() {
+  const { resultado, error } = simularEstado(ctl.estado);
+  ctl.resultado = resultado ?? null;
+  ctl.error = error ?? null;
+  mostrarEstado();
+  editor.render();
+  renderResultados(ctl);
+  if (!$("vista-ecuaciones").hidden) renderEcuaciones(ctl.estado);
+}
+
+function mostrarEstado() {
+  const caja = $("estado-simulacion");
+  if (ctl.resultado) {
+    const s = ctl.resultado.stats;
+    caja.dataset.fase = "ok";
+    caja.textContent = `Simulación OK · ${s.electrical_nodes} nodos · ${s.unknowns} incógnitas · ${s.total_ms.toFixed(1)} ms`;
+  } else {
+    caja.dataset.fase = ctl.error?.code === "empty" ? "vacio" : "error";
+    caja.textContent = ctl.error?.message ?? "";
+  }
+}
 
 // --- Cambios del circuito ------------------------------------------------------------------
 
@@ -121,38 +132,22 @@ function circuitoCambiado({ sucio = true } = {}) {
   if (sucio) ctl.sucio = true;
   if (ctl.seleccion?.tipo === "componente" && !buscar(ctl.estado, ctl.seleccion.id)) ctl.seleccion = null;
   if (ctl.seleccion?.tipo === "tierra" && !ctl.estado.ground) ctl.seleccion = null;
-  editor.render();
+  simular();
   actualizarEncabezado();
   actualizarBotones();
-  programarSimulacion();
+  programarBorrador();
 }
 
-function programarSimulacion() {
-  const problema = problemaLocal(ctl.estado);
-  if (problema) {
-    simulacion.cancelar();
-    ctl.resultado = null;
-    ctl.error = { ...problema, details: {} };
-    mostrarEstado({ fase: problema.code === "empty" ? "vacio" : "error", error: ctl.error });
-    editor.render();
-    renderResultados(ctl);
-    return;
-  }
-  simulacion.pedir(armarNetlist(ctl.estado));
-}
-
-function cargar(estado, actual) {
-  simulacion.cancelar();
+function cargar(estado, actual, { sucio = false } = {}) {
   historial.limpiar();
   ctl.estado = estado;
   ctl.actual = actual;
   ctl.seleccion = null;
-  ctl.resultado = null;
-  ctl.error = null;
-  circuitoCambiado({ sucio: false });
-  ctl.sucio = false;
+  circuitoCambiado({ sucio });
+  ctl.sucio = sucio;
   actualizarEncabezado();
   renderLista();
+  guardarBorrador();
 }
 
 function deshacer() {
@@ -200,21 +195,6 @@ function elegirHerramienta(herramienta) {
 
 // --- Interfaz --------------------------------------------------------------------------------
 
-function mostrarEstado({ fase, error, reintentoEn }) {
-  const caja = $("estado-simulacion");
-  caja.dataset.fase = fase;
-  if (fase === "esperando" || fase === "simulando") {
-    caja.textContent = "Simulando…";
-  } else if (fase === "ok") {
-    const s = ctl.resultado.stats;
-    caja.textContent = `Simulación OK · ${s.unknowns} incógnitas · ${s.total_ms} ms`;
-  } else if (fase === "saturado") {
-    caja.textContent = `${error.message} Reintento en ${reintentoEn} s…`;
-  } else {
-    caja.textContent = error?.message ?? "";
-  }
-}
-
 function actualizarEncabezado() {
   $("nombre-circuito").textContent = ctl.actual.name;
   $("marca-sucio").hidden = !ctl.sucio;
@@ -229,11 +209,61 @@ function actualizarBotones() {
   $("accion-borrar").disabled = !sel;
   $("accion-deshacer").disabled = !historial.puedeDeshacer;
   $("accion-rehacer").disabled = !historial.puedeRehacer;
+  const vacio = ctl.estado.components.length === 0;
+  $("accion-png").disabled = vacio;
+  $("accion-svg").disabled = vacio;
 }
 
-// --- Persistencia ---------------------------------------------------------------------------
+let temporizadorAviso = null;
 
-let guardados = [];
+/** Mensaje flotante breve ("Link copiado"). */
+function avisar(texto) {
+  const aviso = $("aviso");
+  aviso.textContent = texto;
+  aviso.hidden = false;
+  clearTimeout(temporizadorAviso);
+  temporizadorAviso = setTimeout(() => { aviso.hidden = true; }, 3000);
+}
+
+// --- Borrador: el circuito abierto sobrevive a recargar la página --------------------------
+
+let temporizadorBorrador = null;
+
+function guardarBorrador() {
+  clearTimeout(temporizadorBorrador);
+  temporizadorBorrador = null;
+  try {
+    localStorage.setItem(CLAVE_BORRADOR, JSON.stringify({
+      layout: aLayout(ctl.estado), actual: ctl.actual, sucio: ctl.sucio,
+    }));
+  } catch {
+    // Sin almacenamiento: el borrador no es imprescindible.
+  }
+}
+
+/** Mientras se edita, el borrador se escribe con una pequeña demora para no hacerlo en cada tecla. */
+function programarBorrador() {
+  clearTimeout(temporizadorBorrador);
+  temporizadorBorrador = setTimeout(guardarBorrador, 400);
+}
+
+// Al recargar o cerrar la pestaña se escribe lo pendiente: no se pierde el último cambio.
+window.addEventListener("pagehide", () => {
+  if (temporizadorBorrador !== null) guardarBorrador();
+});
+
+function leerBorrador() {
+  try {
+    const datos = JSON.parse(localStorage.getItem(CLAVE_BORRADOR) ?? "null");
+    if (!datos) return null;
+    return { estado: desdeLayout(datos.layout), actual: datos.actual, sucio: Boolean(datos.sucio) };
+  } catch {
+    return null;
+  }
+}
+
+// --- Circuitos guardados en el navegador ----------------------------------------------------
+
 let temporizadorMensaje = null;
 
 function mensajeCircuitos(texto, tipo = "") {
@@ -245,45 +275,39 @@ function mensajeCircuitos(texto, tipo = "") {
   temporizadorMensaje = setTimeout(() => { caja.hidden = true; }, 5000);
 }
 
-function cuerpoGuardado(name) {
-  return {
-    name,
-    description: "",
-    circuit: armarNetlist(ctl.estado),
-    layout: aLayout(ctl.estado),
-    tags: [],
-  };
-}
-
 const validarNombre = (t) => (t ? (t.length > 120 ? "Máximo 120 caracteres." : null) : "Poné un nombre.");
 
-async function guardar() {
-  if (!ctl.actual.id) return guardarComo();
+function guardarEnAlmacen(id, name) {
   try {
-    const guardado = await api.actualizar(ctl.actual.id, cuerpoGuardado(ctl.actual.name));
+    ctl.actual = almacen.guardar({ id, name, estado: ctl.estado });
     ctl.sucio = false;
     actualizarEncabezado();
-    mensajeCircuitos(`Guardado: ${guardado.name}.`, "mensaje-ok");
-    await refrescarLista();
+    guardarBorrador();
+    mensajeCircuitos(`Guardado en este navegador: ${ctl.actual.name}.`, "mensaje-ok");
+    renderLista();
   } catch (e) {
     mensajeCircuitos(e.message, "mensaje-error");
   }
 }
 
+async function guardar() {
+  if (!ctl.actual.id || !existeGuardado(ctl.actual.id)) return guardarComo();
+  guardarEnAlmacen(ctl.actual.id, ctl.actual.name);
+}
+
 async function guardarComo() {
   const nombre = await pedirTexto({
     titulo: "Guardar circuito", etiqueta: "Nombre", valor: ctl.actual.name, validar: validarNombre,
+    ayuda: "Se guarda en este navegador. Para llevarlo a otra compu, usá Exportar .json o Compartir.",
   });
-  if (nombre === null) return;
+  if (nombre !== null) guardarEnAlmacen(null, nombre);
+}
+
+function existeGuardado(id) {
   try {
-    const creado = await api.crear(cuerpoGuardado(nombre));
-    ctl.actual = { id: creado.id, name: creado.name };
-    ctl.sucio = false;
-    actualizarEncabezado();
-    mensajeCircuitos(`Guardado: ${creado.name}.`, "mensaje-ok");
-    await refrescarLista();
-  } catch (e) {
-    mensajeCircuitos(e.message, "mensaje-error");
+    return almacen.listar().some((c) => c.id === id);
+  } catch {
+    return false;
   }
 }
 
@@ -291,11 +315,12 @@ function confirmarDescarte() {
   return !ctl.sucio || confirm("Hay cambios sin guardar. ¿Descartarlos?");
 }
 
-async function abrir(id) {
+function abrir(id) {
   if (!confirmarDescarte()) return;
   try {
-    const circuito = await api.obtener(id);
-    cargar(desdeLayout(circuito.layout), { id: circuito.id, name: circuito.name });
+    const guardado = almacen.obtener(id);
+    if (!guardado) throw new Error("Ese circuito ya no existe.");
+    cargar(guardado.estado, { id: guardado.id, name: guardado.name });
   } catch (e) {
     mensajeCircuitos(e.message, "mensaje-error");
   }
@@ -307,33 +332,29 @@ async function renombrar(item) {
   });
   if (nombre === null || nombre === item.name) return;
   try {
-    // PUT reemplaza el circuito completo: se parte del guardado, no del que está en el editor.
-    const actual = await api.obtener(item.id);
-    await api.actualizar(item.id, {
-      name: nombre, description: actual.description, circuit: actual.circuit,
-      layout: actual.layout, tags: actual.tags,
-    });
+    almacen.renombrar(item.id, nombre);
     if (ctl.actual.id === item.id) {
-      ctl.actual.name = nombre;
+      ctl.actual = { ...ctl.actual, name: nombre };
       actualizarEncabezado();
+      guardarBorrador();
     }
-    await refrescarLista();
+    renderLista();
   } catch (e) {
     mensajeCircuitos(e.message, "mensaje-error");
   }
 }
 
-async function borrar(item) {
+function borrar(item) {
   if (!confirm(`¿Borrar "${item.name}"? No se puede deshacer.`)) return;
   try {
-    await api.borrar(item.id);
+    almacen.borrar(item.id);
     if (ctl.actual.id === item.id) {
       ctl.actual = { id: null, name: ctl.actual.name };
       ctl.sucio = true;
       actualizarEncabezado();
     }
     mensajeCircuitos(`Borrado: ${item.name}.`);
-    await refrescarLista();
+    renderLista();
   } catch (e) {
     mensajeCircuitos(e.message, "mensaje-error");
   }
@@ -344,14 +365,20 @@ function nuevo() {
   cargar(circuitoVacio(), { id: null, name: "Sin título" });
 }
 
-async function refrescarLista() {
+function exportarJson() {
+  const archivo = aArchivo(ctl.actual.name, ctl.estado);
+  descargar(JSON.stringify(archivo, null, 2), `${nombreDeArchivo(ctl.actual.name)}.json`, "application/json");
+}
+
+async function importarJson(archivo) {
   try {
-    guardados = await api.listar();
+    const { name, estado } = desdeArchivo(await archivo.text());
+    if (!confirmarDescarte()) return;
+    cargar(estado, { id: null, name }, { sucio: true });
+    mensajeCircuitos(`Importado: ${name}. Guardalo para tenerlo en la lista.`, "mensaje-ok");
   } catch (e) {
-    guardados = [];
-    mensajeCircuitos(`No se pudo leer la lista: ${e.message}`, "mensaje-error");
+    mensajeCircuitos(e.message, "mensaje-error");
   }
-  renderLista();
 }
 
 function boton(texto, alHacerClic, clase = "") {
@@ -366,8 +393,8 @@ function boton(texto, alHacerClic, clase = "") {
 function elemento(nombre, meta, acciones, actual = false) {
   const li = document.createElement("li");
   li.className = actual ? "elemento actual" : "elemento";
-  const textoDiv = document.createElement("div");
-  textoDiv.className = "elemento-texto";
+  const texto = document.createElement("div");
+  texto.className = "elemento-texto";
   const n = document.createElement("div");
   n.className = "elemento-nombre";
   n.textContent = nombre;
@@ -375,11 +402,11 @@ function elemento(nombre, meta, acciones, actual = false) {
   const m = document.createElement("div");
   m.className = "elemento-meta";
   m.textContent = meta;
-  textoDiv.append(n, m);
-  const accionesDiv = document.createElement("div");
-  accionesDiv.className = "elemento-acciones";
-  accionesDiv.append(...acciones);
-  li.append(textoDiv, accionesDiv);
+  texto.append(n, m);
+  const acc = document.createElement("div");
+  acc.className = "elemento-acciones";
+  acc.append(...acciones);
+  li.append(texto, acc);
   return li;
 }
 
@@ -387,10 +414,16 @@ const FECHA = new Intl.DateTimeFormat("es-AR", { dateStyle: "short", timeStyle: 
 
 function renderLista() {
   const lista = $("lista-circuitos");
+  let guardados = [];
+  try {
+    guardados = almacen.listar();
+  } catch (e) {
+    mensajeCircuitos(e.message, "mensaje-error");
+  }
   if (!guardados.length) {
     const li = document.createElement("li");
     li.className = "nota";
-    li.textContent = "Todavía no hay circuitos guardados.";
+    li.textContent = "Todavía no guardaste circuitos en este navegador.";
     lista.replaceChildren(li);
   } else {
     lista.replaceChildren(...guardados.map((item) => elemento(
@@ -412,7 +445,64 @@ function renderLista() {
   )));
 }
 
-// --- Tema -------------------------------------------------------------------------------------
+// --- Compartir por link ----------------------------------------------------------------------
+
+async function compartir() {
+  const codigo = await codificar(ctl.estado, ctl.actual.name);
+  const url = `${location.href.split("#")[0]}${PREFIJO_HASH}${codigo}`;
+  try {
+    await navigator.clipboard.writeText(url);
+    avisar("Link copiado. Pegalo donde quieras: abre este mismo circuito.");
+  } catch {
+    // Sin permiso para el portapapeles: se muestra el link para copiarlo a mano.
+    await pedirTexto({
+      titulo: "Link para compartir", etiqueta: "Copiá este link", valor: url,
+      ayuda: "Quien lo abra ve este mismo circuito, sin necesidad de cuenta.",
+    });
+  }
+}
+
+async function cargarDesdeHash() {
+  if (!location.hash.startsWith(PREFIJO_HASH)) return false;
+  try {
+    const { nombre, estado } = await decodificar(location.hash);
+    cargar(estado, { id: null, name: nombre });
+    return true;
+  } catch (e) {
+    avisar(e.message);
+    return false;
+  }
+}
+
+// --- Exportar imagen -------------------------------------------------------------------------
+
+function svgActual() {
+  // Sin selección ni fantasma en la imagen.
+  const seleccion = ctl.seleccion;
+  ctl.seleccion = null;
+  editor.render();
+  const svg = svgDelCircuito($("editor"));
+  ctl.seleccion = seleccion;
+  editor.render();
+  return svg;
+}
+
+function exportarSvg() {
+  const svg = svgActual();
+  if (svg) descargar(svg.texto, `${nombreDeArchivo(ctl.actual.name)}.svg`, "image/svg+xml");
+}
+
+async function exportarPng() {
+  const svg = svgActual();
+  if (!svg) return;
+  try {
+    descargar(await pngDelCircuito(svg), `${nombreDeArchivo(ctl.actual.name)}.png`);
+  } catch (e) {
+    avisar(e.message);
+  }
+}
+
+// --- Tema y modo proyector -----------------------------------------------------------------
 
 const TEMAS = [
   { valor: null, texto: "Auto" }, { valor: "light", texto: "Claro" }, { valor: "dark", texto: "Oscuro" },
@@ -423,17 +513,32 @@ function temaActual() {
   return Math.max(0, TEMAS.findIndex((x) => x.valor === t));
 }
 
+function guardarPreferencia(clave, valor) {
+  try {
+    if (valor === null) localStorage.removeItem(clave);
+    else localStorage.setItem(clave, valor);
+  } catch {
+    // Sin almacenamiento: la preferencia dura hasta recargar.
+  }
+}
+
 function aplicarTema(indice) {
   const { valor, texto } = TEMAS[indice];
   if (valor) document.documentElement.dataset.theme = valor;
   else delete document.documentElement.dataset.theme;
   $("texto-tema").textContent = texto;
-  try {
-    if (valor) localStorage.setItem("tema", valor);
-    else localStorage.removeItem("tema");
-  } catch {
-    // Sin almacenamiento: el tema dura hasta recargar.
-  }
+  guardarPreferencia("tema", valor);
+  editor.render();
+}
+
+function alternarProyector() {
+  const activo = document.documentElement.dataset.proyector !== "1";
+  if (activo) document.documentElement.dataset.proyector = "1";
+  else delete document.documentElement.dataset.proyector;
+  $("boton-proyector").setAttribute("aria-pressed", String(activo));
+  guardarPreferencia("proyector", activo ? "1" : null);
+  editor.ajustar();
+  editor.render();
 }
 
 // --- Eventos ------------------------------------------------------------------------------------
@@ -448,13 +553,23 @@ $("accion-valor").addEventListener("click", () => {
 $("accion-borrar").addEventListener("click", borrarSeleccion);
 $("accion-deshacer").addEventListener("click", deshacer);
 $("accion-rehacer").addEventListener("click", rehacer);
+$("accion-png").addEventListener("click", exportarPng);
+$("accion-svg").addEventListener("click", exportarSvg);
 $("zoom-mas").addEventListener("click", () => editor.acercar());
 $("zoom-menos").addEventListener("click", () => editor.alejar());
 $("zoom-ajustar").addEventListener("click", () => editor.ajustar());
 $("accion-guardar").addEventListener("click", guardar);
 $("accion-guardar-como").addEventListener("click", guardarComo);
 $("accion-nuevo").addEventListener("click", nuevo);
-$("accion-refrescar").addEventListener("click", refrescarLista);
+$("accion-exportar").addEventListener("click", exportarJson);
+$("accion-importar").addEventListener("click", () => $("entrada-archivo").click());
+$("entrada-archivo").addEventListener("change", (evento) => {
+  const [archivo] = evento.target.files;
+  if (archivo) importarJson(archivo);
+  evento.target.value = "";
+});
+$("boton-compartir").addEventListener("click", compartir);
+$("boton-proyector").addEventListener("click", alternarProyector);
 $("boton-tema").addEventListener("click", () => aplicarTema((temaActual() + 1) % TEMAS.length));
 
 for (const pestana of document.querySelectorAll(".pestana")) {
@@ -464,7 +579,8 @@ for (const pestana of document.querySelectorAll(".pestana")) {
       otra.setAttribute("aria-selected", String(activa));
       $(otra.getAttribute("aria-controls")).hidden = !activa;
     }
-    if (pestana.id === "pestana-circuitos") refrescarLista();
+    if (pestana.id === "pestana-ecuaciones") renderEcuaciones(ctl.estado);
+    if (pestana.id === "pestana-circuitos") renderLista();
   });
 }
 
@@ -493,18 +609,33 @@ document.addEventListener("keydown", (evento) => {
       editor.render();
       actualizarBotones();
     }
+  } else if (tecla === "p" || tecla === "P") {
+    alternarProyector();
   } else if (/^[1-6]$/.test(tecla)) {
     elegirHerramienta(HERRAMIENTAS[Number(tecla) - 1]);
   }
 });
 
-window.addEventListener("beforeunload", (evento) => {
-  if (ctl.sucio) evento.preventDefault();
+window.addEventListener("hashchange", () => {
+  if (location.hash.startsWith(PREFIJO_HASH) && confirmarDescarte()) cargarDesdeHash();
 });
+
+// Funciona sin internet una vez cargado: el service worker guarda todos los archivos.
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("./sw.js").catch(() => {
+    // Sin service worker (por ejemplo, abierto como archivo local): funciona igual, pero online.
+  });
+}
 
 // --- Arranque ------------------------------------------------------------------------------------
 
 $("texto-tema").textContent = TEMAS[temaActual()].texto;
+$("boton-proyector").setAttribute("aria-pressed", String(document.documentElement.dataset.proyector === "1"));
 editor.ajustar();
 renderLista();
-circuitoCambiado({ sucio: false });
+if (!(await cargarDesdeHash())) {
+  // Sin link compartido: se retoma el último circuito abierto, o el primer ejemplo.
+  const borrador = leerBorrador();
+  if (borrador) cargar(borrador.estado, borrador.actual, { sucio: borrador.sucio });
+  else circuitoCambiado({ sucio: false });
+}

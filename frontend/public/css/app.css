@@ -381,3 +381,63 @@ body {
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
 }
+
+/* --- Encabezado: botones con texto opcional ---------------------------------------------- */
+
+.encabezado .boton-primario svg { stroke: currentColor; }
+@media (max-width: 760px) {
+  .texto-opcional { display: none; }
+}
+
+/* --- Aviso flotante ---------------------------------------------------------------------- */
+
+.aviso {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  max-width: calc(100vw - 32px);
+  padding: 10px 16px;
+  border-radius: var(--radio);
+  background: var(--texto);
+  color: var(--fondo);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.25);
+  z-index: 10;
+}
+
+/* --- Panel de ecuaciones ----------------------------------------------------------------- */
+
+.ecuaciones { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 6px; }
+.ecuaciones li { line-height: 1.5; }
+.ecuaciones code { font: 13px var(--mono); overflow-wrap: anywhere; }
+.ecuacion-nombre { font-weight: 600; color: var(--texto-suave); }
+.matriz th, .matriz td { padding: 4px 6px; font-size: 12px; }
+.matriz tbody th { font-weight: 600; color: var(--texto-suave); white-space: nowrap; }
+.matriz .cero { color: var(--texto-suave); opacity: 0.6; }
+.matriz .separador { border-left: 2px solid var(--borde); }
+.matriz .solucion { color: var(--acento); font-weight: 600; }
+
+/* --- Modo proyector: todo más grande y más grueso ---------------------------------------- */
+
+:root[data-proyector="1"] body { font-size: 17px; }
+:root[data-proyector="1"] .boton { min-height: 44px; padding: 0 14px; }
+:root[data-proyector="1"] .boton svg { width: 22px; height: 22px; }
+:root[data-proyector="1"] .boton-chico { min-height: 36px; }
+:root[data-proyector="1"] .marca h1 { font-size: 20px; }
+:root[data-proyector="1"] .area { grid-template-columns: minmax(0, 1fr) 460px; }
+:root[data-proyector="1"] .tabla { font-size: 16px; }
+:root[data-proyector="1"] .tabla th { font-size: 14px; }
+:root[data-proyector="1"] .tarjeta-valor { font-size: 19px; }
+:root[data-proyector="1"] .estado-simulacion { font-size: 16px; }
+:root[data-proyector="1"] .ecuaciones code { font-size: 15px; }
+:root[data-proyector="1"] .matriz th, :root[data-proyector="1"] .matriz td { font-size: 14px; }
+:root[data-proyector="1"] .editor .trazo { stroke-width: 2.6; }
+:root[data-proyector="1"] .editor .cable { stroke-width: 3.2; }
+:root[data-proyector="1"] .editor .texto { font-size: 13px; }
+:root[data-proyector="1"] .editor .tension,
+:root[data-proyector="1"] .editor .texto-corriente { font-size: 12.5px; }
+:root[data-proyector="1"] .editor .flecha { stroke-width: 2.6; }
+:root[data-proyector="1"] .editor .punto-grilla { r: 1.6; }
+@media (max-width: 960px) {
+  :root[data-proyector="1"] .area { grid-template-columns: minmax(0, 1fr); }
+}

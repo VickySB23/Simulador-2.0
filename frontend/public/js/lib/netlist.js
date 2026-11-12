@@ -1,8 +1,10 @@
-// Armado del netlist que espera POST /simulate y lectura de su resultado. Sin DOM.
+// Armado del netlist que entiende el motor (mismo JSON que POST /simulate) y lectura del
+// resultado. Sin DOM.
+import { ErrorCircuito, simulate } from "./mna.js";
 import { nombreNodo, nodosElectricos, puntosConTerminal } from "./modelo.js";
 import { normalizarTexto } from "./valores.js";
 
-/** Nombre que se manda como tierra cuando todavía no hay GND: el simulador responde no_ground. */
+/** Tierra que se usa cuando todavía no hay GND: el motor responde no_ground. */
 export const SIN_TIERRA = "0";
 
 export function armarNetlist(estado) {
@@ -17,7 +19,7 @@ export function armarNetlist(estado) {
 }
 
 /**
- * Problemas que se detectan sin llamar al simulador, con mensajes en términos del editor.
+ * Problemas que se detectan antes de simular, con mensajes en términos del editor.
  * Devuelve null si el circuito se puede mandar a simular.
  */
 export function problemaLocal(estado) {
@@ -42,13 +44,13 @@ export function tensionesPorPunto(resultado) {
 }
 
 /**
- * Un punto por nodo eléctrico para poner la etiqueta de tensión. Se prefiere un punto donde solo
- * llegan cables (una esquina), porque al lado de una pieza la etiqueta pisa su nombre; entre
- * iguales, el de arriba a la izquierda. Se omite el nodo de tierra, que ya tiene su símbolo.
+ * El punto que representa a cada nodo eléctrico: Map<nombre de cualquier punto del nodo, punto>.
+ * Se prefiere un punto donde solo llegan cables (una esquina), porque al lado de una pieza la
+ * etiqueta pisa su nombre; entre iguales, el de arriba a la izquierda. Lo usan la etiqueta de
+ * tensión, la tabla de nodos y las ecuaciones, así el nodo se llama igual en todos lados.
  */
-export function puntosDeEtiqueta(estado) {
+export function puntoRepresentativo(estado) {
   const nodos = nodosElectricos(estado);
-  const tierra = estado.ground ? nodos.get(nombreNodo(estado.ground)) : undefined;
   const dePieza = new Set(estado.components
     .filter((c) => c.type !== "wire")
     .flatMap((c) => [nombreNodo(c.a), nombreNodo(c.b)]));
@@ -57,13 +59,19 @@ export function puntosDeEtiqueta(estado) {
   const elegidos = new Map();
   for (const [nombre, punto] of puntosConTerminal(estado)) {
     const grupo = nodos.get(nombre);
-    if (grupo === tierra) continue;
     const actual = elegidos.get(grupo);
     if (!actual || menor(clave(nombre, punto), actual.clave) < 0) {
       elegidos.set(grupo, { punto, clave: clave(nombre, punto) });
     }
   }
-  return [...elegidos.values()].map((e) => e.punto);
+  return new Map([...nodos].map(([nombre, grupo]) => [nombre, elegidos.get(grupo).punto]));
+}
+
+/** Un punto por nodo eléctrico para la etiqueta de tensión, sin el de tierra (ya tiene símbolo). */
+export function puntosDeEtiqueta(estado) {
+  const representativo = puntoRepresentativo(estado);
+  const tierra = estado.ground ? representativo.get(nombreNodo(estado.ground)) : undefined;
+  return [...new Set(representativo.values())].filter((p) => p !== tierra);
 }
 
 /**
@@ -85,18 +93,17 @@ export function colorTension(tension, minimo, maximo) {
   return `hsl(${tono} 75% 50%)`;
 }
 
-/** Normaliza un error del simulador o de la red al formato {code, message, details}. */
-export function errorDeRespuesta(estado, cuerpo) {
-  const detalle = cuerpo?.detail;
-  if (detalle && typeof detalle === "object" && !Array.isArray(detalle) && detalle.code) {
-    return { code: detalle.code, message: detalle.message ?? "Error", details: detalle.details ?? {} };
+/**
+ * Simula el estado del editor en el navegador. Devuelve {resultado} o {error} con
+ * {code, message, details}; los problemas de dibujo (vacío, sin tierra) se detectan antes.
+ */
+export function simularEstado(estado) {
+  const problema = problemaLocal(estado);
+  if (problema) return { error: { ...problema, details: {} } };
+  try {
+    return { resultado: simulate(armarNetlist(estado)) };
+  } catch (e) {
+    if (e instanceof ErrorCircuito) return { error: { code: e.code, message: e.message, details: e.details } };
+    throw e;
   }
-  // Fallback de nginx cuando un backend no está registrado en Traefik: {"code", "message"}.
-  if (cuerpo && typeof cuerpo.code === "string" && typeof cuerpo.message === "string") {
-    return { code: cuerpo.code, message: cuerpo.message, details: cuerpo.details ?? {} };
-  }
-  if (estado === 422) {
-    return { code: "invalid_schema", message: "El circuito no respeta el formato esperado.", details: {} };
-  }
-  return { code: `http_${estado}`, message: `El servidor respondió ${estado}.`, details: {} };
 }

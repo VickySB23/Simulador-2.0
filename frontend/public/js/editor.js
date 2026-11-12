@@ -373,7 +373,10 @@ export function crearEditor(svg, contenedor, ctl) {
     acercar: () => { aplicarZoom(zoom * 1.2); },
     alejar: () => { aplicarZoom(zoom / 1.2); },
     ajustar() {
-      aplicarZoom(Math.max(0.6, Math.min(1.4, (contenedor.clientWidth - 4) / ANCHO_PX)));
+      // En modo proyector el circuito se agranda aunque haga falta desplazarse.
+      const proyector = document.documentElement.dataset.proyector === "1";
+      const [minimo, maximo] = proyector ? [1.4, 2] : [0.6, 1.4];
+      aplicarZoom(Math.max(minimo, Math.min(maximo, (contenedor.clientWidth - 4) / ANCHO_PX)));
     },
     /** Grupo de nodos eléctricos, para la tabla de resultados. */
     nodos: () => nodosElectricos(ctl.estado),

@@ -1,0 +1,12 @@
+{
+  "name": "Simulador DC",
+  "short_name": "Simulador DC",
+  "description": "Editor y simulador de circuitos de corriente continua.",
+  "lang": "es",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f4f6f9",
+  "theme_color": "#2563eb",
+  "icons": [{ "src": "icono.svg", "sizes": "any", "type": "image/svg+xml" }]
+}
