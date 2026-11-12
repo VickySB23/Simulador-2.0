@@ -1,7 +1,7 @@
 // Armado del netlist que entiende el motor (mismo JSON que POST /simulate) y lectura del
 // resultado. Sin DOM.
 import { ErrorCircuito, simulate } from "./mna.js";
-import { nombreNodo, nodosElectricos, puntosConTerminal } from "./modelo.js";
+import { nombreNodo, nodosElectricos, puntosConTerminal, tieneValor } from "./modelo.js";
 import { normalizarTexto } from "./valores.js";
 
 /** Tierra que se usa cuando todavía no hay GND: el motor responde no_ground. */
@@ -12,7 +12,9 @@ export function armarNetlist(estado) {
     ground: estado.ground ? nombreNodo(estado.ground) : SIN_TIERRA,
     components: estado.components.map((c) => {
       const componente = { id: c.id, type: c.type, a: nombreNodo(c.a), b: nombreNodo(c.b) };
-      if (c.type !== "wire") componente.value = normalizarTexto(c.value);
+      if (tieneValor(c.type)) componente.value = normalizarTexto(c.value);
+      if (c.type === "lamp") componente.rated_power = normalizarTexto(c.potencia);
+      if (c.type === "switch") componente.closed = c.closed !== false;
       return componente;
     }),
   };
@@ -26,8 +28,8 @@ export function problemaLocal(estado) {
   if (estado.components.length === 0) {
     return { code: "empty", message: "Dibujá un circuito: elegí una herramienta y hacé clic en la grilla." };
   }
-  if (!estado.components.some((c) => c.type !== "wire")) {
-    return { code: "empty", message: "Agregá al menos una resistencia o una fuente." };
+  if (!estado.components.some((c) => tieneValor(c.type))) {
+    return { code: "empty", message: "Agregá al menos una resistencia, una lámpara o una fuente." };
   }
   if (!estado.ground) {
     return { code: "no_ground", message: "Falta la tierra: elegí GND y hacé clic en un nodo." };

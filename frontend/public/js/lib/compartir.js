@@ -5,19 +5,21 @@ import { VERSION_LAYOUT, desdeLayout } from "./modelo.js";
 
 export const PREFIJO_HASH = "#c=";
 const VERSION = 1;
-const CODIGOS = { resistor: "r", voltage_source: "v", current_source: "i", wire: "w" };
+const CODIGOS = { resistor: "r", voltage_source: "v", current_source: "i", wire: "w", lamp: "l", switch: "s" };
 const TIPOS = Object.fromEntries(Object.entries(CODIGOS).map(([tipo, codigo]) => [codigo, tipo]));
 
-/** Forma compacta: [id, tipo, ax, ay, bx, by, valor?]. */
+/** Forma compacta: [id, tipo, ax, ay, bx, by, valor?, potencia?] o, en un interruptor, [..., 1 | 0]. */
 function compactar(estado, nombre) {
   return {
     v: VERSION,
     n: nombre,
     g: estado.ground ? [estado.ground.x, estado.ground.y] : 0,
-    k: [estado.counters.R ?? 0, estado.counters.V ?? 0, estado.counters.I ?? 0, estado.counters.W ?? 0],
+    k: ["R", "V", "I", "W", "L", "S"].map((p) => estado.counters[p] ?? 0),
     c: estado.components.map((c) => {
       const fila = [c.id, CODIGOS[c.type], c.a.x, c.a.y, c.b.x, c.b.y];
-      if (c.type !== "wire") fila.push(c.value);
+      if (c.type === "switch") fila.push(c.closed === false ? 0 : 1);
+      else if (c.type !== "wire") fila.push(c.value);
+      if (c.type === "lamp") fila.push(c.potencia);
       return fila;
     }),
   };
@@ -28,10 +30,12 @@ function expandir(datos) {
   const layout = {
     version: VERSION_LAYOUT,
     ground: Array.isArray(datos.g) ? { x: datos.g[0], y: datos.g[1] } : null,
-    counters: { R: datos.k?.[0] ?? 0, V: datos.k?.[1] ?? 0, I: datos.k?.[2] ?? 0, W: datos.k?.[3] ?? 0 },
-    components: datos.c.map(([id, codigo, ax, ay, bx, by, value]) => {
+    counters: Object.fromEntries(["R", "V", "I", "W", "L", "S"].map((p, i) => [p, datos.k?.[i] ?? 0])),
+    components: datos.c.map(([id, codigo, ax, ay, bx, by, extra, potencia]) => {
       const c = { id, type: TIPOS[codigo], a: { x: ax, y: ay }, b: { x: bx, y: by } };
-      if (codigo !== "w") c.value = value;
+      if (codigo === "s") c.closed = extra !== 0;
+      else if (codigo !== "w") c.value = extra;
+      if (codigo === "l") c.potencia = potencia;
       return c;
     }),
   };

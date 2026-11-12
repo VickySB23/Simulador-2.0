@@ -12,8 +12,13 @@ export const TIPOS = {
   resistor: { prefijo: "R", unidad: "Ω", porDefecto: "1k", nombre: "Resistencia" },
   voltage_source: { prefijo: "V", unidad: "V", porDefecto: "10", nombre: "Fuente de tensión" },
   current_source: { prefijo: "I", unidad: "A", porDefecto: "1m", nombre: "Fuente de corriente" },
+  lamp: { prefijo: "L", unidad: "Ω", porDefecto: "24", potenciaPorDefecto: "6", nombre: "Lámpara" },
+  switch: { prefijo: "S", unidad: "", porDefecto: null, nombre: "Interruptor" },
   wire: { prefijo: "W", unidad: "", porDefecto: null, nombre: "Cable" },
 };
+
+/** Tipos con un valor numérico editable (los cables e interruptores no tienen). */
+export const tieneValor = (tipo) => tipo !== "wire" && tipo !== "switch";
 
 // Rotación 0..3: dirección de a hacia b.
 const DIRECCIONES = [
@@ -21,7 +26,7 @@ const DIRECCIONES = [
 ];
 
 export function circuitoVacio() {
-  return { components: [], ground: null, counters: { R: 0, V: 0, I: 0, W: 0 } };
+  return { components: [], ground: null, counters: { R: 0, V: 0, I: 0, W: 0, L: 0, S: 0 } };
 }
 
 export function nombreNodo(punto) {
@@ -74,7 +79,9 @@ function reservarId(estado, tipo) {
 function conComponente(estado, tipo, a, b, value) {
   const { id, counters } = reservarId(estado, tipo);
   const componente = { id, type: tipo, a: { ...a }, b: { ...b } };
-  if (tipo !== "wire") componente.value = value ?? TIPOS[tipo].porDefecto;
+  if (tieneValor(tipo)) componente.value = value ?? TIPOS[tipo].porDefecto;
+  if (tipo === "lamp") componente.potencia = TIPOS.lamp.potenciaPorDefecto;
+  if (tipo === "switch") componente.closed = true;
   return { estado: { ...estado, components: [...estado.components, componente], counters }, id };
 }
 
@@ -123,7 +130,17 @@ export function rotar(estado, id) {
 }
 
 export function cambiarValor(estado, id, value) {
-  return reemplazar(estado, id, (c) => (c.type === "wire" || c.value === value ? c : { ...c, value }));
+  return reemplazar(estado, id, (c) => (!tieneValor(c.type) || c.value === value ? c : { ...c, value }));
+}
+
+/** Potencia nominal de una lámpara (texto con prefijos, como el valor). */
+export function cambiarPotencia(estado, id, potencia) {
+  return reemplazar(estado, id, (c) => (c.type !== "lamp" || c.potencia === potencia ? c : { ...c, potencia }));
+}
+
+/** Abre un interruptor cerrado o cierra uno abierto. */
+export function alternarInterruptor(estado, id) {
+  return reemplazar(estado, id, (c) => (c.type === "switch" ? { ...c, closed: !c.closed } : c));
 }
 
 export function eliminar(estado, id) {
@@ -220,7 +237,7 @@ export function desdeLayout(layout) {
     throw new Error("El circuito no tiene posiciones del editor (layout) en un formato conocido.");
   }
   const esPunto = (p) => p && Number.isInteger(p.x) && Number.isInteger(p.y);
-  const counters = { R: 0, V: 0, I: 0, W: 0, ...(layout.counters ?? {}) };
+  const counters = { R: 0, V: 0, I: 0, W: 0, L: 0, S: 0, ...(layout.counters ?? {}) };
   const components = layout.components.map((c) => {
     if (!TIPOS[c.type] || !esPunto(c.a) || !esPunto(c.b) || typeof c.id !== "string") {
       throw new Error("El layout tiene un componente inválido.");
@@ -232,7 +249,9 @@ export function desdeLayout(layout) {
       counters[prefijo] = Math.max(counters[prefijo], numero);
     }
     const copia = { id: c.id, type: c.type, a: { ...c.a }, b: { ...c.b } };
-    if (c.type !== "wire") copia.value = c.value ?? TIPOS[c.type].porDefecto;
+    if (tieneValor(c.type)) copia.value = c.value ?? TIPOS[c.type].porDefecto;
+    if (c.type === "lamp") copia.potencia = c.potencia ?? TIPOS.lamp.potenciaPorDefecto;
+    if (c.type === "switch") copia.closed = c.closed !== false;
     return copia;
   });
   const ground = esPunto(layout.ground) ? { x: layout.ground.x, y: layout.ground.y } : null;

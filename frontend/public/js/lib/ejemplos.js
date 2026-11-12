@@ -6,7 +6,7 @@ const pieza = (id, type, a, b, value) => ({ id, type, a, b, value });
 const cable = (id, a, b) => ({ id, type: "wire", a, b });
 
 function contadores(components) {
-  const counters = { R: 0, V: 0, I: 0, W: 0 };
+  const counters = { R: 0, V: 0, I: 0, W: 0, L: 0, S: 0 };
   for (const c of components) {
     const prefijo = c.id[0];
     counters[prefijo] = Math.max(counters[prefijo], Number(c.id.slice(1)));
