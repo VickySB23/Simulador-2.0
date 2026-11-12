@@ -6,7 +6,7 @@
 //   con un JS viejo. Si la red no responde en TIEMPO_RED_MS o no hay conexión, se usa la caché.
 // - Una versión nueva se instala en segundo plano y queda esperando: la página muestra
 //   "Hay una versión nueva — Actualizar" y la activa recién cuando el usuario toca el botón.
-const VERSION = "simulador-dc-v2";
+const VERSION = "simulador-dc-v3";
 const TIEMPO_RED_MS = 4000;
 const ARCHIVOS = [
   "./",
