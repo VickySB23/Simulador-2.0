@@ -33,6 +33,13 @@ test("la versión de la página y la del service worker coinciden", () => {
   assert.equal(pagina, sw);
 });
 
+test("en el repo la versión es el marcador que reemplaza el workflow", () => {
+  const sw = readFileSync(join(PUBLICO, "sw.js"), "utf-8");
+  assert.match(sw, /const VERSION = "simulador-dc-dev";/);
+  const workflow = readFileSync(new URL("../../.github/workflows/pages.yml", import.meta.url), "utf-8");
+  assert.ok(workflow.includes("simulador-dc-dev") && workflow.includes("GITHUB_SHA"));
+});
+
 test("el service worker no se activa solo: espera a que el usuario toque Actualizar", () => {
   const fuente = readFileSync(join(PUBLICO, "sw.js"), "utf-8");
   const install = fuente.slice(fuente.indexOf('addEventListener("install"'), fuente.indexOf('addEventListener("activate"'));

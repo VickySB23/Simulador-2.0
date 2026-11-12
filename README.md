@@ -134,8 +134,8 @@ Página estática: HTML, CSS y JavaScript sin librerías ni paso de compilación
   almacenamiento local, link para compartir y ecuaciones. Tiene sus tests.
 - **Sin internet y actualizaciones:** `sw.js` guarda todos los archivos en una caché con versión.
   Pide primero a la red (HTML, JS y CSS, para no mezclar versiones) y usa la caché si no hay
-  conexión o la red tarda más de 4 s. Al publicar un cambio se sube `VERSION` en `sw.js` y en
-  `js/version.js`: quien tenga la página abierta ve "Hay una versión nueva — Actualizar".
+  conexión o la red tarda más de 4 s. El workflow pone la versión (`simulador-dc-<hash del
+  commit>`) al publicar: quien tenga la página abierta ve "Hay una versión nueva — Actualizar".
 
 ```bash
 cd frontend && node --test          # tests (Node 22 o más nuevo, sin dependencias)

@@ -1,12 +1,13 @@
 // Service worker: permite usar el simulador sin internet (por ejemplo, en un aula sin wifi).
 //
 // - Caché con versión: VERSION nombra la caché; al activarse una versión nueva se borran las viejas.
-//   Tiene que coincidir con js/version.js (lo verifica tests/sw.test.js).
+//   Tiene que coincidir con js/version.js (lo verifica tests/sw.test.js). En el repo vale
+//   "simulador-dc-dev"; el workflow la reemplaza por el hash del commit al publicar.
 // - Red primero, para el HTML y también para JS y CSS: así una página nunca mezcla un HTML nuevo
 //   con un JS viejo. Si la red no responde en TIEMPO_RED_MS o no hay conexión, se usa la caché.
 // - Una versión nueva se instala en segundo plano y queda esperando: la página muestra
 //   "Hay una versión nueva — Actualizar" y la activa recién cuando el usuario toca el botón.
-const VERSION = "simulador-dc-v3";
+const VERSION = "simulador-dc-dev";
 const TIEMPO_RED_MS = 4000;
 const ARCHIVOS = [
   "./",

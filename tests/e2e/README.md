@@ -35,8 +35,8 @@ Imprime una línea `OK` o `MAL` por comprobación y termina con código 1 si alg
 
 `actualizacion.mjs` comprueba el aviso de versión nueva: abre la página, espera a que la
 controle el service worker y revisa cada 10 s si hay versión nueva (como hace la página cada 30
-minutos o al volver a la pestaña). Mientras espera, publicá un cambio subiendo `VERSION` en
-`frontend/public/sw.js` y `frontend/public/js/version.js`; el script tiene que ver
+minutos o al volver a la pestaña). Mientras espera, publicá cualquier cambio (el workflow pone una versión nueva
+con el hash del commit; en local, cambiá `simulador-dc-dev` en `sw.js` y `js/version.js`); el script tiene que ver
 "Hay una versión nueva — Actualizar", tocarlo y terminar con la versión nueva activa.
 `ESPERA_MINUTOS` fija cuánto espera (por defecto 15).
 

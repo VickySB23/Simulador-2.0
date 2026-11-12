@@ -10,7 +10,7 @@ Autora: Victoria Sanchez Bujaldon. Idioma del código, comentarios y documentaci
 
 - `main`: la app de escritorio Tkinter original (Simulador-2.0).
 - `microservicios`: la versión con FastAPI, MongoDB, Consul y Traefik. **No se toca.**
-- `carga-wip` (solo local): pruebas de carga sin terminar sobre `microservicios` (experimentos
+- `carga-wip` (también en GitHub): pruebas de carga sin terminar sobre `microservicios` (experimentos
   01–04 y el arreglo de `OPENBLAS_NUM_THREADS=1`), abandonadas por el cambio a la versión web.
 - `web`: esta versión. Sin backend: se quitaron `services/`, el compose, Traefik y nginx.
 
@@ -65,15 +65,16 @@ render reemplaza los elementos del SVG.
   atributos de presentación SVG. Las pruebas de navegador usan locators, no `waitForFunction`.
 - **Rutas relativas** en todo: Pages publica en `/Simulador-2.0/`.
 - **Archivo nuevo en `public/`** → agregarlo a `ARCHIVOS` en `sw.js` (lo verifica un test).
-- **Cada publicación** sube `VERSION` en `sw.js` y en `js/version.js` (un test exige que coincidan).
-  El service worker nuevo no se activa solo: espera a que el usuario toque Actualizar. Si la página
+- **Versión:** en el repo, `VERSION` vale `simulador-dc-dev` en `sw.js` y en `js/version.js` (un
+  test exige que coincidan). El workflow la reemplaza por `simulador-dc-<hash>` al publicar, así no
+  se sube a mano. El service worker nuevo no se activa solo: espera a que el usuario toque Actualizar. Si la página
   ya cargó la versión nueva desde la red, se activa sin avisar.
 - Sin librerías externas ni CDN.
 
 ## Comandos
 
 ```bash
-cd frontend && node --test                  # 88 tests
+cd frontend && node --test                  # 89 tests
 node tests/e2e/servir.mjs                   # http://localhost:8000/Simulador-2.0/
 cd tests/e2e && npm install && node verificar.mjs capturas   # 31 comprobaciones en Chrome
 node tests/e2e/actualizacion.mjs            # aviso de versión nueva (publicar mientras espera)

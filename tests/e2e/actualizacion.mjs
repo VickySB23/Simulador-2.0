@@ -3,7 +3,7 @@
 //
 // Uso: node tests/e2e/actualizacion.mjs [carpeta-capturas]
 //   1. El script abre BASE_URL y espera.
-//   2. Mientras tanto, publicá una versión nueva (subí VERSION en sw.js y js/version.js).
+//   2. Mientras tanto, publicá una versión nueva (cualquier push a web: el workflow pone la versión).
 //   3. El script ve el aviso, toca Actualizar y verifica que la página recargó con la versión nueva.
 // Variables: BASE_URL, CHROME_PATH, ESPERA_MINUTOS (por defecto 15).
 import { mkdirSync } from "node:fs";
