@@ -89,13 +89,14 @@ function iniciarControles() {
 const TOKENS_INTERFAZ = [
   "--color-fondo", "--color-fondo-hundido", "--color-superficie", "--color-superficie-2", "--color-tinta",
   "--color-texto-suave", "--color-borde-suave", "--color-primario", "--color-mostaza", "--color-coral",
-  "--color-menta", "--color-cielo", "--color-lila", "--color-verde", "--color-seleccion", "--color-error",
+  "--color-menta", "--color-cielo", "--color-lila", "--color-verde", "--color-verde-bosque", "--color-azul-rey",
+  "--color-terracota", "--color-seleccion", "--color-error",
   "--color-ok", "--color-aviso",
 ];
 const TOKENS_CIRCUITO = [
   "--tension-0", "--tension-1", "--tension-2", "--tension-3", "--tension-4", "--color-puntos-convencional",
   "--color-puntos-electrones", "--ilus-resistencia-cuerpo", "--ilus-calor", "--ilus-bateria-cuerpo",
-  "--ilus-bateria-franja", "--ilus-fuente-corriente", "--ilus-lampara-luz", "--ilus-lampara-quemada",
+  "--ilus-bateria-tapa", "--ilus-bateria-positivo", "--ilus-bateria-negativo", "--ilus-fuente-corriente", "--ilus-lampara-luz", "--ilus-lampara-quemada",
   "--ilus-interruptor-base", "--ilus-interruptor-palanca",
 ];
 
@@ -362,9 +363,168 @@ function mostrarAnimaciones() {
     lamina("Interruptor: palanca (tocalo)", interruptor), lamina("Batería: pulso al entregar", bateria, deBateria));
 }
 
-// --- 5. Circuito de prueba simulado con el motor ---------------------------------------------
+// --- 5 y 6. Circuitos simulados con el motor ------------------------------------------------------
 
+/**
+ * Monta un circuito interactivo simulado con el motor. `def`:
+ *   piezas: [{id, type, a, b, nodos: [na, nb], value?, rated_power?, closed?, corrienteDe?}]
+ *   cables: [{a, b, nodo, corriente: [id, signo]}]  (el motor no informa corriente en los cables)
+ *   uniones: puntos con nodo dibujado; tierra: punto del símbolo o null; ancho, alto
+ *   tension, vista y alActualizar(resultado, porId) para la tabla o las viñetas.
+ * Devuelve {dibujar}; tocar un interruptor lo abre o lo cierra.
+ */
+function montarCircuito(contenedor, def) {
+  let capa = null;
+  const simular = () => simulate({
+    ground: "0",
+    components: def.piezas.map((p) => {
+      const c = { id: p.id, type: p.type, a: p.nodos[0], b: p.nodos[1] };
+      if (p.type === "voltage_source") c.value = def.tension;
+      if (p.type === "switch") c.closed = p.closed;
+      if (p.type === "lamp") Object.assign(c, { value: p.value, rated_power: p.rated_power });
+      if (p.type === "resistor") c.value = p.value;
+      return c;
+    }),
+  });
+  const valorDe = (p) => (p.type === "voltage_source" ? `${def.tension} V`
+    : p.type === "lamp" ? `${p.value} Ω · ${p.rated_power} W`
+      : p.type === "resistor" ? formatearCompacto(p.value, "Ω") : (p.closed ? "cerrado" : "abierto"));
+
+  function dibujar() {
+    const r = simular();
+    const porId = Object.fromEntries(r.components.map((c) => [c.id, c]));
+    const corrienteDe = ([id, signo]) => (porId[id].current ?? 0) * signo;
+    const tensiones = Object.values(r.node_voltages).filter((v) => v !== null);
+    const vmin = Math.min(...tensiones);
+    const vmax = Math.max(...tensiones);
+    const potencias = r.components.filter((c) => c.type === "resistor").map((c) => c.power);
+    const svg = lienzo(def.ancho, def.alto);
+    const animaciones = [];
+    for (const cable of def.cables) {
+      const v = r.node_voltages[cable.nodo];
+      svg.append(dibujarComponente({ type: "wire", a: cable.a, b: cable.b },
+        { estado: { color: v === null || v === undefined ? null : colorTension(v, vmin, vmax), corriente: corrienteDe(cable.corriente) }, animaciones }));
+    }
+    for (const p of def.piezas) {
+      const res = porId[p.id];
+      // Un interruptor cerrado es un cable para el motor (sin corriente propia): se usa la de su rama.
+      const corriente = p.type === "switch" ? (p.closed ? corrienteDe(p.corrienteDe) : 0) : res.current ?? 0;
+      const g = dibujarComponente({ ...p, etiqueta: p.id, valor: valorDe(p) }, {
+        vista: def.vista,
+        animaciones,
+        estado: {
+          corriente,
+          // Quemada: la potencia que la quemó no está en el resultado (ya no conduce); basta con pasar la nominal.
+          potencia: res.burned ? p.rated_power * 2 : res.power,
+          potenciaNominal: p.rated_power,
+          calor: p.type === "resistor" ? calorResistencia(res.power, Math.max(...potencias, 1e-12)) : 0,
+        },
+      });
+      if (p.type === "switch") {
+        g.addEventListener("click", () => {
+          p.closed = !p.closed;
+          dibujar();
+        });
+      }
+      svg.append(g);
+    }
+    if (def.tierra) dibujarTierra(def.tierra, svg);
+    for (const punto of def.uniones ?? []) dibujarNodo(punto, svg);
+    if (capa) animador.quitar(capa);
+    contenedor.replaceChildren(svg);
+    capa = animador.registrar(contenedor, svg, animaciones);
+    def.alActualizar?.(r, porId, { vmin, vmax });
+  }
+  return { dibujar };
+}
+
+function conmutadorDe(id, alElegir) {
+  $(id).addEventListener("click", (e) => {
+    const b = e.target.closest("button");
+    if (!b) return;
+    pulsar($(id), b);
+    alElegir(b.dataset);
+  });
+}
+
+function celdaTexto(texto, clase) {
+  return nodo("td", clase, texto);
+}
+
+// Serie: una lámpara de 3 W y otra de 6 W. Con 18 V se quema la de 3 W y se apagan las dos.
+const SERIE = {
+  ancho: 380, alto: 230, tension: 12, vista: "ilustrada",
+  piezas: [
+    { id: "V1", type: "voltage_source", a: { x: 150, y: 195 }, b: { x: 230, y: 195 }, nodos: ["p", "0"] },
+    { id: "S1", type: "switch", a: { x: 40, y: 160 }, b: { x: 40, y: 80 }, nodos: ["p", "s"], closed: true, corrienteDe: ["V1", -1] },
+    { id: "L1", type: "lamp", a: { x: 90, y: 60 }, b: { x: 170, y: 60 }, nodos: ["s", "m"], value: 12, rated_power: 3 },
+    { id: "L2", type: "lamp", a: { x: 210, y: 60 }, b: { x: 290, y: 60 }, nodos: ["m", "0"], value: 12, rated_power: 6 },
+  ],
+  cables: [
+    { a: { x: 150, y: 195 }, b: { x: 40, y: 195 }, nodo: "p", corriente: ["V1", -1] },
+    { a: { x: 40, y: 195 }, b: { x: 40, y: 160 }, nodo: "p", corriente: ["V1", -1] },
+    { a: { x: 40, y: 80 }, b: { x: 40, y: 60 }, nodo: "s", corriente: ["V1", -1] },
+    { a: { x: 40, y: 60 }, b: { x: 90, y: 60 }, nodo: "s", corriente: ["V1", -1] },
+    { a: { x: 170, y: 60 }, b: { x: 210, y: 60 }, nodo: "m", corriente: ["V1", -1] },
+    { a: { x: 290, y: 60 }, b: { x: 340, y: 60 }, nodo: "0", corriente: ["V1", -1] },
+    { a: { x: 340, y: 60 }, b: { x: 340, y: 195 }, nodo: "0", corriente: ["V1", -1] },
+    { a: { x: 340, y: 195 }, b: { x: 230, y: 195 }, nodo: "0", corriente: ["V1", -1] },
+  ],
+  alActualizar(r, c) {
+    const quemadas = r.stats.burned_lamps;
+    $("serie-lectura").textContent = quemadas.length
+      ? `Se quemó ${quemadas.join(" y ")}: el circuito quedó abierto y se apagaron todas.`
+      : `Corriente: ${formatearSI(c.L1.current, "A")} por las dos lámparas · L1 ${Math.round(c.L1.brightness * 100)} % · L2 ${Math.round(c.L2.brightness * 100)} %`;
+    $("serie-lectura").className = quemadas.length ? "mensaje mensaje--aviso" : "mensaje";
+  },
+};
+
+// Paralelo: una lámpara de 6 W y otra de 15 W. Con 18 V se quema la de 6 W y la otra sigue.
+const PARALELO = {
+  ancho: 380, alto: 270, tension: 12, vista: "ilustrada",
+  piezas: [
+    { id: "V1", type: "voltage_source", a: { x: 150, y: 240 }, b: { x: 230, y: 240 }, nodos: ["p", "0"] },
+    { id: "S1", type: "switch", a: { x: 40, y: 220 }, b: { x: 40, y: 140 }, nodos: ["p", "s"], closed: true, corrienteDe: ["V1", -1] },
+    { id: "L1", type: "lamp", a: { x: 120, y: 60 }, b: { x: 200, y: 60 }, nodos: ["s", "0"], value: 24, rated_power: 6 },
+    { id: "L2", type: "lamp", a: { x: 120, y: 140 }, b: { x: 200, y: 140 }, nodos: ["s", "0"], value: 24, rated_power: 15 },
+  ],
+  cables: [
+    { a: { x: 150, y: 240 }, b: { x: 40, y: 240 }, nodo: "p", corriente: ["V1", -1] },
+    { a: { x: 40, y: 240 }, b: { x: 40, y: 220 }, nodo: "p", corriente: ["V1", -1] },
+    { a: { x: 40, y: 140 }, b: { x: 40, y: 60 }, nodo: "s", corriente: ["L1", 1] },
+    { a: { x: 40, y: 140 }, b: { x: 120, y: 140 }, nodo: "s", corriente: ["L2", 1] },
+    { a: { x: 40, y: 60 }, b: { x: 120, y: 60 }, nodo: "s", corriente: ["L1", 1] },
+    { a: { x: 200, y: 60 }, b: { x: 330, y: 60 }, nodo: "0", corriente: ["L1", 1] },
+    { a: { x: 330, y: 60 }, b: { x: 330, y: 140 }, nodo: "0", corriente: ["L1", 1] },
+    { a: { x: 200, y: 140 }, b: { x: 330, y: 140 }, nodo: "0", corriente: ["L2", 1] },
+    { a: { x: 330, y: 140 }, b: { x: 330, y: 240 }, nodo: "0", corriente: ["V1", -1] },
+    { a: { x: 330, y: 240 }, b: { x: 230, y: 240 }, nodo: "0", corriente: ["V1", -1] },
+  ],
+  uniones: [{ x: 40, y: 140 }, { x: 330, y: 140 }],
+  alActualizar(r, c) {
+    const quemadas = r.stats.burned_lamps;
+    const corrientes = `Batería ${formatearSI(-c.V1.current, "A")} · L1 ${formatearSI(c.L1.current, "A")} · L2 ${formatearSI(c.L2.current, "A")}`;
+    $("paralelo-lectura").textContent = quemadas.length
+      ? `Se quemó ${quemadas.join(" y ")}, pero la otra rama sigue encendida. ${corrientes}`
+      : corrientes;
+    $("paralelo-lectura").className = quemadas.length ? "mensaje mensaje--aviso" : "mensaje";
+  },
+};
+
+function iniciarSerieParalelo() {
+  for (const [def, id] of [[SERIE, "serie"], [PARALELO, "paralelo"]]) {
+    const circuito = montarCircuito($(`${id}-lienzo`), def);
+    conmutadorDe(`${id}-tension`, (datos) => {
+      def.tension = Number(datos.tension);
+      circuito.dibujar();
+    });
+    circuito.dibujar();
+  }
+}
+
+// Circuito de prueba: batería, dos interruptores, una lámpara y una resistencia.
 const DEMO = {
+  ancho: 560, alto: 260, tension: 12, vista: "ilustrada",
   piezas: [
     { id: "V1", type: "voltage_source", a: { x: 80, y: 100 }, b: { x: 80, y: 180 }, nodos: ["n1", "0"] },
     { id: "S1", type: "switch", a: { x: 140, y: 60 }, b: { x: 220, y: 60 }, nodos: ["n1", "n2"], closed: true, corrienteDe: ["V1", -1] },
@@ -372,7 +532,6 @@ const DEMO = {
     { id: "S2", type: "switch", a: { x: 340, y: 60 }, b: { x: 420, y: 60 }, nodos: ["n2", "n3"], closed: false, corrienteDe: ["R1", 1] },
     { id: "R1", type: "resistor", a: { x: 480, y: 100 }, b: { x: 480, y: 180 }, nodos: ["n3", "0"], value: 48 },
   ],
-  // Cables: nodo y de qué componente toman la corriente (con signo, en el sentido del cable).
   cables: [
     { a: { x: 80, y: 100 }, b: { x: 80, y: 60 }, nodo: "n1", corriente: ["V1", -1] },
     { a: { x: 80, y: 60 }, b: { x: 140, y: 60 }, nodo: "n1", corriente: ["V1", -1] },
@@ -387,107 +546,40 @@ const DEMO = {
     { a: { x: 300, y: 220 }, b: { x: 80, y: 220 }, nodo: "0", corriente: ["V1", -1] },
     { a: { x: 80, y: 220 }, b: { x: 80, y: 180 }, nodo: "0", corriente: ["V1", -1] },
   ],
-  vista: "ilustrada",
-  tension: 12,
+  tierra: { x: 80, y: 220 },
+  uniones: [{ x: 80, y: 60 }, { x: 300, y: 60 }, { x: 480, y: 60 }, { x: 300, y: 220 }, { x: 80, y: 220 }, { x: 480, y: 220 }],
+  alActualizar(r, porId, { vmin, vmax }) {
+    $("demo-tabla").replaceChildren(...r.components.map((c) => {
+      const tr = nodo("tr");
+      tr.append(celdaTexto(c.id), celdaTexto(c.voltage === null ? "—" : formatearSI(c.voltage, "V"), "num"),
+        celdaTexto(c.current === null ? "—" : formatearSI(c.current, "A"), "num"), celdaTexto(formatearSI(c.power, "W"), "num"));
+      return tr;
+    }));
+    const lampara = porId.L1;
+    const mensaje = $("demo-mensaje");
+    mensaje.replaceChildren(lampara.burned
+      ? Object.assign(nodo("div", "mensaje mensaje--aviso"),
+        { textContent: "L1 se quemó (P > 6 W): abrió su rama. Si S2 está cerrado, R1 sigue funcionando." })
+      : Object.assign(nodo("div", "mensaje"), { textContent: `Brillo de L1: ${Math.round(lampara.brightness * 100)} %` }));
+    $("demo-vmin").textContent = formatearSI(vmin, "V");
+    $("demo-vmax").textContent = formatearSI(vmax, "V");
+  },
 };
 
-function simularDemo() {
-  const components = DEMO.piezas.map((p) => {
-    const c = { id: p.id, type: p.type, a: p.nodos[0], b: p.nodos[1] };
-    if (p.type === "voltage_source") c.value = DEMO.tension;
-    if (p.type === "switch") c.closed = p.closed;
-    if (p.type === "lamp") Object.assign(c, { value: p.value, rated_power: p.rated_power });
-    if (p.type === "resistor") c.value = p.value;
-    return c;
-  });
-  return simulate({ ground: "0", components });
-}
-
-function dibujarDemo() {
-  const r = simularDemo();
-  const porId = Object.fromEntries(r.components.map((c) => [c.id, c]));
-  const tensiones = Object.values(r.node_voltages).filter((v) => v !== null);
-  const vmin = Math.min(...tensiones);
-  const vmax = Math.max(...tensiones);
-  const potencias = r.components.filter((c) => c.type === "resistor").map((c) => c.power);
-  const svg = lienzo(560, 260);
-  const animaciones = [];
-  for (const cable of DEMO.cables) {
-    const v = r.node_voltages[cable.nodo];
-    const [id, signo] = cable.corriente;
-    const corriente = (porId[id].current ?? 0) * signo;
-    svg.append(dibujarComponente({ type: "wire", a: cable.a, b: cable.b },
-      { estado: { color: v === null ? null : colorTension(v, vmin, vmax), corriente }, animaciones }));
-  }
-  for (const p of DEMO.piezas) {
-    const res = porId[p.id];
-    const valor = p.type === "voltage_source" ? `${DEMO.tension} V`
-      : p.type === "lamp" ? `${p.value} Ω · ${p.rated_power} W`
-        : p.type === "resistor" ? formatearCompacto(p.value, "Ω") : (p.closed ? "cerrado" : "abierto");
-    // El motor trata un interruptor cerrado como cable (sin corriente propia): se usa la de su rama.
-    const corriente = p.corrienteDe ? (porId[p.corrienteDe[0]].current ?? 0) * p.corrienteDe[1] : res.current ?? 0;
-    const g = dibujarComponente({ ...p, etiqueta: p.id, valor }, {
-      vista: DEMO.vista,
-      animaciones,
-      estado: {
-        corriente: p.type === "switch" && !p.closed ? 0 : corriente, potencia: res.power, potenciaNominal: p.rated_power,
-        calor: p.type === "resistor" ? calorResistencia(res.power, Math.max(...potencias, 1e-12)) : 0,
-      },
-    });
-    if (p.type === "switch") {
-      g.addEventListener("click", () => {
-        p.closed = !p.closed;
-        dibujarDemo();
-      });
-    }
-    svg.append(g);
-  }
-  dibujarTierra({ x: 80, y: 220 }, svg);
-  for (const punto of [[80, 60], [300, 60], [480, 60], [300, 220], [80, 220], [480, 220]]) dibujarNodo({ x: punto[0], y: punto[1] }, svg);
-  if (DEMO.capa) animador.quitar(DEMO.capa);
-  const contenedor = $("demo-lienzo");
-  contenedor.replaceChildren(svg);
-  DEMO.capa = animador.registrar(contenedor, svg, animaciones);
-
-  $("demo-tabla").replaceChildren(...r.components.map((c) => {
-    const tr = nodo("tr");
-    tr.append(nodo("td", "", c.id), nodo("td", "num", c.voltage === null ? "—" : formatearSI(c.voltage, "V")),
-      nodo("td", "num", c.current === null ? "—" : formatearSI(c.current, "A")), nodo("td", "num", formatearSI(c.power, "W")));
-    return tr;
-  }));
-  const lamparaRes = porId.L1;
-  const mensaje = $("demo-mensaje");
-  mensaje.replaceChildren();
-  if (lamparaRes.burned) {
-    mensaje.append(Object.assign(nodo("div", "mensaje mensaje--aviso"),
-      { textContent: `L1 está quemada: disipa ${formatearSI(lamparaRes.power, "W")} y su potencia nominal es 6 W.` }));
-  } else {
-    mensaje.append(Object.assign(nodo("div", "mensaje"),
-      { textContent: `Brillo de L1: ${Math.round(lamparaRes.brightness * 100)} %` }));
-  }
-  $("demo-vmin").textContent = formatearSI(vmin, "V");
-  $("demo-vmax").textContent = formatearSI(vmax, "V");
-}
-
 function iniciarDemo() {
-  $("demo-vista").addEventListener("click", (e) => {
-    const b = e.target.closest("button");
-    if (!b) return;
-    pulsar($("demo-vista"), b);
-    DEMO.vista = b.dataset.vista;
-    dibujarDemo();
+  const circuito = montarCircuito($("demo-lienzo"), DEMO);
+  conmutadorDe("demo-vista", (datos) => {
+    DEMO.vista = datos.vista;
+    circuito.dibujar();
   });
-  $("demo-tension").addEventListener("click", (e) => {
-    const b = e.target.closest("button");
-    if (!b) return;
-    pulsar($("demo-tension"), b);
-    DEMO.tension = Number(b.dataset.tension);
-    dibujarDemo();
+  conmutadorDe("demo-tension", (datos) => {
+    DEMO.tension = Number(datos.tension);
+    circuito.dibujar();
   });
-  dibujarDemo();
+  circuito.dibujar();
 }
 
-// --- 6. Rendimiento: 50 componentes animados -----------------------------------------------------
+// --- 7. Rendimiento: 50 componentes animados -----------------------------------------------------
 
 let vistaCarga = "ilustrada";
 let capaCarga = null;
@@ -553,5 +645,6 @@ iniciarControles();
 mostrarTokens();
 mostrarComponentes();
 mostrarAnimaciones();
+iniciarSerieParalelo();
 iniciarDemo();
 iniciarCarga();

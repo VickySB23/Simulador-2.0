@@ -165,9 +165,17 @@ export class Animador {
       else if (e.tipo === "calor") this._calor(ctx, e, t);
       else if (e.tipo === "pulso") this._pulso(ctx, e, t);
     }
+    // Todos los puntos en un solo trazo: un relleno y un contorno por cuadro, no uno por cable.
+    ctx.fillStyle = this.electrones ? this.tokens.electrones : this.tokens.convencional;
+    ctx.strokeStyle = this.tokens.tinta;
+    ctx.lineWidth = this.tokens.borde * 0.6;
+    ctx.beginPath();
     for (const e of capa.elementos) if (e.tipo === "puntos") this._puntos(ctx, e, t);
+    ctx.fill();
+    ctx.stroke();
   }
 
+  /** Agrega al trazo actual los puntos de un tramo. */
   _puntos(ctx, e, t) {
     const dx = e.hasta.x - e.desde.x;
     const dy = e.hasta.y - e.desde.y;
@@ -179,10 +187,6 @@ export class Animador {
     // Fase común a todos los cables: los puntos de tramos seguidos avanzan alineados.
     const fase = (((signo * e.velocidad * t) % PASO_PUNTOS) + PASO_PUNTOS) % PASO_PUNTOS;
     const radio = this.tokens.puntos / 2;
-    ctx.fillStyle = this.electrones ? this.tokens.electrones : this.tokens.convencional;
-    ctx.strokeStyle = this.tokens.tinta;
-    ctx.lineWidth = this.tokens.borde * 0.6;
-    ctx.beginPath();
     // `desfase`: distancia del tramo al inicio del componente, para que el espaciado siga parejo.
     const inicio = (((fase - (e.desfase ?? 0)) % PASO_PUNTOS) + PASO_PUNTOS) % PASO_PUNTOS;
     for (let d = inicio; d <= largo; d += PASO_PUNTOS) {
@@ -191,22 +195,19 @@ export class Animador {
       ctx.moveTo(x + radio, y);
       ctx.arc(x, y, radio, 0, Math.PI * 2);
     }
-    ctx.fill();
-    ctx.stroke();
   }
 
   _halo(ctx, e, t) {
     if (!(e.intensidad > 0)) return;
+    // Anillos concéntricos que "respiran" (más barato que un degradado nuevo en cada cuadro).
     const respiro = 1 + 0.08 * Math.sin((t / PERIODO_HALO) * Math.PI * 2);
-    const radio = e.radio * respiro;
-    const gradiente = ctx.createRadialGradient(e.x, e.y, e.radio * 0.2, e.x, e.y, radio);
-    gradiente.addColorStop(0, this.tokens.halo);
-    gradiente.addColorStop(1, "transparent");
-    ctx.globalAlpha = Math.min(1, e.intensidad) * 0.55;
-    ctx.fillStyle = gradiente;
-    ctx.beginPath();
-    ctx.arc(e.x, e.y, radio, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.fillStyle = this.tokens.halo;
+    for (const [factor, alfa] of [[1, 0.12], [0.78, 0.16], [0.58, 0.2]]) {
+      ctx.globalAlpha = Math.min(1, e.intensidad) * alfa;
+      ctx.beginPath();
+      ctx.arc(e.x, e.y, e.radio * factor * respiro, 0, Math.PI * 2);
+      ctx.fill();
+    }
     ctx.globalAlpha = 1;
   }
 

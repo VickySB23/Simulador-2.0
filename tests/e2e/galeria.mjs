@@ -69,6 +69,21 @@ const despues = await claro.pagina.locator("#demo-tabla tr", { hasText: "R1" }).
 ok(antes.includes("0 A") && despues.includes("250 mA"), `clic en S2: R1 pasa de 0 A a 250 mA (${despues.replaceAll("\t", " ")})`);
 await claro.pagina.locator('#demo-tension [data-tension="18"]').click();
 ok(await claro.pagina.locator("#demo-lienzo .comp--lamp.quemada").count() === 1, "con 18 V la lámpara de 6 W se quema");
+const filaL1 = await claro.pagina.locator("#demo-tabla tr", { hasText: "L1" }).innerText();
+const filaR1 = await claro.pagina.locator("#demo-tabla tr", { hasText: "R1" }).innerText();
+ok(filaL1.includes("0 A") && filaR1.includes("375 mA"), "la lámpara quemada abre su rama y R1 sigue (375 mA)");
+// Serie: con 18 V se quema L1 y se apagan las dos.
+await seccion(claro.pagina, "serie-paralelo", "g5-serie-paralelo.png");
+await claro.pagina.locator('#serie-tension [data-tension="18"]').click();
+ok(await claro.pagina.locator("#serie-lienzo .comp--lamp.quemada").count() === 1
+  && await claro.pagina.locator("#serie-lienzo .comp--lamp.encendida").count() === 0,
+  `serie con 18 V: L1 se quema y se apagan todas (${await claro.pagina.locator("#serie-lectura").innerText()})`);
+// Paralelo: con 18 V se quema L1 y L2 sigue encendida.
+await claro.pagina.locator('#paralelo-tension [data-tension="18"]').click();
+ok(await claro.pagina.locator("#paralelo-lienzo .comp--lamp.quemada").count() === 1
+  && await claro.pagina.locator("#paralelo-lienzo .comp--lamp.encendida").count() === 1,
+  `paralelo con 18 V: L1 se quema y L2 sigue encendida (${await claro.pagina.locator("#paralelo-lectura").innerText()})`);
+await seccion(claro.pagina, "serie-paralelo", "g5-serie-paralelo-quemadas.png");
 await seccion(claro.pagina, "demo", "g5-demo-quemada.png");
 const fpsEscritorio = await medirFps(claro.pagina);
 await seccion(claro.pagina, "rendimiento", "g6-rendimiento.png");

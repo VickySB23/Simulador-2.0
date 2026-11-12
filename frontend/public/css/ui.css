@@ -157,8 +157,9 @@ code, .mono { font-family: var(--fuente-mono); font-size: var(--texto-sm); }
 
 /* --- Tarjetas con encabezado de color --------------------------------------------------------- */
 
+/* Como en la lámina de referencia: borde grueso y encabezado del mismo color, título blanco centrado. */
 .tarjeta {
-  border: var(--borde) solid var(--color-tinta);
+  border: var(--borde-grueso) solid var(--tarjeta-color);
   border-radius: var(--radio-lg);
   background: var(--color-superficie);
   box-shadow: var(--sombra-plana-grande);
@@ -167,18 +168,21 @@ code, .mono { font-family: var(--fuente-mono); font-size: var(--texto-sm); }
 .tarjeta__encabezado {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: var(--esp-2);
   padding: var(--esp-3) var(--esp-4);
-  background: var(--color-mostaza);
+  background: var(--tarjeta-color);
   color: var(--color-encabezado-texto);
-  border-bottom: var(--borde) solid var(--color-tinta);
   font-weight: var(--peso-titulo);
+  text-align: center;
 }
-.tarjeta__encabezado h2, .tarjeta__encabezado h3 { font-size: var(--texto-base); }
-.tarjeta--resultados .tarjeta__encabezado { background: var(--color-encabezado-resultados); }
-.tarjeta--ecuaciones .tarjeta__encabezado { background: var(--color-encabezado-ecuaciones); }
-.tarjeta--circuitos .tarjeta__encabezado { background: var(--color-encabezado-circuitos); }
-.tarjeta--dialogo .tarjeta__encabezado { background: var(--color-encabezado-dialogo); }
+.tarjeta__encabezado h2, .tarjeta__encabezado h3 { font-size: var(--texto-lg); }
+.tarjeta--resultados { --tarjeta-color: var(--color-encabezado-resultados); }
+.tarjeta--ecuaciones { --tarjeta-color: var(--color-encabezado-ecuaciones); }
+.tarjeta--circuitos { --tarjeta-color: var(--color-encabezado-circuitos); }
+.tarjeta--dialogo { --tarjeta-color: var(--color-encabezado-dialogo); }
+.tarjeta--serie { --tarjeta-color: var(--color-encabezado-serie); }
+.tarjeta--paralelo { --tarjeta-color: var(--color-encabezado-paralelo); }
 .tarjeta__cuerpo { padding: var(--esp-4); display: flex; flex-direction: column; gap: var(--esp-3); }
 
 /* Métricas (potencia entregada, absorbida, balance, KCL). */
@@ -198,7 +202,7 @@ code, .mono { font-family: var(--fuente-mono); font-size: var(--texto-sm); }
 
 /* --- Pestañas --------------------------------------------------------------------------------- */
 
-.pestanas { display: flex; gap: var(--esp-2); padding: var(--esp-2); }
+.pestanas { display: flex; gap: var(--esp-2); padding: var(--esp-2); --tarjeta-color: var(--color-borde-suave); }
 .pestana {
   flex: 1;
   min-height: var(--alto-control);
@@ -337,9 +341,10 @@ code, .mono { font-family: var(--fuente-mono); font-size: var(--texto-sm); }
 /* --- Diálogos y campos --------------------------------------------------------------------------- */
 
 .dialogo {
+  --tarjeta-color: var(--color-encabezado-dialogo);
   padding: 0;
   width: min(calc(var(--ancho-panel) + var(--esp-4)), calc(100vw - var(--esp-6)));
-  border: var(--borde) solid var(--color-tinta);
+  border: var(--borde-grueso) solid var(--tarjeta-color);
   border-radius: var(--radio-lg);
   background: var(--color-superficie);
   color: var(--color-texto);
@@ -347,7 +352,7 @@ code, .mono { font-family: var(--fuente-mono); font-size: var(--texto-sm); }
   overflow: hidden;
 }
 .dialogo::backdrop { background: var(--velo); }
-.dialogo .tarjeta__encabezado { background: var(--color-encabezado-dialogo); }
+.dialogo .tarjeta__encabezado { background: var(--tarjeta-color); }
 .campo { display: flex; flex-direction: column; gap: var(--esp-1); font-weight: var(--peso-fuerte); font-size: var(--texto-sm); }
 .campo input {
   min-height: var(--alto-control);
@@ -366,6 +371,9 @@ code, .mono { font-family: var(--fuente-mono); font-size: var(--texto-sm); }
 .acciones--fin { justify-content: flex-end; }
 
 .nota { margin: 0; font-size: var(--texto-xs); color: var(--color-texto-suave); }
+
+.vinetas { margin: 0; padding-left: var(--esp-5); display: flex; flex-direction: column; gap: var(--esp-2); font-weight: var(--peso-medio); }
+.vinetas li::marker { color: var(--tarjeta-color); font-size: var(--texto-lg); }
 
 @media (prefers-reduced-motion: reduce) {
   .boton, .conmutador button { transition: none; }

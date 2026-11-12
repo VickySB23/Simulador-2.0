@@ -52,10 +52,13 @@ mismos mensajes. Corrigen bugs confirmados de Simulador-2.0:
    dispersas) por encima.
 6. Convención pasiva: potencia positiva = absorbe.
 7. Componentes solo de la versión web: `lamp` (resistencia + `rated_power`; el resultado agrega
-   `brightness` = P/Pnom y `burned` = P > Pnom, y quemada sigue conduciendo) y `switch` (`closed`:
-   cerrado = cable, abierto = fuera del circuito). Una parte que queda sin camino a tierra por un
-   interruptor abierto y no tiene fuentes no es error: corrientes 0 y tensiones `null`. Sin
-   interruptores, todo sigue igual que el backend (la comparación de 500 circuitos da idéntico).
+   `brightness` = P/Pnom y `burned`) y `switch` (`closed`: cerrado = cable, abierto = fuera del
+   circuito). **Una lámpara con P > Pnom se quema y abre el circuito**: se quema primero la más
+   sobrecargada y se vuelve a resolver (cascada); las quemadas van en `stats.burned_lamps`. Una
+   parte que queda sin camino a tierra por un interruptor abierto o una lámpara quemada se resuelve
+   con una referencia propia: corrientes y tensiones entre bornes válidas, tensión de nodo `null`
+   (con una fuente de corriente adentro sigue siendo error). Sin lámparas ni interruptores todo
+   sigue igual que el backend (la comparación de 500 circuitos da idéntico).
 
 `parseValue` es el `parse_value` del backend (M y MEG = mega, m = mili); `valores.js` agrega la
 coma decimal. Si se cambia el motor, correr `tests/comparacion/comparar.mjs` contra el stack de
@@ -92,7 +95,7 @@ render reemplaza los elementos del SVG.
 ## Comandos
 
 ```bash
-cd frontend && node --test                  # 109 tests
+cd frontend && node --test                  # 117 tests
 node tests/e2e/servir.mjs                   # http://localhost:8000/Simulador-2.0/
 cd tests/e2e && npm install && node verificar.mjs capturas   # 31 comprobaciones en Chrome
 node tests/e2e/actualizacion.mjs            # aviso de versión nueva (publicar mientras espera)

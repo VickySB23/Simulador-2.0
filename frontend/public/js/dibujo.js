@@ -47,13 +47,16 @@ const FORMAS = {
     efectos: { ilustrada: { calor: [40, 0, 56, 32] }, esquematica: { calor: [40, 0, 48, 28] } },
   },
   voltage_source: {
-    cuerpo: { ilustrada: [10, 66], esquematica: [35, 45] },
+    cuerpo: { ilustrada: [12, 68], esquematica: [35, 45] },
+    // Batería tipo auto, como en la lámina: cuerpo mostaza, tapa oscura y bornes en círculos
+    // rojo (+, del lado a) y azul (−, del lado b). Los signos van derechos en la capa de textos.
     ilustrada(g) {
-      el("rect", { class: "bat-pulso", x: 8, y: -19, width: 64, height: 38, rx: 12 }, g);
-      el("path", { class: "pata", d: `M0 0H12M66 0H${LARGO}` }, g);
-      el("rect", { class: "bat-borne contorno", x: 10, y: -6, width: 7, height: 12, rx: 2 }, g);
-      el("rect", { class: "bat-cuerpo contorno", x: 16, y: -15, width: 50, height: 30, rx: 7 }, g);
-      el("path", { class: "bat-franja", d: "M23 -13.7H25V13.7H23A5.7 5.7 0 0 1 17.3 8V-8A5.7 5.7 0 0 1 23 -13.7Z" }, g);
+      el("rect", { class: "bat-pulso", x: 8, y: -22, width: 64, height: 42, rx: 10 }, g);
+      el("path", { class: "pata", d: `M0 0H12M68 0H${LARGO}` }, g);
+      el("rect", { class: "bat-tapa contorno", x: 15, y: -17, width: 50, height: 7, rx: 2.5 }, g);
+      el("rect", { class: "bat-cuerpo contorno", x: 12, y: -11, width: 56, height: 27, rx: 4 }, g);
+      el("circle", { class: "bat-positivo contorno", cx: 27, cy: 2.5, r: 8 }, g);
+      el("circle", { class: "bat-negativo contorno", cx: 53, cy: 2.5, r: 8 }, g);
     },
     esquematica(g) {
       el("rect", { class: "bat-pulso", x: 24, y: -22, width: 32, height: 44, rx: 8 }, g);
@@ -62,9 +65,9 @@ const FORMAS = {
       el("line", { class: "esq-placa-corta", x1: 45, y1: -8, x2: 45, y2: 8 }, g);
     },
     // Signos en coordenadas locales; se dibujan derechos en la capa de textos.
-    signos: { ilustrada: [["+", 34], ["−", 55]], esquematica: [["+", 27], ["−", 53]] },
-    efectos: { ilustrada: { pulso: [41, 0, 64, 38] }, esquematica: { pulso: [40, 0, 32, 44] } },
-    desplazamientoSignos: { ilustrada: 0, esquematica: -16 },
+    signos: { ilustrada: [["+", 27], ["−", 53]], esquematica: [["+", 27], ["−", 53]] },
+    efectos: { ilustrada: { pulso: [40, -1, 66, 42] }, esquematica: { pulso: [40, 0, 32, 44] } },
+    desplazamientoSignos: { ilustrada: 2.5, esquematica: -16 },
   },
   current_source: {
     cuerpo: { ilustrada: [24, 56], esquematica: [26, 54] },
@@ -81,21 +84,24 @@ const FORMAS = {
     },
   },
   lamp: {
-    cuerpo: { ilustrada: [30, 50], esquematica: [28, 52] },
+    cuerpo: { ilustrada: [32, 48], esquematica: [28, 52] },
+    // Como en la lámina: halo en anillos concéntricos y zócalo marrón con franjas naranjas.
     ilustrada(g, estado) {
-      el("circle", { class: "lam-halo", cx: 40, cy: -14, r: 30 }, g);
-      el("circle", { class: "lam-halo lam-halo--interno", cx: 40, cy: -14, r: 21 }, g);
-      el("path", { class: "pata", d: `M0 0H30M50 0H${LARGO}` }, g);
-      el("circle", { class: "lam-vidrio contorno", cx: 40, cy: -15, r: 13 }, g);
-      el("circle", { class: "lam-luz", cx: 40, cy: -15, r: 11.5 }, g);
+      el("circle", { class: "lam-halo lam-halo--1", cx: 40, cy: -18, r: 33 }, g);
+      el("circle", { class: "lam-halo lam-halo--2", cx: 40, cy: -18, r: 26 }, g);
+      el("circle", { class: "lam-halo lam-halo--3", cx: 40, cy: -18, r: 19.5 }, g);
+      el("path", { class: "pata", d: `M0 0H32M48 0H${LARGO}` }, g);
+      el("circle", { class: "lam-vidrio contorno", cx: 40, cy: -18, r: 12.5 }, g);
+      el("circle", { class: "lam-luz", cx: 40, cy: -18, r: 11 }, g);
       if (estado.quemada) {
-        el("path", { class: "lam-filamento", d: "M35 -3L36 -12L38 -9M42 -11L44 -14L45 -3" }, g);
-        el("path", { class: "lam-grieta", d: "M33 -25L37 -20L35 -17M46 -26L44 -22L47 -19" }, g);
+        el("path", { class: "lam-filamento", d: "M36.5 -8L37 -17L39 -14M41.5 -16L43 -19L43.5 -8" }, g);
+        el("path", { class: "lam-grieta", d: "M33.5 -28L37.5 -23L35.5 -20M46.5 -29L44.5 -25L47.5 -22" }, g);
       } else {
-        el("path", { class: "lam-filamento", d: "M35 -3L36 -14L38 -10L40 -16L42 -10L44 -14L45 -3" }, g);
+        el("path", { class: "lam-filamento", d: "M36.5 -8L37 -19L39 -15L40 -21L41 -15L43 -19L43.5 -8" }, g);
       }
-      el("rect", { class: "lam-base contorno", x: 31, y: -4, width: 18, height: 10, rx: 3 }, g);
-      el("path", { class: "pata", d: "M33 1H47" }, g);
+      el("rect", { class: "lam-base contorno", x: 32, y: -7, width: 16, height: 11, rx: 2.5 }, g);
+      el("rect", { class: "lam-banda", x: 33.2, y: -4.4, width: 13.6, height: 2.2 }, g);
+      el("rect", { class: "lam-banda", x: 33.2, y: -0.6, width: 13.6, height: 2.2 }, g);
     },
     esquematica(g, estado) {
       el("circle", { class: "lam-halo", cx: 40, cy: 0, r: 22 }, g);
@@ -106,7 +112,7 @@ const FORMAS = {
         ? "M31.5 -8.5L38 -2M42 2L48.5 8.5M48.5 -8.5L42 -2M38 2L31.5 8.5"
         : "M31.5 -8.5L48.5 8.5M48.5 -8.5L31.5 8.5" }, g);
     },
-    efectos: { ilustrada: { halo: [40, -15, 34] }, esquematica: { halo: [40, 0, 26] } },
+    efectos: { ilustrada: { halo: [40, -18, 38] }, esquematica: { halo: [40, 0, 26] } },
   },
   switch: {
     cuerpo: { ilustrada: [16, 64], esquematica: [24, 56] },

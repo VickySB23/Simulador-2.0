@@ -1,4 +1,6 @@
-/* Sistema de diseño del Simulador DC: ilustración plana, cálida y con contornos marcados.
+/* Sistema de diseño del Simulador DC: ilustración plana y cálida, como una lámina escolar:
+ * fondo crema, tarjetas con borde y encabezado del mismo color fuerte, título blanco, sin sombras
+ * desplazadas, contornos finos y cables delgados.
  *
  * Es el ÚNICO archivo con valores literales (colores, tamaños, sombras). El resto de la interfaz
  * (ui.css, circuito.css) usa solo estas variables; tests/tokens.test.js lo verifica.
@@ -40,13 +42,19 @@
   --color-cielo: #9cc3e6;
   --color-lila: #b9a3d6;
   --color-verde: #3e9c7a;
+  --color-verde-bosque: #2f6e4e;
+  --color-azul-rey: #2d5fa8;
+  --color-terracota: #c2562f;
 
-  /* Encabezados de tarjeta */
-  --color-encabezado-resultados: var(--color-mostaza);
-  --color-encabezado-ecuaciones: var(--color-menta);
-  --color-encabezado-circuitos: var(--color-coral);
-  --color-encabezado-dialogo: var(--color-cielo);
-  --color-encabezado-texto: var(--color-tinta);
+  /* Tarjetas: el borde y el encabezado comparten un color fuerte; el título va en blanco. */
+  --tarjeta-color: var(--color-tinta);
+  --color-encabezado-resultados: var(--color-verde-bosque);
+  --color-encabezado-ecuaciones: var(--color-azul-rey);
+  --color-encabezado-circuitos: var(--color-terracota);
+  --color-encabezado-dialogo: var(--color-azul-rey);
+  --color-encabezado-serie: var(--color-verde-bosque);
+  --color-encabezado-paralelo: var(--color-azul-rey);
+  --color-encabezado-texto: #fffcf6;
 
   /* --- Color: estados --------------------------------------------------------------------- */
   --color-seleccion: #2f6db5;
@@ -67,7 +75,7 @@
   --tension-3: #f2a541;
   --tension-4: #d62828;
   --color-cable-neutro: var(--color-tinta);
-  --color-puntos-convencional: #ffd23f;   /* corriente convencional: de + a − */
+  --color-puntos-convencional: #f7931e;   /* corriente convencional: de + a −, naranja */
   --color-puntos-electrones: #5ec8f2;     /* flujo de electrones: de − a + */
   --color-flecha-corriente: #1f8a70;
   --color-nodo-error: var(--color-error);
@@ -78,23 +86,25 @@
   --ilus-banda-2: #2e2420;
   --ilus-banda-3: #e4572e;
   --ilus-calor: #ff7a2f;                  /* brillo cálido según la potencia */
-  --ilus-bateria-cuerpo: #3e9c7a;
-  --ilus-bateria-franja: #f2a541;
-  --ilus-bateria-borne: #c98a4b;
-  --ilus-bateria-signo: #fffcf6;
-  --ilus-bateria-pulso: #8fe3c0;
+  --ilus-bateria-cuerpo: #f4b63f;         /* batería tipo auto: cuerpo mostaza */
+  --ilus-bateria-tapa: #3b3a3f;
+  --ilus-bateria-positivo: #e0483d;       /* borne + en círculo rojo */
+  --ilus-bateria-negativo: #4a8fd8;       /* borne − en círculo azul */
+  --ilus-bateria-signo: #ffffff;
+  --ilus-bateria-pulso: #f7931e;
   --ilus-fuente-corriente: #b9a3d6;
   --ilus-fuente-flecha: #2e2420;
-  --ilus-lampara-vidrio: #fff6d8;
-  --ilus-lampara-luz: #ffd23f;
-  --ilus-lampara-halo: #ffcf40;
+  --ilus-lampara-vidrio: #fffdf2;
+  --ilus-lampara-luz: #ffe066;
+  --ilus-lampara-halo: #ffe27a;
   --ilus-lampara-filamento: #b5651d;
-  --ilus-lampara-filamento-encendido: #ff8c1a;
-  --ilus-lampara-base: #9aa4ad;
+  --ilus-lampara-filamento-encendido: #ff8a00;
+  --ilus-lampara-base: #6f4428;           /* zócalo marrón con franjas naranjas */
+  --ilus-lampara-banda: #f08a24;
   --ilus-lampara-quemada: #8c8279;
-  --ilus-interruptor-base: #c9a27a;
-  --ilus-interruptor-palanca: #e4572e;
-  --ilus-interruptor-borne: #9aa4ad;
+  --ilus-interruptor-base: #a9b4d6;       /* placa gris lila */
+  --ilus-interruptor-palanca: #fffaf0;
+  --ilus-interruptor-borne: #6f7a99;
   --ilus-tierra: var(--color-tinta);
 
   /* --- Tipografía ------------------------------------------------------------------------- */
@@ -116,16 +126,16 @@
   /* --- Forma ------------------------------------------------------------------------------ */
   --radio-sm: 8px;
   --radio-md: 14px;
-  --radio-lg: 20px;
+  --radio-lg: 16px;
   --radio-pildora: 999px;
   --borde-fino: 1.5px;
-  --borde: 2.5px;
-  --borde-grueso: 3.5px;
+  --borde: 2px;
+  --borde-grueso: 3px;
 
-  /* Sombras planas desplazadas (estilo ilustración) y una difusa para lo flotante. */
-  --sombra-plana: 3px 3px 0 var(--color-tinta);
-  --sombra-plana-grande: 5px 5px 0 var(--color-tinta);
-  --sombra-presionada: 1px 1px 0 var(--color-tinta);
+  /* Plano, como la lámina: un borde inferior apenas marcado en lugar de sombras desplazadas. */
+  --sombra-plana: 0 2px 0 rgb(46 36 32 / 0.18);
+  --sombra-plana-grande: 0 4px 14px rgb(46 36 32 / 0.08);
+  --sombra-presionada: 0 0 0 transparent;
   --sombra-flotante: 0 10px 30px rgb(46 36 32 / 0.22);
   --velo: rgb(46 36 32 / 0.45);
 
@@ -143,13 +153,13 @@
   --ancho-panel: 400px;
 
   /* --- Dibujo del circuito (unidades del SVG) --------------------------------------------- */
-  --trazo-cable: 4px;
-  --trazo-componente: 2.5px;
+  --trazo-cable: 3px;
+  --trazo-componente: 2px;
   --trazo-esquema: 2px;
   --puntos-tamano: 6px;
   --texto-etiqueta: 12px;
   --texto-etiqueta-valor: 11.5px;
-  --texto-signo: 18px;
+  --texto-signo: 15px;
 
   /* --- Movimiento ------------------------------------------------------------------------- */
   --duracion-rapida: 120ms;
@@ -176,7 +186,10 @@
     --color-primario: #f0714a;
     --color-primario-hover: #f58a67;
     --color-primario-suave: #4a2a1f;
-    --color-encabezado-texto: #1e1916;
+    --color-encabezado-texto: #fffcf6;
+    --color-verde-bosque: #3f8f68;
+    --color-azul-rey: #4a7fd0;
+    --color-terracota: #d9744b;
     --color-seleccion: #7fb0ec;
     --color-seleccion-suave: #253a55;
     --color-error: #ff7383;
@@ -193,7 +206,7 @@
     --tension-4: #ff5a4f;
     --color-flecha-corriente: #5fd3b4;
     --ilus-resistencia-cuerpo: #d9bd8a;
-    --ilus-lampara-vidrio: #3a342a;
+    --ilus-lampara-vidrio: #4a4336;
     --ilus-interruptor-base: #a8845f;
     --sombra-flotante: 0 10px 30px rgb(0 0 0 / 0.5);
     --velo: rgb(0 0 0 / 0.6);
@@ -215,7 +228,10 @@
   --color-primario: #f0714a;
   --color-primario-hover: #f58a67;
   --color-primario-suave: #4a2a1f;
-  --color-encabezado-texto: #1e1916;
+  --color-encabezado-texto: #fffcf6;
+  --color-verde-bosque: #3f8f68;
+  --color-azul-rey: #4a7fd0;
+  --color-terracota: #d9744b;
   --color-seleccion: #7fb0ec;
   --color-seleccion-suave: #253a55;
   --color-error: #ff7383;
@@ -232,7 +248,7 @@
   --tension-4: #ff5a4f;
   --color-flecha-corriente: #5fd3b4;
   --ilus-resistencia-cuerpo: #d9bd8a;
-  --ilus-lampara-vidrio: #3a342a;
+  --ilus-lampara-vidrio: #4a4336;
   --ilus-interruptor-base: #a8845f;
   --sombra-flotante: 0 10px 30px rgb(0 0 0 / 0.5);
   --velo: rgb(0 0 0 / 0.6);
@@ -246,19 +262,17 @@
   --texto-lg: 1.375rem;
   --texto-xl: 1.625rem;
   --texto-xxl: 2.125rem;
-  --borde: 3px;
+  --borde: 2.6px;
   --borde-grueso: 4px;
-  --sombra-plana: 4px 4px 0 var(--color-tinta);
-  --sombra-plana-grande: 6px 6px 0 var(--color-tinta);
   --alto-control: 48px;
   --alto-control-chico: 38px;
   --icono: 24px;
   --ancho-panel: 480px;
-  --trazo-cable: 5.5px;
-  --trazo-componente: 3.2px;
+  --trazo-cable: 4.5px;
+  --trazo-componente: 2.8px;
   --trazo-esquema: 2.8px;
   --puntos-tamano: 8px;
   --texto-etiqueta: 15px;
   --texto-etiqueta-valor: 14px;
-  --texto-signo: 22px;
+  --texto-signo: 19px;
 }

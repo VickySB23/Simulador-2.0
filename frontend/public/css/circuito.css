@@ -55,8 +55,9 @@
 /* --- Batería (fuente de tensión) ---------------------------------------------------------------- */
 
 .bat-cuerpo { fill: var(--ilus-bateria-cuerpo); }
-.bat-franja { fill: var(--ilus-bateria-franja); }
-.bat-borne { fill: var(--ilus-bateria-borne); }
+.bat-tapa { fill: var(--ilus-bateria-tapa); }
+.bat-positivo { fill: var(--ilus-bateria-positivo); }
+.bat-negativo { fill: var(--ilus-bateria-negativo); }
 .signo {
   font-family: var(--fuente);
   font-size: var(--texto-signo);
@@ -79,6 +80,7 @@
 /* --- Lámpara -------------------------------------------------------------------------------------- */
 
 .lam-base { fill: var(--ilus-lampara-base); }
+.lam-banda { fill: var(--ilus-lampara-banda); }
 .lam-vidrio { fill: var(--ilus-lampara-vidrio); }
 .lam-luz { fill: var(--ilus-lampara-luz); opacity: var(--brillo); }
 .lam-filamento {
@@ -89,8 +91,9 @@
   stroke-linejoin: round;
 }
 .comp.encendida .lam-filamento { stroke: var(--ilus-lampara-filamento-encendido); }
-.lam-halo { fill: var(--ilus-lampara-halo); opacity: calc(var(--brillo) * 0.18); }
-.lam-halo--interno { opacity: calc(var(--brillo) * 0.32); }
+.lam-halo { fill: var(--ilus-lampara-halo); opacity: calc(var(--brillo) * 0.32); }
+.lam-halo--1 { opacity: calc(var(--brillo) * 0.22); }
+.lam-halo--3 { opacity: calc(var(--brillo) * 0.5); }
 .comp.quemada .lam-vidrio { fill: var(--ilus-lampara-quemada); }
 .comp.quemada .lam-luz, .comp.quemada .lam-halo { display: none; }
 .lam-grieta { fill: none; stroke: var(--color-tinta); stroke-width: var(--borde-fino); stroke-linecap: round; }
@@ -101,7 +104,7 @@
 .int-base { fill: var(--ilus-interruptor-base); }
 .int-borne { fill: var(--ilus-interruptor-borne); }
 .int-palanca .int-barra { fill: var(--ilus-interruptor-palanca); }
-.int-palanca .int-perilla { fill: var(--ilus-interruptor-palanca); }
+.int-palanca .int-perilla { fill: var(--color-primario); }
 .int-palanca, .esq-cuchilla {
   transform-box: fill-box;
   transform-origin: 0% 50%;

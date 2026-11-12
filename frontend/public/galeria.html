@@ -49,8 +49,9 @@
         <li><a href="#interfaz">2. Interfaz</a></li>
         <li><a href="#componentes">3. Componentes</a></li>
         <li><a href="#animaciones">4. Animaciones</a></li>
-        <li><a href="#demo">5. Circuito de prueba</a></li>
-        <li><a href="#rendimiento">6. Rendimiento</a></li>
+        <li><a href="#serie-paralelo">5. Serie y paralelo</a></li>
+        <li><a href="#demo">6. Circuito de prueba</a></li>
+        <li><a href="#rendimiento">7. Rendimiento</a></li>
       </ol>
     </nav>
 
@@ -277,10 +278,56 @@
         </div>
       </section>
 
-      <!-- 5. Circuito de prueba -------------------------------------------------------------------->
+      <!-- 5. Serie y paralelo ------------------------------------------------------------------>
+      <section class="seccion" id="serie-paralelo">
+        <h2>5. Serie y paralelo</h2>
+        <p>Simulados en vivo con el motor. Una lámpara quemada abre el circuito, como un filamento real. Subí la batería a 18 V para quemar la lámpara más débil, o tocá el interruptor.</p>
+        <article class="tarjeta tarjeta--serie">
+          <header class="tarjeta__encabezado"><h3>Circuito en serie (un camino)</h3></header>
+          <div class="tarjeta__cuerpo lamina-explicada">
+            <div class="demo__lienzo demo__lienzo--plano" id="serie-lienzo"></div>
+            <div class="lamina-explicada__texto">
+              <ul class="vinetas">
+                <li>Un solo camino continuo para la corriente.</li>
+                <li>La misma corriente pasa por cada lámpara.</li>
+                <li>Agregar lámparas aumenta la resistencia total.</li>
+                <li>Si una lámpara se quema, se apagan todas.</li>
+              </ul>
+              <div class="conmutador" role="group" aria-label="Tensión de la batería en serie" id="serie-tension">
+                <button type="button" data-tension="6" aria-pressed="false">6 V</button>
+                <button type="button" data-tension="12" aria-pressed="true">12 V</button>
+                <button type="button" data-tension="18" aria-pressed="false">18 V</button>
+              </div>
+              <div id="serie-lectura" class="mensaje"></div>
+            </div>
+          </div>
+        </article>
+        <article class="tarjeta tarjeta--paralelo">
+          <header class="tarjeta__encabezado"><h3>Circuito en paralelo (varios caminos)</h3></header>
+          <div class="tarjeta__cuerpo lamina-explicada">
+            <div class="demo__lienzo demo__lienzo--plano" id="paralelo-lienzo"></div>
+            <div class="lamina-explicada__texto">
+              <ul class="vinetas">
+                <li>La corriente tiene más de un camino a seguir.</li>
+                <li>Cada rama tiene la misma tensión que la batería.</li>
+                <li>Sumar ramas disminuye la resistencia total.</li>
+                <li>Si una lámpara se quema, la corriente sigue por las otras ramas.</li>
+              </ul>
+              <div class="conmutador" role="group" aria-label="Tensión de la batería en paralelo" id="paralelo-tension">
+                <button type="button" data-tension="6" aria-pressed="false">6 V</button>
+                <button type="button" data-tension="12" aria-pressed="true">12 V</button>
+                <button type="button" data-tension="18" aria-pressed="false">18 V</button>
+              </div>
+              <div id="paralelo-lectura" class="mensaje"></div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- 6. Circuito de prueba -------------------------------------------------------------------->
       <section class="seccion" id="demo">
-        <h2>5. Circuito de prueba</h2>
-        <p>Simulado en vivo con el motor (con lámpara e interruptor). Tocá los interruptores o cambiá la tensión de la batería: con 18 V la lámpara de 6 W se quema.</p>
+        <h2>6. Circuito de prueba</h2>
+        <p>Simulado en vivo con el motor (con lámpara e interruptor). Tocá los interruptores o cambiá la tensión de la batería: con 18 V la lámpara de 6 W se quema y abre su rama.</p>
         <div class="demo">
           <div class="demo__lienzo" id="demo-lienzo"></div>
           <article class="tarjeta tarjeta--resultados">
@@ -312,9 +359,9 @@
         </div>
       </section>
 
-      <!-- 6. Rendimiento ------------------------------------------------------------------------------>
+      <!-- 7. Rendimiento ------------------------------------------------------------------------------>
       <section class="seccion" id="rendimiento">
-        <h2>6. Rendimiento</h2>
+        <h2>7. Rendimiento</h2>
         <p>50 componentes animados a la vez, como un circuito grande en el editor. El medidor cuenta cuadros por segundo durante 3 segundos.</p>
         <div class="fila">
           <button id="medir" class="boton boton--primario" type="button"><span data-icono="reproducir"></span>Medir cuadros por segundo</button>

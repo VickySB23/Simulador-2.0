@@ -90,6 +90,11 @@
 .demo__lienzo { border: var(--borde) solid var(--color-tinta); border-radius: var(--radio-lg); overflow: hidden; box-shadow: var(--sombra-plana-grande); }
 .demo__lienzo svg { width: 100%; height: auto; }
 
+/* Tarjeta con dibujo a la izquierda y viñetas a la derecha, como la lámina de referencia. */
+.lamina-explicada { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: var(--esp-5); align-items: center; }
+.lamina-explicada__texto { display: flex; flex-direction: column; gap: var(--esp-3); }
+.demo__lienzo--plano { border: 0; box-shadow: none; border-radius: var(--radio-md); }
+
 .medidor {
   font-family: var(--fuente-mono);
   font-size: var(--texto-lg);
@@ -103,4 +108,5 @@
   .indice { position: static; }
   .indice ol { flex-direction: row; flex-wrap: wrap; }
   .demo { grid-template-columns: minmax(0, 1fr); }
+  .lamina-explicada { grid-template-columns: minmax(0, 1fr); }
 }
