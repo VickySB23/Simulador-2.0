@@ -214,3 +214,102 @@ test("los espacios en ids y nodos se ignoran, como en el backend", () => {
   assert.equal(r.node_voltages["1"], 5);
   assert.deepEqual(r.components.map((c) => c.id), ["V1", "R1"]);
 });
+
+// --- Componentes de la versión web: lámpara e interruptor ----------------------------------
+
+const lampara = (id, a, b, value, rated_power) => ({ id, type: "lamp", a, b, value, rated_power });
+const interruptor = (id, a, b, closed) => ({ id, type: "switch", a, b, closed });
+const fuente = (v) => ({ id: "V1", type: V, a: "1", b: "0", value: v });
+
+test("lámpara: es una resistencia con brillo P/Pnom", () => {
+  // 12 V sobre una lámpara de 24 Ω y 12 W nominales: P = 144/24 = 6 W, brillo 0,5.
+  const r = simulate({ components: [fuente(12), lampara("L1", "1", "0", 24, "12")] });
+  const l = porId(r).L1;
+  aprox(l.current, 0.5);
+  aprox(l.power, 6);
+  aprox(l.brightness, 0.5);
+  assert.equal(l.burned, false);
+  assert.ok(r.power.ok);
+});
+
+test("lámpara: P > Pnom se informa quemada (y sigue conduciendo)", () => {
+  const r = simulate({ components: [fuente(24), lampara("L1", "1", "0", 24, 12)] });
+  const l = porId(r).L1;
+  aprox(l.brightness, 2);
+  assert.equal(l.burned, true);
+  aprox(l.current, 1);
+});
+
+test("lámpara: R ≤ 0, Pnom ≤ 0 o sin Pnom son errores de componente", () => {
+  for (const mala of [lampara("L1", "1", "0", 0, 5), lampara("L1", "1", "0", 10, 0), { id: "L1", type: "lamp", a: "1", b: "0", value: 10 }]) {
+    assert.throws(() => simulate({ components: [fuente(12), mala] }), (e) => e.code === "invalid_component");
+  }
+});
+
+test("interruptor cerrado funciona como un cable", () => {
+  const r = simulate({ components: [
+    fuente(12), interruptor("S1", "1", "2", true), lampara("L1", "2", "0", 24, 6),
+  ] });
+  assert.equal(r.node_voltages["2"], 12);
+  const s = porId(r).S1;
+  assert.equal(s.current, null);
+  assert.equal(s.voltage, 0);
+  aprox(porId(r).L1.power, 6);
+  assert.equal(r.stats.electrical_nodes, 2);
+});
+
+test("interruptor abierto: la lámpara se apaga sin error y su nodo queda sin tensión", () => {
+  const r = simulate({ components: [
+    fuente(12), interruptor("S1", "1", "2", false), lampara("L1", "2", "0", 24, 6),
+  ] });
+  const l = porId(r).L1;
+  // El borne b de la lámpara está en tierra, así que el nodo 2 queda conectado a tierra por ella.
+  assert.equal(l.current, 0);
+  assert.equal(l.brightness, 0);
+  assert.equal(r.node_voltages["2"], 0);
+  const s = porId(r).S1;
+  assert.equal(s.current, 0);
+  assert.equal(s.voltage, 12);
+  assert.ok(r.power.ok);
+});
+
+test("interruptor abierto que aísla una parte sin fuentes: corrientes 0 y tensiones null", () => {
+  // V1 - S1 (abierto) - R1 - R2 - S2 (abierto) - tierra: entre los interruptores no hay camino a tierra.
+  const r = simulate({ components: [
+    fuente(12), interruptor("S1", "1", "2", false),
+    { id: "R1", type: R, a: "2", b: "3", value: 100 }, { id: "R2", type: R, a: "3", b: "4", value: 100 },
+    interruptor("S2", "4", "0", false),
+  ] });
+  assert.equal(r.node_voltages["2"], null);
+  assert.equal(r.node_voltages["3"], null);
+  for (const id of ["R1", "R2", "S1", "S2"]) assert.equal(porId(r)[id].current, 0, id);
+  assert.equal(porId(r).R1.voltage, null);
+  assert.equal(porId(r).S1.voltage, null);
+  assert.equal(r.stats.unknowns, 2); // nodo 1 y la corriente de V1
+});
+
+test("una parte suelta sin interruptor sigue siendo error, como en el backend", () => {
+  assert.throws(() => simulate({ components: [
+    fuente(12), { id: "R1", type: R, a: "1", b: "0", value: 10 }, interruptor("S1", "1", "5", false),
+    { id: "R2", type: R, a: "7", b: "8", value: 10 },
+  ] }), (e) => e.code === "floating_nodes" && JSON.stringify(e.details.nodes) === '["7","8"]');
+});
+
+test("una parte aislada que tiene una fuente sigue siendo error", () => {
+  // Batería separada de tierra por un interruptor abierto: sus tensiones no están definidas.
+  assert.throws(() => simulate({ components: [
+    { id: "V1", type: V, a: "1", b: "2", value: 9 }, lampara("L1", "1", "2", 9, 3),
+    interruptor("S1", "2", "0", false), { id: "R0", type: R, a: "0", b: "9", value: 1 },
+    { id: "V2", type: V, a: "9", b: "0", value: 1 },
+  ] }), (e) => e.code === "floating_nodes");
+});
+
+test("abrir y cerrar el interruptor de un paralelo solo saca esa rama", () => {
+  const base = [fuente(12), lampara("L1", "1", "0", 24, 6)];
+  const cerrado = simulate({ components: [...base, interruptor("S1", "1", "2", true), lampara("L2", "2", "0", 24, 6)] });
+  const abierto = simulate({ components: [...base, interruptor("S1", "1", "2", false), lampara("L2", "2", "0", 24, 6)] });
+  aprox(porId(cerrado).V1.current, -1);
+  aprox(porId(abierto).V1.current, -0.5);
+  assert.equal(porId(abierto).L2.current, 0);
+  aprox(porId(abierto).L1.brightness, 1);
+});

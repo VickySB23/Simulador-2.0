@@ -9,11 +9,19 @@
 // 4. Resolución densa hasta DENSE_LIMIT incógnitas y dispersa por encima.
 // 5. Convención pasiva: potencia positiva = absorbe; una fuente que entrega tiene potencia negativa.
 //
+// Componentes de la versión web (no existen en el backend):
+// - lamp: una resistencia (value, en Ω) con potencia nominal (rated_power, en W). El resultado
+//   agrega brightness = P / Pnom y burned = P > Pnom. Quemada se muestra, pero sigue conduciendo.
+// - switch: closed = true funciona como un cable; closed = false se excluye del circuito. Si al
+//   abrirlo una parte sin fuentes queda sin camino a tierra, esa parte no es un error: sus
+//   corrientes son 0 y sus tensiones quedan indefinidas (null).
+//
 // Entrada: {ground: "0", components: [{id, type, a, b, value}]} (el mismo JSON que POST /simulate).
 // Salida: {node_voltages, components, power, kcl_max_residual, stats} o un ErrorCircuito con
 // `code`, `message` y `details`, con los mismos códigos que el backend.
 
-export const TIPOS_COMPONENTE = ["resistor", "voltage_source", "current_source", "wire"];
+export const TIPOS_COMPONENTE = ["resistor", "voltage_source", "current_source", "wire", "lamp", "switch"];
+const RESISTIVOS = new Set(["resistor", "lamp"]);
 export const TIERRA = "0";
 export const DENSE_LIMIT = 200;
 const ALIAS_TIERRA = new Set(["0", "GND", "TIERRA"]);
@@ -102,16 +110,20 @@ function normalizar(entrada) {
     if (!TIPOS_COMPONENTE.includes(c?.type)) {
       throw errorComponente(`${id || "?"}: tipo desconocido (${c?.type}).`, id || undefined);
     }
-    let value = 0;
-    if (c.type !== "wire") {
-      if (c.value === null || c.value === undefined) throw errorComponente(`${id}: falta el valor.`, id);
+    const leer = (crudo, que) => {
+      if (crudo === null || crudo === undefined) throw errorComponente(`${id}: falta ${que}.`, id);
       try {
-        value = parseValue(c.value);
+        return parseValue(crudo);
       } catch (e) {
         throw errorComponente(`${id}: ${e.message}`, id);
       }
-    }
-    return { id, type: c.type, a: String(c.a ?? "").trim(), b: String(c.b ?? "").trim(), value };
+    };
+    const comun = { id, type: c.type, a: String(c.a ?? "").trim(), b: String(c.b ?? "").trim() };
+    if (c.type === "wire") return { ...comun, value: 0 };
+    if (c.type === "switch") return { ...comun, value: 0, closed: c.closed !== false };
+    const value = leer(c.value, "el valor");
+    if (c.type === "lamp") return { ...comun, value, ratedPower: leer(c.rated_power, "la potencia nominal") };
+    return { ...comun, value };
   });
   return { ground, components };
 }
@@ -131,6 +143,12 @@ function validar(circuito) {
     if (c.type === "resistor" && c.value <= 0) {
       throw errorComponente(
         `${c.id}: la resistencia debe ser mayor que 0 Ω (para un corto usá un cable).`, c.id);
+    }
+    if (c.type === "lamp" && c.value <= 0) {
+      throw errorComponente(`${c.id}: la resistencia de la lámpara debe ser mayor que 0 Ω.`, c.id);
+    }
+    if (c.type === "lamp" && !(c.ratedPower > 0 && Number.isFinite(c.ratedPower))) {
+      throw errorComponente(`${c.id}: la potencia nominal de la lámpara debe ser mayor que 0 W.`, c.id);
     }
   }
 }
@@ -155,8 +173,10 @@ export function analizar(entrada) {
   // 1. Cables ideales: los nodos que unen son el mismo nodo eléctrico.
   const uf = new UnionFind();
   for (const n of nodosOriginales) uf.find(canon(n));
+  // Un interruptor cerrado es un cable; uno abierto no une nada.
+  const comoCable = (c) => c.type === "wire" || (c.type === "switch" && c.closed);
   for (const c of circuito.components) {
-    if (c.type === "wire") uf.union(canon(c.a), canon(c.b));
+    if (comoCable(c)) uf.union(canon(c.a), canon(c.b));
   }
   const grupo = (n) => uf.find(canon(n));
   const grupos = [...new Set(nodosOriginales.map(grupo))].sort(comparar);
@@ -164,9 +184,9 @@ export function analizar(entrada) {
   for (const n of nodosOriginales) miembros.get(grupo(n)).push(n);
 
   // 2. Componentes efectivos y fuentes de tensión en cortocircuito.
-  const activos = [];
+  let activos = [];
   for (const c of circuito.components) {
-    if (c.type === "wire") continue;
+    if (c.type === "wire" || c.type === "switch") continue;
     if (grupo(c.a) === grupo(c.b)) {
       if (c.type === "voltage_source") {
         throw new ErrorCircuito("shorted_voltage_source",
@@ -201,11 +221,45 @@ export function analizar(entrada) {
       }
     }
   }
-  const flotantes = grupos.filter((g) => !alcanzados.has(g)).flatMap((g) => miembros.get(g)).sort(comparar);
-  if (flotantes.length) {
-    throw new ErrorCircuito("floating_nodes",
-      `Nodos sin camino a tierra: ${flotantes.join(", ")}. Conectalos con una resistencia o fuente de tensión.`,
-      { nodes: flotantes });
+  // Las partes sin camino a tierra son un error, salvo que las haya aislado un interruptor
+  // abierto y no tengan fuentes: entonces no circula corriente y sus tensiones quedan indefinidas.
+  const aislados = new Set();
+  const sinTierra = grupos.filter((g) => !alcanzados.has(g));
+  if (sinTierra.length) {
+    const bornesAbiertos = new Set(circuito.components
+      .filter((c) => c.type === "switch" && !c.closed).flatMap((c) => [grupo(c.a), grupo(c.b)]));
+    const conFuente = new Set(activos
+      .filter((c) => c.type === "voltage_source" || c.type === "current_source")
+      .flatMap((c) => [grupo(c.a), grupo(c.b)]));
+    const visitados = new Set();
+    const flotantes = [];
+    for (const inicio of sinTierra) {
+      if (visitados.has(inicio)) continue;
+      // Una parte conectada (por resistencias, lámparas o fuentes de tensión) sin camino a tierra.
+      const parte = [];
+      const pendientes = [inicio];
+      visitados.add(inicio);
+      while (pendientes.length) {
+        const g = pendientes.pop();
+        parte.push(g);
+        for (const siguiente of adyacencia.get(g) ?? []) {
+          if (!visitados.has(siguiente)) {
+            visitados.add(siguiente);
+            pendientes.push(siguiente);
+          }
+        }
+      }
+      const aislable = parte.some((g) => bornesAbiertos.has(g)) && !parte.some((g) => conFuente.has(g));
+      if (aislable) parte.forEach((g) => aislados.add(g));
+      else flotantes.push(...parte.flatMap((g) => miembros.get(g)));
+    }
+    if (flotantes.length) {
+      flotantes.sort(comparar);
+      throw new ErrorCircuito("floating_nodes",
+        `Nodos sin camino a tierra: ${flotantes.join(", ")}. Conectalos con una resistencia o fuente de tensión.`,
+        { nodes: flotantes });
+    }
+    activos = activos.filter((c) => !aislados.has(grupo(c.a)) && !aislados.has(grupo(c.b)));
   }
 
   // 4. Lazos formados solo por fuentes de tensión (KVL contradictoria o indeterminada).
@@ -218,10 +272,12 @@ export function analizar(entrada) {
     }
   }
 
-  const incognitasNodo = grupos.filter((g) => g !== TIERRA);
+  const incognitasNodo = grupos.filter((g) => g !== TIERRA && !aislados.has(g));
   const indice = new Map(incognitasNodo.map((g, i) => [g, i]));
   const fuentesTension = activos.filter((c) => c.type === "voltage_source");
-  return { circuito, nodosOriginales, grupo, grupos, miembros, activos, incognitasNodo, indice, fuentesTension };
+  return {
+    circuito, nodosOriginales, grupo, grupos, miembros, activos, incognitasNodo, indice, fuentesTension, aislados,
+  };
 }
 
 /** Arma [G B; Bᵀ 0][V; I] = [J; E] como lista de entradas (fila, columna, valor) y el lado derecho. */
@@ -236,7 +292,7 @@ export function armarSistema(analisis) {
   for (const c of activos) {
     const ia = indice.get(grupo(c.a));
     const ib = indice.get(grupo(c.b));
-    if (c.type === "resistor") {
+    if (RESISTIVOS.has(c.type)) {
       const g = 1 / c.value;
       if (ia !== undefined) estampar(ia, ia, g);
       if (ib !== undefined) estampar(ib, ib, g);
@@ -376,7 +432,7 @@ const redondear = (ms) => Math.round(ms * 1000) / 1000;
 export function simulate(entrada) {
   const inicio = ahora();
   const analisis = analizar(entrada);
-  const { circuito, nodosOriginales, grupo, grupos, incognitasNodo, indice, fuentesTension } = analisis;
+  const { circuito, nodosOriginales, grupo, grupos, incognitasNodo, indice, fuentesTension, aislados } = analisis;
   const { tamano, entradas, rhs } = armarSistema(analisis);
 
   const inicioSolver = ahora();
@@ -386,26 +442,42 @@ export function simulate(entrada) {
   const n = incognitasNodo.length;
   const tensionGrupo = new Map([[TIERRA, 0]]);
   for (const [g, i] of indice) tensionGrupo.set(g, x[i]);
+  // Los nodos aislados por un interruptor abierto no tienen tensión definida.
+  const tensionDe = (g) => (aislados.has(g) ? null : tensionGrupo.get(g));
   const node_voltages = {};
-  for (const nodo of nodosOriginales) node_voltages[nodo] = tensionGrupo.get(grupo(nodo));
+  for (const nodo of nodosOriginales) node_voltages[nodo] = tensionDe(grupo(nodo));
   const corrienteFuente = new Map(fuentesTension.map((c, k) => [c.id, x[n + k]]));
 
   const components = [];
   const kcl = new Map();
   const sumar = (g, v) => kcl.set(g, (kcl.get(g) ?? 0) + v);
   for (const c of circuito.components) {
-    const voltage = tensionGrupo.get(grupo(c.a)) - tensionGrupo.get(grupo(c.b));
-    if (c.type === "wire") {
+    const va = tensionDe(grupo(c.a));
+    const vb = tensionDe(grupo(c.b));
+    const voltage = va === null || vb === null ? null : va - vb;
+    if (c.type === "wire" || (c.type === "switch" && c.closed)) {
       components.push({ id: c.id, type: c.type, voltage: 0, current: null, power: 0 });
       continue;
     }
+    if (c.type === "switch" || voltage === null) {
+      // Interruptor abierto, o componente dentro de una parte aislada: no circula corriente.
+      const resultado = { id: c.id, type: c.type, voltage, current: 0, power: 0 };
+      if (c.type === "lamp") Object.assign(resultado, { brightness: 0, burned: false });
+      components.push(resultado);
+      continue;
+    }
     let current;
-    if (c.type === "resistor") current = voltage / c.value;
+    if (RESISTIVOS.has(c.type)) current = voltage / c.value;
     else if (c.type === "voltage_source") current = corrienteFuente.get(c.id);
     else current = c.value;
     sumar(grupo(c.a), current);
     sumar(grupo(c.b), -current);
-    components.push({ id: c.id, type: c.type, voltage, current, power: voltage * current });
+    const power = voltage * current;
+    const resultado = { id: c.id, type: c.type, voltage, current, power };
+    if (c.type === "lamp") {
+      Object.assign(resultado, { brightness: power / c.ratedPower, burned: power > c.ratedPower });
+    }
+    components.push(resultado);
   }
 
   const absorbed = components.filter((r) => r.power > 0).reduce((s, r) => s + r.power, 0);

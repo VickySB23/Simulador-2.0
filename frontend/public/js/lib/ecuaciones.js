@@ -77,7 +77,7 @@ export function ecuacionesDe(estado) {
       const gb = grupo(c.b);
       if (ga !== g && gb !== g) continue;
       const enA = ga === g;
-      if (c.type === "resistor") {
+      if (c.type === "resistor" || c.type === "lamp") {
         izquierda.push(terminoResistencia(nombreDe, g, enA ? gb : ga, c.value));
       } else if (c.type === "voltage_source") {
         deFuentes.push(`${enA ? "+" : restar} I(${c.id})`);
