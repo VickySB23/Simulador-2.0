@@ -11,10 +11,14 @@
 //
 // Componentes de la versión web (no existen en el backend):
 // - lamp: una resistencia (value, en Ω) con potencia nominal (rated_power, en W). El resultado
-//   agrega brightness = P / Pnom y burned = P > Pnom. Quemada se muestra, pero sigue conduciendo.
-// - switch: closed = true funciona como un cable; closed = false se excluye del circuito. Si al
-//   abrirlo una parte sin fuentes queda sin camino a tierra, esa parte no es un error: sus
-//   corrientes son 0 y sus tensiones quedan indefinidas (null).
+//   agrega brightness = P / Pnom y burned. Si P > Pnom el filamento se corta y la lámpara abre el
+//   circuito, como una real: en serie se apagan todas y en paralelo siguen las demás. Se quema
+//   primero la más sobrecargada y se vuelve a resolver (al quemarse una, otra puede recibir más
+//   tensión y quemarse también). Las quemadas se listan en stats.burned_lamps.
+// - switch: closed = true funciona como un cable; closed = false se excluye del circuito.
+// Si un interruptor abierto o una lámpara quemada deja una parte sin camino a tierra, esa parte
+// no es un error: se resuelve con una referencia propia. Sus corrientes y las tensiones entre
+// bornes son válidas; la tensión de cada nodo respecto de tierra queda indefinida (null).
 //
 // Entrada: {ground: "0", components: [{id, type, a, b, value}]} (el mismo JSON que POST /simulate).
 // Salida: {node_voltages, components, power, kcl_max_residual, stats} o un ErrorCircuito con
@@ -157,9 +161,10 @@ function validar(circuito) {
 
 /**
  * Valida, agrupa nodos y revisa la topología. Devuelve todo lo necesario para armar el sistema;
- * lo usan simulate() y el panel de ecuaciones.
+ * lo usan simulate() y el panel de ecuaciones. `quemadas` son los ids de las lámparas que se
+ * abrieron por sobrecarga (simulate() las calcula).
  */
-export function analizar(entrada) {
+export function analizar(entrada, quemadas = new Set()) {
   const circuito = normalizar(entrada);
   validar(circuito);
   const canon = (n) => (n === circuito.ground || ALIAS_TIERRA.has(n.toUpperCase()) ? TIERRA : n);
@@ -184,9 +189,11 @@ export function analizar(entrada) {
   for (const n of nodosOriginales) miembros.get(grupo(n)).push(n);
 
   // 2. Componentes efectivos y fuentes de tensión en cortocircuito.
-  let activos = [];
+  // Interruptores abiertos y lámparas quemadas: no unen nada, pero sus bornes pueden aislar partes.
+  const abierto = (c) => (c.type === "switch" && !c.closed) || (c.type === "lamp" && quemadas.has(c.id));
+  const activos = [];
   for (const c of circuito.components) {
-    if (c.type === "wire" || c.type === "switch") continue;
+    if (c.type === "wire" || c.type === "switch" || abierto(c)) continue;
     if (grupo(c.a) === grupo(c.b)) {
       if (c.type === "voltage_source") {
         throw new ErrorCircuito("shorted_voltage_source",
@@ -221,15 +228,15 @@ export function analizar(entrada) {
       }
     }
   }
-  // Las partes sin camino a tierra son un error, salvo que las haya aislado un interruptor
-  // abierto y no tengan fuentes: entonces no circula corriente y sus tensiones quedan indefinidas.
-  const aislados = new Set();
+  // Las partes sin camino a tierra son un error, salvo que las haya aislado un interruptor abierto
+  // o una lámpara quemada: entonces se resuelven con una referencia propia (el nodo de menor
+  // nombre de la parte). Una fuente de corriente adentro sí es error: no tendría por dónde volver.
+  const aislados = new Map(); // grupo -> referencia de su parte
   const sinTierra = grupos.filter((g) => !alcanzados.has(g));
   if (sinTierra.length) {
-    const bornesAbiertos = new Set(circuito.components
-      .filter((c) => c.type === "switch" && !c.closed).flatMap((c) => [grupo(c.a), grupo(c.b)]));
+    const bornesAbiertos = new Set(circuito.components.filter(abierto).flatMap((c) => [grupo(c.a), grupo(c.b)]));
     const conFuente = new Set(activos
-      .filter((c) => c.type === "voltage_source" || c.type === "current_source")
+      .filter((c) => c.type === "current_source")
       .flatMap((c) => [grupo(c.a), grupo(c.b)]));
     const visitados = new Set();
     const flotantes = [];
@@ -250,8 +257,12 @@ export function analizar(entrada) {
         }
       }
       const aislable = parte.some((g) => bornesAbiertos.has(g)) && !parte.some((g) => conFuente.has(g));
-      if (aislable) parte.forEach((g) => aislados.add(g));
-      else flotantes.push(...parte.flatMap((g) => miembros.get(g)));
+      if (aislable) {
+        const referencia = [...parte].sort(comparar)[0];
+        parte.forEach((g) => aislados.set(g, referencia));
+      } else {
+        flotantes.push(...parte.flatMap((g) => miembros.get(g)));
+      }
     }
     if (flotantes.length) {
       flotantes.sort(comparar);
@@ -259,7 +270,6 @@ export function analizar(entrada) {
         `Nodos sin camino a tierra: ${flotantes.join(", ")}. Conectalos con una resistencia o fuente de tensión.`,
         { nodes: flotantes });
     }
-    activos = activos.filter((c) => !aislados.has(grupo(c.a)) && !aislados.has(grupo(c.b)));
   }
 
   // 4. Lazos formados solo por fuentes de tensión (KVL contradictoria o indeterminada).
@@ -272,11 +282,14 @@ export function analizar(entrada) {
     }
   }
 
-  const incognitasNodo = grupos.filter((g) => g !== TIERRA && !aislados.has(g));
+  // Las referencias de las partes aisladas valen 0, como la tierra: no son incógnitas.
+  const referencias = new Set(aislados.values());
+  const incognitasNodo = grupos.filter((g) => g !== TIERRA && !referencias.has(g));
   const indice = new Map(incognitasNodo.map((g, i) => [g, i]));
   const fuentesTension = activos.filter((c) => c.type === "voltage_source");
   return {
     circuito, nodosOriginales, grupo, grupos, miembros, activos, incognitasNodo, indice, fuentesTension, aislados,
+    quemadas,
   };
 }
 
@@ -429,9 +442,29 @@ function resolver(tamano, entradas, rhs) {
 const ahora = () => globalThis.performance?.now?.() ?? Date.now();
 const redondear = (ms) => Math.round(ms * 1000) / 1000;
 
+/**
+ * Resuelve el circuito. Si alguna lámpara supera su potencia nominal, se quema (abre el circuito)
+ * la más sobrecargada y se vuelve a resolver, hasta que ninguna se pase.
+ */
 export function simulate(entrada) {
   const inicio = ahora();
-  const analisis = analizar(entrada);
+  const quemadas = new Set();
+  for (;;) {
+    const resultado = simularUnaVez(entrada, quemadas);
+    const sobrecargadas = resultado.components.filter((c) => c.type === "lamp" && c.burned && !quemadas.has(c.id));
+    if (!sobrecargadas.length) {
+      resultado.stats.burned_lamps = [...quemadas];
+      resultado.stats.total_ms = redondear(ahora() - inicio);
+      return resultado;
+    }
+    const peor = sobrecargadas.reduce((m, c) => (c.brightness > m.brightness ? c : m));
+    quemadas.add(peor.id);
+  }
+}
+
+function simularUnaVez(entrada, quemadas) {
+  const inicio = ahora();
+  const analisis = analizar(entrada, quemadas);
   const { circuito, nodosOriginales, grupo, grupos, incognitasNodo, indice, fuentesTension, aislados } = analisis;
   const { tamano, entradas, rhs } = armarSistema(analisis);
 
@@ -440,29 +473,32 @@ export function simulate(entrada) {
   const solveMs = ahora() - inicioSolver;
 
   const n = incognitasNodo.length;
+  // Tensión de cada grupo respecto de tierra o, en una parte aislada, respecto de su referencia.
   const tensionGrupo = new Map([[TIERRA, 0]]);
+  for (const referencia of aislados.values()) tensionGrupo.set(referencia, 0);
   for (const [g, i] of indice) tensionGrupo.set(g, x[i]);
-  // Los nodos aislados por un interruptor abierto no tienen tensión definida.
-  const tensionDe = (g) => (aislados.has(g) ? null : tensionGrupo.get(g));
+  // Respecto de tierra, los nodos de una parte aislada no tienen tensión definida.
   const node_voltages = {};
-  for (const nodo of nodosOriginales) node_voltages[nodo] = tensionDe(grupo(nodo));
+  for (const nodo of nodosOriginales) node_voltages[nodo] = aislados.has(grupo(nodo)) ? null : tensionGrupo.get(grupo(nodo));
+  // Entre dos bornes la tensión vale si los dos están en la misma parte (la conectada a tierra o
+  // la misma parte aislada).
+  const parteDe = (g) => aislados.get(g) ?? TIERRA;
+  const tensionEntre = (ga, gb) => (parteDe(ga) === parteDe(gb) ? tensionGrupo.get(ga) - tensionGrupo.get(gb) : null);
   const corrienteFuente = new Map(fuentesTension.map((c, k) => [c.id, x[n + k]]));
 
   const components = [];
   const kcl = new Map();
   const sumar = (g, v) => kcl.set(g, (kcl.get(g) ?? 0) + v);
   for (const c of circuito.components) {
-    const va = tensionDe(grupo(c.a));
-    const vb = tensionDe(grupo(c.b));
-    const voltage = va === null || vb === null ? null : va - vb;
+    const voltage = tensionEntre(grupo(c.a), grupo(c.b));
     if (c.type === "wire" || (c.type === "switch" && c.closed)) {
       components.push({ id: c.id, type: c.type, voltage: 0, current: null, power: 0 });
       continue;
     }
-    if (c.type === "switch" || voltage === null) {
-      // Interruptor abierto, o componente dentro de una parte aislada: no circula corriente.
+    if (c.type === "switch" || quemadas.has(c.id)) {
+      // Interruptor abierto o lámpara quemada: circuito abierto, no circula corriente.
       const resultado = { id: c.id, type: c.type, voltage, current: 0, power: 0 };
-      if (c.type === "lamp") Object.assign(resultado, { brightness: 0, burned: false });
+      if (c.type === "lamp") Object.assign(resultado, { brightness: 0, burned: true });
       components.push(resultado);
       continue;
     }

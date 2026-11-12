@@ -232,12 +232,84 @@ test("lámpara: es una resistencia con brillo P/Pnom", () => {
   assert.ok(r.power.ok);
 });
 
-test("lámpara: P > Pnom se informa quemada (y sigue conduciendo)", () => {
+test("lámpara: si P > Pnom se quema y abre el circuito", () => {
+  // 24 V sobre 24 Ω disiparía 24 W en una lámpara de 12 W: se corta el filamento.
   const r = simulate({ components: [fuente(24), lampara("L1", "1", "0", 24, 12)] });
   const l = porId(r).L1;
-  aprox(l.brightness, 2);
   assert.equal(l.burned, true);
-  aprox(l.current, 1);
+  assert.equal(l.current, 0);
+  assert.equal(l.brightness, 0);
+  assert.equal(l.voltage, 24);
+  assert.equal(porId(r).V1.current, 0);
+  assert.deepEqual(r.stats.burned_lamps, ["L1"]);
+});
+
+test("lámpara justo en su potencia nominal no se quema", () => {
+  const r = simulate({ components: [fuente(12), lampara("L1", "1", "0", 24, 6)] });
+  assert.equal(porId(r).L1.burned, false);
+  aprox(porId(r).L1.brightness, 1);
+  assert.deepEqual(r.stats.burned_lamps, []);
+});
+
+test("serie: si una lámpara se quema, se apagan todas", () => {
+  // 18 V sobre 12 Ω + 12 Ω: 0,75 A y 6,75 W en cada una. L1 (3 W) se quema primero y corta el
+  // circuito, así que L2 (6 W) queda apagada pero sana.
+  const r = simulate({ components: [
+    fuente(18), lampara("L1", "1", "2", 12, 3), lampara("L2", "2", "0", 12, 6),
+  ] });
+  const c = porId(r);
+  assert.equal(c.L1.burned, true);
+  assert.equal(c.L2.burned, false);
+  assert.equal(c.L2.current, 0);
+  assert.equal(c.L2.brightness, 0);
+  assert.equal(c.V1.current, 0);
+  assert.deepEqual(r.stats.burned_lamps, ["L1"]);
+});
+
+test("serie con 12 V: ninguna se quema y la corriente es la misma en las dos", () => {
+  const r = simulate({ components: [
+    fuente(12), lampara("L1", "1", "2", 12, 3), lampara("L2", "2", "0", 12, 6),
+  ] });
+  const c = porId(r);
+  aprox(c.L1.current, 0.5);
+  aprox(c.L2.current, 0.5);
+  aprox(c.L1.brightness, 1);
+  aprox(c.L2.brightness, 0.5);
+});
+
+test("paralelo: si una lámpara se quema, las demás siguen encendidas", () => {
+  // 18 V sobre dos lámparas de 24 Ω: 13,5 W cada una. L1 (6 W) se quema; L2 (15 W) sigue igual.
+  const r = simulate({ components: [
+    fuente(18), lampara("L1", "1", "0", 24, 6), lampara("L2", "1", "0", 24, 15),
+  ] });
+  const c = porId(r);
+  assert.equal(c.L1.burned, true);
+  assert.equal(c.L1.current, 0);
+  assert.equal(c.L2.burned, false);
+  aprox(c.L2.current, 0.75);
+  aprox(c.L2.brightness, 13.5 / 15);
+  aprox(c.V1.current, -0.75);
+  assert.ok(r.power.ok);
+});
+
+test("cascada: al quemarse una, a otra le llega más tensión y también se quema", () => {
+  // 13 V, 2 Ω en serie con dos lámparas de 4 Ω en paralelo: 6,5 V y 10,6 W en cada una.
+  // L1 (9 W) se quema; queda 2 Ω + 4 Ω: L2 recibe 8,67 V y 18,8 W.
+  const base = [fuente(13), { id: "R1", type: R, a: "1", b: "2", value: 2 }, lampara("L1", "2", "0", 4, 9)];
+  const aguanta = simulate({ components: [...base, lampara("L2", "2", "0", 4, 25)] });
+  assert.deepEqual(aguanta.stats.burned_lamps, ["L1"]);
+  aprox(porId(aguanta).L2.power, (13 / 6) ** 2 * 4);
+  const noAguanta = simulate({ components: [...base, lampara("L2", "2", "0", 4, 15)] });
+  assert.deepEqual(noAguanta.stats.burned_lamps, ["L1", "L2"]);
+  assert.equal(porId(noAguanta).R1.current, 0);
+});
+
+test("se quema primero la más sobrecargada, no todas las que se pasan a la vez", () => {
+  // En serie las dos se pasan (6,75 W), pero al quemarse L1 (la más sobrecargada) L2 queda sana.
+  const r = simulate({ components: [
+    fuente(18), lampara("L1", "1", "2", 12, 3), lampara("L2", "2", "0", 12, 6),
+  ] });
+  assert.deepEqual(r.stats.burned_lamps, ["L1"]);
 });
 
 test("lámpara: R ≤ 0, Pnom ≤ 0 o sin Pnom son errores de componente", () => {
@@ -283,9 +355,11 @@ test("interruptor abierto que aísla una parte sin fuentes: corrientes 0 y tensi
   assert.equal(r.node_voltages["2"], null);
   assert.equal(r.node_voltages["3"], null);
   for (const id of ["R1", "R2", "S1", "S2"]) assert.equal(porId(r)[id].current, 0, id);
-  assert.equal(porId(r).R1.voltage, null);
+  // Dentro de la parte aislada la tensión entre bornes sí vale (acá 0: no circula corriente).
+  assert.equal(porId(r).R1.voltage, 0);
+  // Entre la parte aislada y la conectada a tierra, no.
   assert.equal(porId(r).S1.voltage, null);
-  assert.equal(r.stats.unknowns, 2); // nodo 1 y la corriente de V1
+  assert.equal(r.stats.unknowns, 4); // nodo 1, nodos 3 y 4 (el 2 es la referencia) y la corriente de V1
 });
 
 test("una parte suelta sin interruptor sigue siendo error, como en el backend", () => {
@@ -295,13 +369,38 @@ test("una parte suelta sin interruptor sigue siendo error, como en el backend", 
   ] }), (e) => e.code === "floating_nodes" && JSON.stringify(e.details.nodes) === '["7","8"]');
 });
 
-test("una parte aislada que tiene una fuente sigue siendo error", () => {
-  // Batería separada de tierra por un interruptor abierto: sus tensiones no están definidas.
-  assert.throws(() => simulate({ components: [
-    { id: "V1", type: V, a: "1", b: "2", value: 9 }, lampara("L1", "1", "2", 9, 3),
+test("una parte aislada con batería funciona, como una linterna sin tierra", () => {
+  // V1 y L1 forman un lazo que un interruptor abierto separa de la parte con tierra.
+  const r = simulate({ components: [
+    { id: "V1", type: V, a: "1", b: "2", value: 9 }, lampara("L1", "1", "2", 9, 9),
     interruptor("S1", "2", "0", false), { id: "R0", type: R, a: "0", b: "9", value: 1 },
     { id: "V2", type: V, a: "9", b: "0", value: 1 },
+  ] });
+  const c = porId(r);
+  aprox(c.L1.current, 1);
+  aprox(c.L1.brightness, 1);
+  assert.equal(c.L1.voltage, 9);
+  assert.equal(r.node_voltages["1"], null);
+  assert.equal(r.node_voltages["2"], null);
+  assert.equal(c.S1.voltage, null);
+  assert.ok(r.power.ok);
+});
+
+test("una fuente de corriente en una parte aislada sigue siendo error", () => {
+  assert.throws(() => simulate({ components: [
+    fuente(5), { id: "R0", type: R, a: "1", b: "0", value: 1 }, interruptor("S1", "1", "2", false),
+    { id: "I1", type: I, a: "2", b: "3", value: 1e-3 }, { id: "R1", type: R, a: "3", b: "2", value: 10 },
   ] }), (e) => e.code === "floating_nodes");
+});
+
+test("una lámpara quemada que aísla la batería: el resto se apaga sin error", () => {
+  // Tierra en el nodo entre las lámparas: al quemarse L1, la batería queda en una parte aislada.
+  const r = simulate({ components: [
+    { id: "V1", type: V, a: "1", b: "3", value: 18 }, lampara("L1", "1", "0", 12, 3), lampara("L2", "0", "3", 12, 6),
+  ] });
+  assert.deepEqual(r.stats.burned_lamps, ["L1"]);
+  assert.equal(porId(r).L2.current, 0);
+  assert.equal(porId(r).V1.current, 0);
 });
 
 test("abrir y cerrar el interruptor de un paralelo solo saca esa rama", () => {

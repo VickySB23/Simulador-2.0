@@ -50,8 +50,9 @@ export function ecuacionesDe(estado) {
   let resultado;
   try {
     const netlist = armarNetlist(estado);
-    analisis = analizar(netlist);
     resultado = simulate(netlist);
+    // Con las lámparas quemadas abiertas, igual que en el resultado.
+    analisis = analizar(netlist, new Set(resultado.stats.burned_lamps));
   } catch (e) {
     if (e instanceof ErrorCircuito) return { error: { code: e.code, message: e.message } };
     throw e;
