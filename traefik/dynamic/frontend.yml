@@ -1,4 +1,4 @@
-# Ruta fija al editor web (nginx, sin registro en Consul).
+# Ruta fija al editor web (nginx sin privilegios en el puerto 8080, sin registro en Consul).
 # Prioridad 1: cualquier ruta de Consul (/simulate, /api/circuits, /health) gana, porque Traefik
 # les da por defecto una prioridad igual al largo de su regla.
 http:
@@ -13,4 +13,4 @@ http:
     frontend:
       loadBalancer:
         servers:
-          - url: http://frontend:80
+          - url: http://frontend:8080

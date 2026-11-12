@@ -1,0 +1,12 @@
+{
+  "name": "simulador-e2e",
+  "private": true,
+  "description": "Pruebas del editor web en Chrome real. No corren en la CI.",
+  "type": "module",
+  "scripts": {
+    "verificar": "node verificar.mjs capturas"
+  },
+  "devDependencies": {
+    "playwright-core": "1.49.1"
+  }
+}

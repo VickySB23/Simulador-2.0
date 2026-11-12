@@ -91,6 +91,10 @@ export function errorDeRespuesta(estado, cuerpo) {
   if (detalle && typeof detalle === "object" && !Array.isArray(detalle) && detalle.code) {
     return { code: detalle.code, message: detalle.message ?? "Error", details: detalle.details ?? {} };
   }
+  // Fallback de nginx cuando un backend no está registrado en Traefik: {"code", "message"}.
+  if (cuerpo && typeof cuerpo.code === "string" && typeof cuerpo.message === "string") {
+    return { code: cuerpo.code, message: cuerpo.message, details: cuerpo.details ?? {} };
+  }
   if (estado === 422) {
     return { code: "invalid_schema", message: "El circuito no respeta el formato esperado.", details: {} };
   }

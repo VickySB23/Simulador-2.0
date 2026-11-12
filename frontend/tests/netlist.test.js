@@ -81,6 +81,9 @@ test("errores del simulador y de validación", () => {
   assert.deepEqual(errorDeRespuesta(422, flotante), { code: "floating_nodes", message: "m", details: { nodes: ["3_3"] } });
   assert.equal(errorDeRespuesta(422, { detail: [{ loc: [] }] }).code, "invalid_schema");
   assert.equal(errorDeRespuesta(500, null).code, "http_500");
+  // Respuesta del fallback de nginx con un backend caído.
+  assert.deepEqual(errorDeRespuesta(503, { code: "unavailable", message: "No disponible", details: {} }),
+    { code: "unavailable", message: "No disponible", details: {} });
 });
 
 test("los ejemplos precargados no tienen problemas locales", () => {

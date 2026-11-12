@@ -50,7 +50,7 @@ privilegios (copiar el de pdf-extractext).
 | `services/simulation-service` | **Terminado.** 53 tests pasan (`uv run pytest -q`). |
 | `services/circuit-service` | **Terminado.** 84 tests pasan (`uv run pytest -q`); los del repositorio usan un MongoDB real (`MONGO_TEST_URI`, por defecto `localhost:27017`) y se saltean si no hay. Nombres en español como simulation-service; los campos del JSON quedan en inglés. |
 | `frontend/` | **Terminado.** nginx con headers de seguridad y CSP estricta (sin `eval` ni scripts en línea: las pruebas de navegador tienen que usar locators, no `waitForFunction`). Lógica pura en `public/js/lib/` con 42 tests (`cd frontend && node --test`). Capturas en `docs/capturas/`. |
-| `docker-compose.yml`, `docker-compose.override.yml`, `.env.example`, `traefik/dynamic/frontend.yml` | **Hechos** y probados con `docker compose up --build -d --wait`. La ruta `/` → `frontend:80` (prioridad 1) ya está; da 502 hasta que exista el servicio `frontend` en el compose. |
+| `docker-compose.yml`, `docker-compose.override.yml`, `.env.example`, `traefik/dynamic/frontend.yml` | **Hechos** y probados con `docker compose up --build -d --wait`. La ruta `/` → `frontend:8080` (prioridad 1) recibe todo lo que no tiene ruta en Consul; nginx responde 503 JSON con `Retry-After` en `/api/`, `/simulate` y `/health` si el backend no está registrado. |
 | `.github/workflows/ci.yml` | **Hecho.** Matriz con ambos servicios, service `mongo:8.0` y `MONGO_TEST_REQUIRED=1`; job de build con `docker compose`. |
 | `tests/stress/` (k6 y Vegeta con circuitos generados de 10, 100 y 1000 nodos), `docs/mediciones/`, `docs/informe/INFORME.md`, `docs/ecuaciones.md`, `README.md` | Faltan. Las mediciones tienen que ser reales: no inventar números. |
 
