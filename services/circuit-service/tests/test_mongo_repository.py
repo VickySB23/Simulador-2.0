@@ -1,7 +1,7 @@
 """Repositorio contra un MongoDB real: el redondeo de fechas solo se ve con un servidor de verdad.
 
 Usa MONGO_TEST_URI (por defecto mongodb://localhost:27017). Si no hay servidor, los tests de
-integración se saltean; por ejemplo:
+integración se saltean, salvo con MONGO_TEST_REQUIRED=1 (CI). Para levantar uno:
     docker run -d --rm --name mongo-test -p 27017:27017 mongo:8
 """
 import os
@@ -20,6 +20,8 @@ from app.infrastructure.repositories.mongo_repository import (
 )
 
 MONGO_TEST_URI = os.getenv("MONGO_TEST_URI", "mongodb://localhost:27017")
+# En CI vale 1: si falta Mongo, los tests fallan en vez de saltearse en silencio.
+MONGO_TEST_REQUIRED = os.getenv("MONGO_TEST_REQUIRED") == "1"
 # Una fecha con microsegundos que BSON no puede guardar.
 FECHA_CON_MICROSEGUNDOS = datetime(2026, 11, 12, 15, 30, 45, 123456, tzinfo=UTC)
 
@@ -49,6 +51,8 @@ async def repositorio():
         await cliente.admin.command("ping")
     except Exception:
         await cliente.close()
+        if MONGO_TEST_REQUIRED:
+            pytest.fail(f"MONGO_TEST_REQUIRED está activo y no hay MongoDB en {MONGO_TEST_URI}")
         pytest.skip(f"No hay MongoDB en {MONGO_TEST_URI}")
     nombre_db = f"test_circuits_{uuid.uuid4().hex[:8]}"
     repo = RepositorioMongo(cliente[nombre_db])

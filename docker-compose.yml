@@ -1,0 +1,132 @@
+name: simulador
+
+services:
+  traefik:
+    image: traefik:v3.6
+    environment:
+      TRAEFIK_PROVIDERS_CONSULCATALOG: "true"
+      TRAEFIK_PROVIDERS_CONSULCATALOG_ENDPOINT_ADDRESS: consul:8500
+      TRAEFIK_PROVIDERS_CONSULCATALOG_EXPOSEDBYDEFAULT: "false"
+      TRAEFIK_PROVIDERS_CONSULCATALOG_REFRESHINTERVAL: 5s
+      # Rutas fijas (el frontend estático) desde archivo; las de los servicios vienen de Consul.
+      TRAEFIK_PROVIDERS_FILE_DIRECTORY: /etc/traefik/dynamic
+      TRAEFIK_PROVIDERS_FILE_WATCH: "true"
+      TRAEFIK_ENTRYPOINTS_WEB_ADDRESS: ":80"
+      # /ping en el entrypoint interno :8080, que no se publica: solo lo usa el healthcheck.
+      TRAEFIK_PING: "true"
+    volumes:
+      - ./traefik/dynamic:/etc/traefik/dynamic:ro
+    ports:
+      - "8080:80"
+    depends_on:
+      consul:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 256M
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - traefik-net
+
+  consul:
+    image: hashicorp/consul:1.21
+    command: agent -server -bootstrap-expect=1 -ui -client=0.0.0.0 -bind={{GetPrivateIP}}
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 256M
+    healthcheck:
+      test: ["CMD-SHELL", "consul info | grep -q 'leader = true'"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    networks:
+      - traefik-net
+
+  simulation-service:
+    image: simulador-simulation-service:v1.0.0
+    build: ./services/simulation-service
+    deploy:
+      replicas: ${SIMULATION_REPLICAS:-3}
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+    environment:
+      CONSUL_URL: http://consul:8500
+      MAX_CONCURRENT: "${MAX_CONCURRENT:-1}"
+      QUEUE_TIMEOUT_SECONDS: "${QUEUE_TIMEOUT_SECONDS:-10}"
+      RETRY_AFTER_SECONDS: "${RETRY_AFTER_SECONDS:-1}"
+      MAX_COMPONENTS: "${MAX_COMPONENTS:-20000}"
+      RATE_LIMIT_AVERAGE: "${SIMULATE_RATE_LIMIT_AVERAGE:-100}"
+      RATE_LIMIT_BURST: "${SIMULATE_RATE_LIMIT_BURST:-200}"
+    depends_on:
+      consul:
+        condition: service_healthy
+    networks:
+      - traefik-net
+
+  circuit-service:
+    image: simulador-circuit-service:v1.0.0
+    build: ./services/circuit-service
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+    environment:
+      MONGO_URI: mongodb://db:27017
+      MONGO_DB_NAME: circuits
+      CONSUL_URL: http://consul:8500
+      # Pasa por Traefik para balancear entre las réplicas de simulation-service.
+      SIMULATION_URL: http://traefik
+      SIMULATION_TIMEOUT_SECONDS: "${SIMULATION_TIMEOUT_SECONDS:-30}"
+      MAX_COMPONENTS: "${MAX_COMPONENTS:-20000}"
+      RATE_LIMIT_AVERAGE: "${CIRCUITS_RATE_LIMIT_AVERAGE:-50}"
+      RATE_LIMIT_BURST: "${CIRCUITS_RATE_LIMIT_BURST:-100}"
+    depends_on:
+      traefik:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+      simulation-service:
+        condition: service_healthy
+    networks:
+      - traefik-net
+      - backend
+
+  db:
+    image: mongo:8.0
+    command: ["--wiredTigerCacheSizeGB", "0.25"]
+    volumes:
+      - mongo_data:/data/db
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+    # Solo en la red backend: Mongo no es accesible desde Traefik ni desde el host.
+    networks:
+      - backend
+
+volumes:
+  mongo_data:
+
+networks:
+  traefik-net:
+    name: simulador-traefik-net
+  backend:
