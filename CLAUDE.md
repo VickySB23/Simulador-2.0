@@ -1,100 +1,82 @@
-# Simulador de circuitos DC en microservicios
+# Simulador DC: versión web estática (rama `web`)
 
-Contexto para Claude Code. Este proyecto reescribe **Simulador-2.0** (app de escritorio Tkinter,
-https://github.com/VickySB23/Simulador-2.0) como microservicios, con la misma arquitectura y
-convenciones que **pdf-extractext-microservicios** (https://github.com/VickySB23/pdf-extractext-microservicios).
-Antes de escribir código nuevo, mirá cómo lo resolvió ese repo y seguí el mismo estilo.
+Contexto para Claude Code. Simulador de circuitos de corriente continua que corre entero en el
+navegador y se publica en GitHub Pages (<https://vickysb23.github.io/Simulador-2.0/>). Es para uso
+personal de la autora y para que su profesor lo use en clase: el README está escrito para él.
 
-Autora: Victoria Sanchez Bujaldon. Idioma del código, comentarios, README e informe: español rioplatense.
+Autora: Victoria Sanchez Bujaldon. Idioma del código, comentarios y documentación: español rioplatense.
 
-## Arquitectura objetivo
+## Ramas
+
+- `main`: la app de escritorio Tkinter original (Simulador-2.0).
+- `microservicios`: la versión con FastAPI, MongoDB, Consul y Traefik. **No se toca.**
+- `carga-wip` (solo local): pruebas de carga sin terminar sobre `microservicios` (experimentos
+  01–04 y el arreglo de `OPENBLAS_NUM_THREADS=1`), abandonadas por el cambio a la versión web.
+- `web`: esta versión. Sin backend: se quitaron `services/`, el compose, Traefik y nginx.
+
+## Estructura
 
 ```text
-Navegador / k6 / Vegeta
-        |
-        v
-Traefik :8080  <-- rutas -- Consul :8500 <-- se registra cada réplica
-   |-- /            --> frontend (nginx, editor web estático; ruta por file provider de Traefik)
-   |-- /simulate    --> N réplicas de simulation-service (sin estado, p2c, rate limit, circuit breaker)
-   |-- /api/circuits, /health --> circuit-service --> MongoDB
-                                      |
-                                      +--> /simulate vía Traefik (reintentos 429/502/504 y conexión)
+frontend/public/          lo que se publica (HTML + CSS + JS vanilla con módulos ES, sin build)
+  js/lib/                 lógica sin DOM, con tests: mna, modelo, netlist, historial, valores,
+                          ejemplos, almacen (localStorage + .json), compartir (hash), ecuaciones
+  js/app.js, editor.js, paneles.js, exportar.js, tema.js     interfaz
+  sw.js                   service worker: funciona sin internet (lista de archivos testeada)
+frontend/tests/           node --test (sin dependencias)
+tests/e2e/                verificar.mjs (Chrome real con playwright-core) y servir.mjs
+tests/comparacion/        motor JS contra POST /simulate de la rama microservicios
+.github/workflows/pages.yml   tests + publicación de frontend/public en GitHub Pages
 ```
 
-- **simulation-service** (puerto 8001): `POST /simulate` recibe `{"ground": "0", "components": [...]}`
-  y devuelve tensiones de nodo, corriente y potencia por componente, balance de potencias, residuo KCL y
-  estadísticas. Tipos: `resistor`, `voltage_source` (a = +, b = −), `current_source` (sentido de a hacia b
-  por dentro de la fuente), `wire`. Los valores aceptan número o texto (`4.7k`, `1MEG`, `5m`).
-  Backpressure: semáforo `MAX_CONCURRENT` por réplica, cola `QUEUE_TIMEOUT_SECONDS`, `503` con `Retry-After`.
-  Errores de circuito: `422` con `{"code", "message", "details"}`; códigos: `invalid_component`,
-  `no_ground`, `floating_nodes` (details.nodes), `voltage_source_loop`, `shorted_voltage_source`,
-  `singular_circuit`, `invalid_circuit`. Circuito demasiado grande: `413 too_large`.
-- **circuit-service** (puerto 8000): CRUD en MongoDB de circuitos guardados (`name`, `description`,
-  `circuit`, `layout` opaco del editor, `tags`, `last_simulation`, `simulated_at`) y
-  `POST /api/circuits/{id}/simulate`, que llama a simulation-service y guarda el resultado solo si el
-  circuito no cambió mientras se simulaba (filtro por `updated_at`). Editar un circuito borra su última simulación.
-- **frontend**: editor web en el navegador que reemplaza la GUI Tkinter (grilla con snap, herramientas
-  cable/R/V/I/GND, rotar, borrar, deshacer/rehacer, editar valor con `10k`, simulación en vivo con
-  debounce contra `/simulate`, color por tensión, flechas de corriente, tabla de resultados, balance de
-  potencias, KCL, marcar en rojo los nodos que devuelva `floating_nodes`, guardar/abrir vía `/api/circuits`).
-  Sin paso de build: HTML + JS vanilla servido por nginx.
+## Decisiones del motor (`js/lib/mna.js`, no revertir)
 
-Cada servicio en capas `core`, `domain` (simulation), `application`, `infrastructure`, `presentation`.
-Python 3.12, FastAPI, uvicorn, uv con `uv.lock`, Dockerfile en dos etapas sin pip y con usuario sin
-privilegios (copiar el de pdf-extractext).
+Port de `services/simulation-service/app/domain` de la rama `microservicios`, con los mismos
+códigos de error (`invalid_component`, `no_ground`, `floating_nodes` con `details.nodes`,
+`voltage_source_loop`, `shorted_voltage_source`, `singular_circuit`, `invalid_circuit`) y los
+mismos mensajes. Corrigen bugs confirmados de Simulador-2.0:
 
-## Estado
+1. **Cables ideales con union-find**, no resistencias de 1e-9 Ω.
+2. **Sin GMIN**: se revisa la topología antes de resolver (antes un nodo alimentado solo por una
+   fuente de corriente daba 1 GV).
+3. **Detección de lazos de fuentes de tensión** (antes dos fuentes en paralelo daban resultados vacíos).
+4. **R ≤ 0 es un error** (antes R = 0 se convertía en 1e-9 Ω).
+5. Densa hasta `DENSE_LIMIT = 200` incógnitas, dispersa (LU con pivoteo parcial sobre filas
+   dispersas) por encima.
+6. Convención pasiva: potencia positiva = absorbe.
 
-| Parte | Estado |
-| --- | --- |
-| `services/simulation-service` | **Terminado.** 53 tests pasan (`uv run pytest -q`). |
-| `services/circuit-service` | **Terminado.** 84 tests pasan (`uv run pytest -q`); los del repositorio usan un MongoDB real (`MONGO_TEST_URI`, por defecto `localhost:27017`) y se saltean si no hay. Nombres en español como simulation-service; los campos del JSON quedan en inglés. |
-| `frontend/` | **Terminado.** nginx con headers de seguridad y CSP estricta (sin `eval` ni scripts en línea: las pruebas de navegador tienen que usar locators, no `waitForFunction`). Lógica pura en `public/js/lib/` con 42 tests (`cd frontend && node --test`). Capturas en `docs/capturas/`. |
-| `docker-compose.yml`, `docker-compose.override.yml`, `.env.example`, `traefik/dynamic/frontend.yml` | **Hechos** y probados con `docker compose up --build -d --wait`. La ruta `/` → `frontend:8080` (prioridad 1) recibe todo lo que no tiene ruta en Consul; nginx responde 503 JSON con `Retry-After` en `/api/`, `/simulate` y `/health` si el backend no está registrado. |
-| `.github/workflows/ci.yml` | **Hecho.** Matriz con ambos servicios, service `mongo:8.0` y `MONGO_TEST_REQUIRED=1`; job de build con `docker compose`. |
-| `tests/stress/` (k6 y Vegeta con circuitos generados de 10, 100 y 1000 nodos), `docs/mediciones/`, `docs/informe/INFORME.md`, `docs/ecuaciones.md`, `README.md` | Faltan. Las mediciones tienen que ser reales: no inventar números. |
+`parseValue` es el `parse_value` del backend (M y MEG = mega, m = mili); `valores.js` agrega la
+coma decimal. Si se cambia el motor, correr `tests/comparacion/comparar.mjs` contra el stack de
+`microservicios` (última corrida: 500 circuitos, 0 discrepancias de error, 5,5e-10 de diferencia
+relativa a la escala).
 
-## Decisiones del motor MNA (no revertir)
+## Interfaz: bugs de Simulador-2.0 que no deben volver
 
-Estas decisiones corrigen bugs confirmados en Simulador-2.0:
+Rehacer con dos pilas que guardan el estado actual; el historial incluye la tierra; el símbolo GND
+se dibuja donde está la tierra; resaltado de selección por clase CSS; ids que no se repiten (los
+contadores solo crecen, también al deshacer); la fuente de corriente muestra su sentido y el "+ −"
+queda derecho en fuentes verticales. El doble clic se detecta a mano en `pointerdown` porque cada
+render reemplaza los elementos del SVG.
 
-1. **Cables ideales con union-find**: los nodos unidos por cables son un solo nodo eléctrico. Simulador-2.0
-   los modelaba como resistencias de 1e-9 Ω sumadas a GMIN = 1e-12, lo que deja la matriz mal condicionada.
-2. **Sin GMIN**: en lugar de regularizar, se revisa la topología antes de resolver. Simulador-2.0 mostraba
-   1 000 000 000 V en un nodo alimentado solo por una fuente de corriente y lo presentaba como válido.
-3. **Detección de lazos de fuentes de tensión**: dos fuentes en paralelo devolvían resultados vacíos
-   en silencio y la GUI decía "Cálculo Automático OK".
-4. **R ≤ 0 es un error**: antes R = 0 se convertía en silencio en 1e-9 Ω (100 GW disipados).
-5. Matriz armada en formato disperso; resolución densa hasta 200 incógnitas y `spsolve` por encima.
-6. Convención pasiva: potencia positiva = absorbe; una fuente que entrega tiene potencia negativa.
+## Restricciones
 
-## Otros bugs de la GUI de Simulador-2.0 (a evitar en el frontend nuevo)
-
-Todos reproducidos con la app real:
-
-- **Rehacer no funciona**: `HistoryManager.redo` vuelve a aplicar el estado anterior. Usar dos pilas que
-  guarden el estado *actual* al deshacer o rehacer.
-- **Deshacer pierde la tierra**: `save_state` no guarda `tierra_idx`.
-- **El símbolo de GND no se mueve** al elegir otro nodo como tierra; queda dibujado en el primer nodo.
-- **El resaltado de selección no funciona** para R, V e I: se aplica `outline` a una línea y el error se
-  oculta con un `except: pass`.
-- **Nombres duplicados** (`W2`, `W2`) después de borrar, y como los resultados se indexan por nombre,
-  se pisan entre sí.
-- La fuente de corriente no muestra su sentido, y "+ −" queda horizontal en fuentes verticales.
-- Además, el repo versiona `build/` y `dist/` (16 MB, incluido un .exe), el README menciona
-  `docs/ecuaciones.md`, que no existe, y `requirements.txt` está casi vacío.
+- **CSP estricta** en un `<meta>` de `index.html` (GitHub Pages no permite headers): nada de
+  scripts ni estilos en línea, ni `eval`. Colores dinámicos con `element.style.x = ...` (CSSOM) o
+  atributos de presentación SVG. Las pruebas de navegador usan locators, no `waitForFunction`.
+- **Rutas relativas** en todo: Pages publica en `/Simulador-2.0/`.
+- **Archivo nuevo en `public/`** → agregarlo a `ARCHIVOS` en `sw.js` (lo verifica un test) y,
+  si cambia algo que deba verse enseguida, subir `VERSION`.
+- Sin librerías externas ni CDN.
 
 ## Comandos
 
 ```bash
-cd services/simulation-service && uv sync && uv run pytest -q
-uv run uvicorn app.main:app --port 8001      # sin CONSUL_URL corre solo
-cd services/circuit-service && uv sync && uv run pytest -q   # necesita MongoDB para los tests de integración
-docker compose up --build -d --wait           # stack completo (cuando exista el compose)
+cd frontend && node --test                  # 86 tests
+node tests/e2e/servir.mjs                   # http://localhost:8000/Simulador-2.0/
+cd tests/e2e && npm install && node verificar.mjs capturas   # 31 comprobaciones en Chrome
 ```
 
 ## Cómo trabajar
 
-- Al terminar cada servicio, correr sus tests y probarlo con HTTP real.
-- No agregar `build/`, `dist/`, `.venv/` ni resultados de carga sin procesar al repo.
 - Commits chicos y descriptivos en español.
+- Verificar en Chrome real (`tests/e2e/verificar.mjs`) antes de dar algo por terminado.
+- No versionar `node_modules/`, capturas de `tests/e2e/capturas/` ni resultados crudos.
