@@ -40,10 +40,24 @@ jobs:
       - name: Correr tests
         run: uv run pytest -q -rs
 
+  frontend:
+    name: Tests (frontend)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Correr tests (node --test, sin dependencias)
+        run: node --test
+
   docker:
     name: Build de imágenes y compose
     runs-on: ubuntu-latest
-    needs: test
+    needs: [test, frontend]
     steps:
       - uses: actions/checkout@v4
       - name: Validar docker-compose

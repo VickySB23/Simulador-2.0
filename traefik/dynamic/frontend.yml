@@ -1,7 +1,6 @@
 # Ruta fija al editor web (nginx, sin registro en Consul).
 # Prioridad 1: cualquier ruta de Consul (/simulate, /api/circuits, /health) gana, porque Traefik
 # les da por defecto una prioridad igual al largo de su regla.
-# Mientras el servicio frontend no exista en el compose, / responde 502.
 http:
   routers:
     frontend:

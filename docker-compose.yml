@@ -102,6 +102,18 @@ services:
       - traefik-net
       - backend
 
+  frontend:
+    image: simulador-frontend:v1.0.0
+    build: ./frontend
+    # Traefik lo encuentra por el file provider (traefik/dynamic/frontend.yml), no por Consul.
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 64M
+    networks:
+      - traefik-net
+
   db:
     image: mongo:8.0
     command: ["--wiredTigerCacheSizeGB", "0.25"]

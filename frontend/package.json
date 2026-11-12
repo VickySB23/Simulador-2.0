@@ -1,0 +1,9 @@
+{
+  "name": "simulador-frontend",
+  "private": true,
+  "description": "Editor web del simulador: sin dependencias ni paso de build. Solo se usa para los tests.",
+  "type": "module",
+  "scripts": {
+    "test": "node --test"
+  }
+}
