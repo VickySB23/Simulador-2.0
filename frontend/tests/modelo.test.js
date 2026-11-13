@@ -3,7 +3,7 @@ import { test } from "node:test";
 
 import {
   ANCHO_MUNDO, LARGO, agregarCable, agregarPieza, aLayout, cambiarValor, circuitoVacio,
-  conectados, desdeLayout, eliminar, insertarEnCable, mover, moverTierra, nodosElectricos, ponerTierra,
+  agregarCableEnL, conectados, desdeLayout, eliminar, estirarCable, insertarEnCable, partirCablesEn, tramosEnL, mover, moverTierra, nodosElectricos, ponerTierra,
   quitarTierra, restaurar, rotar,
 } from "../public/js/lib/modelo.js";
 
@@ -168,4 +168,36 @@ test("si la pieza no entra en el cable o no está encima, no cambia nada", () =>
   assert.equal(insertarEnCable(e, id), e);
   ({ estado: e, id } = agregarPieza(e, "resistor", p(10, 10), 0));
   assert.equal(insertarEnCable(e, id), e);
+});
+
+test("un cable entre puntos no alineados se dobla en L", () => {
+  assert.deepEqual(tramosEnL(p(1, 1), p(5, 1)), [[p(1, 1), p(5, 1)]]);
+  assert.deepEqual(tramosEnL(p(1, 1), p(5, 4)), [[p(1, 1), p(5, 1)], [p(5, 1), p(5, 4)]]);
+  assert.deepEqual(tramosEnL(p(1, 1), p(5, 4), false), [[p(1, 1), p(1, 4)], [p(1, 4), p(5, 4)]]);
+  assert.deepEqual(tramosEnL(p(1, 1), p(1, 1)), []);
+  const { estado, ids } = agregarCableEnL(circuitoVacio(), p(1, 1), p(5, 4));
+  assert.deepEqual(ids, ["W1", "W2"]);
+  assert.equal(nodosElectricos(estado).get("1_1"), nodosElectricos(estado).get("5_4"));
+});
+
+test("un cable que termina en el medio de otro lo parte y queda conectado", () => {
+  let e = circuitoVacio();
+  ({ estado: e } = agregarCable(e, p(0, 4), p(10, 4)));
+  ({ estado: e } = agregarCableEnL(e, p(5, 0), p(5, 4)));
+  const tramos = e.components.map((c) => `${c.id} ${c.a.x}_${c.a.y}-${c.b.x}_${c.b.y}`);
+  assert.deepEqual(tramos, ["W1 0_4-5_4", "W2 5_4-10_4", "W3 5_0-5_4"]);
+  const nodos = nodosElectricos(e);
+  assert.equal(nodos.get("5_0"), nodos.get("10_4"));
+  assert.equal(partirCablesEn(e, p(20, 20)), e);
+});
+
+test("estirar la punta de un cable: alineado se alarga, si no se dobla en L", () => {
+  let e = circuitoVacio();
+  ({ estado: e } = agregarCable(e, p(2, 2), p(6, 2)));
+  const largo = estirarCable(e, "W1", "b", p(9, 2));
+  assert.deepEqual(largo.components[0].b, p(9, 2));
+  const doblado = estirarCable(e, "W1", "b", p(9, 5));
+  assert.deepEqual(doblado.components.map((c) => [c.a, c.b]), [[p(2, 2), p(9, 2)], [p(9, 2), p(9, 5)]]);
+  assert.equal(estirarCable(e, "W1", "b", p(2, 2)), e, "sobre el otro extremo no hace nada");
+  assert.equal(estirarCable(e, "W1", "b", p(99, 2)), e, "fuera del mundo no hace nada");
 });

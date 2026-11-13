@@ -65,3 +65,31 @@ export function fichaDe(c, fila) {
   if (baja) avisos.push({ tipo: "aviso", texto: baja });
   return { titulo: c.type === "wire" ? `Cable ${c.id}` : `${c.id} · ${tipo.nombre}`, filas, avisos };
 }
+
+/**
+ * Texto corto para mostrar al pasar el mouse: nombre y, si se simuló, tensión y corriente.
+ * @param {object} c  componente del estado
+ * @param {{fila?: object, tension?: number|null, corriente?: number}} datos  fila del resultado;
+ *   para cables e interruptores, la tensión del nodo (respecto de GND) y la corriente del tramo
+ * @returns {{titulo: string, detalle: string|null}}
+ */
+export function resumenFlotante(c, { fila, tension, corriente } = {}) {
+  const tipo = TIPOS[c.type];
+  const titulo = c.type === "wire" ? `Cable ${c.id}` : `${c.id} · ${tipo.nombre}`;
+  if (fila?.unconnected) return { titulo, detalle: "Sin conectar: no circula corriente" };
+  if (c.type === "wire" || c.type === "switch") {
+    if (corriente === undefined && (tension === undefined || tension === null)) return { titulo, detalle: null };
+    const partes = [];
+    if (c.type === "switch" && c.closed === false) partes.push("abierto");
+    if (tension !== undefined && tension !== null) partes.push(`${formatearSI(tension, "V")} respecto de GND`);
+    partes.push(formatearSI(Math.abs(corriente ?? 0), "A"));
+    return { titulo, detalle: partes.join(" · ") };
+  }
+  if (!fila) return { titulo, detalle: null };
+  const partes = [
+    fila.voltage === null ? "— V" : formatearSI(fila.voltage, "V"),
+    formatearSI(Math.abs(fila.current), "A"),
+  ];
+  if (c.type === "lamp") partes.push(fila.burned ? "quemada" : `brillo ${Math.round(Math.min(1, fila.brightness) * 100)} %`);
+  return { titulo, detalle: partes.join(" · ") };
+}

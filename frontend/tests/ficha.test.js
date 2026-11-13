@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { avisoCorrienteBaja, corrienteNominal, fichaDe } from "../public/js/lib/ficha.js";
+import { avisoCorrienteBaja, corrienteNominal, fichaDe, resumenFlotante } from "../public/js/lib/ficha.js";
 
 const lampara = { id: "L2", type: "lamp", value: "3", potencia: "48", a: { x: 0, y: 0 }, b: { x: 4, y: 0 } };
 
@@ -39,4 +39,17 @@ test("la ficha avisa los bornes sin conectar y las lámparas quemadas", () => {
   assert.ok(quemada.filas.some(([k, v]) => k === "Brillo" && v === "quemada"));
   const interruptor = fichaDe({ id: "S1", type: "switch", closed: false, a: {}, b: {} }, undefined);
   assert.deepEqual(interruptor.filas, [["Estado", "abierto"]]);
+});
+
+test("resumen al pasar el mouse: tensión y corriente de piezas y cables", () => {
+  const r = { id: "R1", type: "resistor", value: "1k" };
+  assert.deepEqual(resumenFlotante(r, { fila: { voltage: 4, current: -0.004 } }),
+    { titulo: "R1 · Resistencia", detalle: "4.00 V · 4.00 mA" });
+  assert.deepEqual(resumenFlotante({ id: "W3", type: "wire" }, { tension: 8, corriente: 0.002 }),
+    { titulo: "Cable W3", detalle: "8.00 V respecto de GND · 2.00 mA" });
+  assert.equal(resumenFlotante({ id: "S1", type: "switch", closed: false }, { tension: 12, corriente: 0 }).detalle,
+    "abierto · 12.0 V respecto de GND · 0 A");
+  assert.match(resumenFlotante(lampara, { fila: { voltage: 1.33, current: 0.444, brightness: 0.012 } }).detalle, /brillo 1 %/);
+  assert.equal(resumenFlotante(r, { fila: { unconnected: true } }).detalle, "Sin conectar: no circula corriente");
+  assert.equal(resumenFlotante(r, {}).detalle, null);
 });

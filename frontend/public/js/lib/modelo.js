@@ -170,6 +170,73 @@ export function insertarEnCable(estado, id) {
   return estado;
 }
 
+// --- Cables en L, partir y estirar -------------------------------------------------------------
+
+/** Tramos de a hasta b: uno si están alineados, dos en L si no (horizontal primero o vertical). */
+export function tramosEnL(a, b, horizontalPrimero = true) {
+  if (mismoPunto(a, b)) return [];
+  if (a.x === b.x || a.y === b.y) return [[a, b]];
+  const esquina = horizontalPrimero ? { x: b.x, y: a.y } : { x: a.x, y: b.y };
+  return [[a, esquina], [esquina, b]];
+}
+
+/**
+ * Si `punto` cae en el medio de un cable recto, lo parte en dos ahí: así un cable nuevo que
+ * termina sobre otro queda conectado (sin esto, solo se unen los extremos).
+ */
+export function partirCablesEn(estado, punto) {
+  let actual = estado;
+  for (const c of estado.components) {
+    if (c.type !== "wire") continue;
+    const adentro = (c.a.y === c.b.y && punto.y === c.a.y && entre(punto.x, c.a.x, c.b.x))
+      || (c.a.x === c.b.x && punto.x === c.a.x && entre(punto.y, c.a.y, c.b.y));
+    if (!adentro) continue;
+    const { id, counters } = reservarId(actual, "wire");
+    const components = actual.components.map((x) => (x.id === c.id ? { ...x, b: { ...punto } } : x));
+    components.push({ id, type: "wire", a: { ...punto }, b: { ...c.b } });
+    actual = { ...actual, components, counters };
+  }
+  return actual;
+}
+
+/** Cable de a hasta b doblado en L si hace falta; los extremos se conectan a cables que tocan. */
+export function agregarCableEnL(estado, a, b, horizontalPrimero = true) {
+  const tramos = tramosEnL(a, b, horizontalPrimero);
+  if (!tramos.length || !tramos.every(([p, q]) => dentroDelMundo(p) && dentroDelMundo(q))) return { estado, ids: [] };
+  let actual = partirCablesEn(partirCablesEn(estado, a), b);
+  const ids = [];
+  for (const [p, q] of tramos) {
+    const { estado: siguiente, id } = agregarCable(actual, p, q);
+    actual = siguiente;
+    if (id) ids.push(id);
+  }
+  return ids.length ? { estado: actual, ids } : { estado, ids: [] };
+}
+
+/**
+ * Lleva el extremo `extremo` ("a" o "b") del cable a `punto`. Si deja de estar alineado con el
+ * otro extremo, el cable se dobla en L conservando su dirección desde el extremo fijo.
+ */
+export function estirarCable(estado, id, extremo, punto) {
+  const cable = buscar(estado, id);
+  if (!cable || cable.type !== "wire" || !dentroDelMundo(punto)) return estado;
+  const fijo = extremo === "a" ? cable.b : cable.a;
+  if (mismoPunto(fijo, punto) || mismoPunto(cable[extremo], punto)) return estado;
+  const horizontal = cable.a.y === cable.b.y && cable.a.x !== cable.b.x;
+  const [[, esquina], segundo] = tramosEnL(fijo, punto, horizontal);
+  let components;
+  let counters = estado.counters;
+  if (!segundo) {
+    components = estado.components.map((c) => (c.id === id ? { ...c, [extremo]: { ...punto } } : c));
+  } else {
+    const reserva = reservarId(estado, "wire");
+    counters = reserva.counters;
+    components = estado.components.map((c) => (c.id === id ? { ...c, [extremo]: { ...esquina } } : c));
+    components.push({ id: reserva.id, type: "wire", a: { ...esquina }, b: { ...punto } });
+  }
+  return partirCablesEn({ ...estado, components, counters }, punto);
+}
+
 export function cambiarValor(estado, id, value) {
   return reemplazar(estado, id, (c) => (!tieneValor(c.type) || c.value === value ? c : { ...c, value }));
 }
