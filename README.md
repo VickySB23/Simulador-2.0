@@ -51,6 +51,14 @@ duplica con **Ctrl+D**. Con una sola pieza seleccionada, arriba de los resultado
 Un componente con un borne al aire se marca **"sin conectar"** y no frena nada: por él no circula
 corriente y el resto del circuito se sigue simulando.
 
+**El panel de la derecha** se agranda o achica arrastrando su borde, y se oculta con el botón de
+arriba a la derecha para dibujar a pantalla completa. Las tablas largas (nodos, ecuaciones) se
+pliegan y despliegan tocando su título. En el celular el panel es una hoja que se desliza desde abajo:
+tocá o arrastrá el asa para agrandarla.
+
+Si una segunda tierra deja una batería en corto (por ejemplo, un GND en el + y otro en el −), el
+circuito lo dice así: "Los dos GND ponen en corto a V1".
+
 **Varios circuitos en la misma hoja:** cada uno se calcula por separado. Si uno tiene un error
 (por ejemplo, dos baterías en paralelo) se marca en rojo solo ese, y los demás siguen mostrando sus
 resultados. Resultados y Ecuaciones los agrupan ("Circuito 1", "Circuito 2"…): tocar un grupo
@@ -61,7 +69,8 @@ varias piezas tocándolas o con un rectángulo dibujado con un dedo.
 lámpara, cables, GND, encenderla, interruptor y quemarla. Cada paso espera a que lo hagas; se
 puede saltear o cerrar.
 
-¿Querés partir de algo hecho? En la pestaña **Circuitos → Ejemplos** hay trece circuitos de Física 2:
+¿Querés partir de algo hecho? En la pestaña **Circuitos**, el botón **Ejemplos de Física 2…** abre una
+galería con una tarjeta (y un dibujito) por circuito. Hay trece:
 
 | Ejemplo | Qué muestra |
 | --- | --- |
@@ -84,8 +93,10 @@ puede saltear o cerrar.
 - **Color de los cables:** azul oscuro para la tensión más baja y rojo para la más alta (la
   leyenda está en Resultados). Al lado de cada nodo se ve su tensión respecto de tierra.
 - **Puntos naranjas que avanzan:** la corriente, también por cada cable. Van más rápido cuanto
-  más corriente hay (en escala logarítmica). El botón **Convencional / Electrones** cambia entre el
-  sentido convencional (de + a −) y el flujo de electrones (de − a +); **Pausa** las detiene.
+  más corriente hay (en escala logarítmica). En el menú **Vista** de la barra se elige el sentido
+  (convencional, de + a −, o flujo de electrones, de − a +) y se pueden **ocultar los puntos**;
+  **Pausa** los detiene. Si la compu o el celular piden reducir el movimiento, los puntos se ven
+  quietos y el menú Vista lo explica.
 - **Flechas verdes:** el sentido real de la corriente en cada pieza, con su valor.
 - **Lámparas:** brillan según la potencia que reciben respecto de la nominal. Si la superan, **se
   queman y abren el circuito**, como una real: en serie se apagan todas y en paralelo siguen las
@@ -93,8 +104,10 @@ puede saltear o cerrar.
   para esta lámpara (444 mA de 4.00 A nominales)". Las resistencias toman un brillo cálido según la potencia que disipan.
 - **Fuentes:** la batería muestra **+** y **−** grandes y late cuando entrega energía; la fuente de
   corriente, una flecha con su sentido.
-- **Vista ilustrada o esquemática:** el botón **Ilustrada / Esquemática** (o la tecla **V**) cambia
-  entre los dibujos y los símbolos IEC de los libros.
+- **Vista ilustrada o esquemática:** en el menú **Vista** (o con la tecla **V**) se cambia entre los
+  dibujos y los símbolos IEC de los libros.
+- **Interruptores:** la palanca se levanta al abrirlo y la luz de la base se pone roja (verde,
+  cerrado); en la vista esquemática la cuchilla se separa del contacto.
 - **Pestaña Resultados:** tensión, corriente y potencia de cada componente; tensión de cada nodo;
   potencia entregada y absorbida (tienen que ser iguales: **Balance OK**) y el residuo de la ley
   de Kirchhoff de corrientes (KCL), que debería ser prácticamente cero. Una potencia negativa (↑)
@@ -143,7 +156,7 @@ ejercicio por el aula virtual o por WhatsApp.
   elijas. Desde la lista se puede abrir, renombrar o borrar. Además, el último circuito abierto se
   recupera solo al volver a la página.
 - **Exportar / Importar .json:** para llevar un circuito a otra compu o guardar una copia.
-- **PNG y SVG** (en la barra de herramientas): descargan el dibujo del circuito, con sus resultados,
+- **PNG y SVG** (en el menú **Exportar** de la barra): descargan el dibujo del circuito, con sus resultados,
   para un apunte, una presentación o un examen. El SVG se puede agrandar sin perder calidad.
 
 ![Imagen PNG exportada del TP4](docs/capturas/exportado.png)
@@ -167,6 +180,7 @@ al lado.
 | Shift + clic al colocar | Seguir con la misma herramienta |
 | Clic derecho | Menú: rotar, editar valor, duplicar, borrar |
 | Rueda | Zoom alrededor del puntero |
+| F (o el botón Ajustar) | Ajustar el circuito a la pantalla: centrarlo y hacer zoom para que entre todo |
 | Arrastrar el fondo | Mover la vista |
 | Ctrl / Shift + clic | Sumar o sacar de la selección |
 | Shift + arrastrar el fondo | Seleccionar con un rectángulo (Ctrl + arrastrar lo suma) |

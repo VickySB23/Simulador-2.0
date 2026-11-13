@@ -24,6 +24,8 @@ frontend/public/          lo que se publica (HTML + CSS + JS vanilla con módulo
   js/app.js, editor.js, paneles.js, exportar.js, tema.js     interfaz (css/editor.css)
   js/tutorial.js          pestaña del tutorial (progreso en localStorage; botón "?" del encabezado)
   js/menu.js              menú contextual (rotar, editar valor, duplicar, borrar)
+  js/panel.js             panel: ancho arrastrando el borde, ocultar, hoja inferior en pantallas chicas
+  js/galeria-ejemplos.js  diálogo con una tarjeta (y miniatura) por ejemplo
   sw.js                   service worker: caché con versión, red primero (4 s) y caché sin conexión
   js/version.js, js/actualizacion.js   versión de la página y aviso "Hay una versión nueva — Actualizar"
   css/tokens.css          sistema de diseño (único lugar con valores literales): claro, oscuro, proyector
@@ -105,6 +107,17 @@ relativa a la escala).
 - **Tutorial:** no se adelanta solo sobre un circuito ya armado: empieza a contar desde el lienzo
   vacío o desde que se saltea el primer paso.
 - **Lámpara en su potencia nominal:** no se quema (tolerancia relativa 1e-9 en `mna.js`).
+- **Escala compacta:** tokens.css tiene la escala de antes al 80 % (letra base 12,5 px, controles
+  de 30 px); el bloque proyector repite los valores grandes y con `pointer: coarse` los controles
+  miden 40 px. Sin `zoom` ni `transform`.
+- **Barra en tres grupos** (Componentes, Edición, Vista); edición solo con íconos (aria-label).
+  Vista, sentido, puntos y PNG/SVG van en menús `.desplegable` con `position: fixed` (la barra se
+  desplaza de costado en el celular y los recortaría). F o Ajustar: `editor.ajustarCircuito()`
+  (no se ajusta solo al abrir: las pruebas hacen clic en puntos fijos de la grilla).
+- **Etiquetas de tensión:** `lugarDeEtiqueta` (editor.js) prueba seis lugares alrededor del nodo y
+  usa el primero que no tapa una pieza (`cajaDePieza`) ni otra etiqueta.
+- **Dos GND en los bornes de una batería:** `explicarError` (netlist.js) cambia el
+  `shorted_voltage_source` por "Los dos GND ponen en corto a V1".
 - **Barra:** el botón activo no usa transform y dentro de `.barra__grupo` no tiene borde propio
   (lo verifica `tests/e2e/estados.mjs` en claro, oscuro y proyector).
 
@@ -141,7 +154,7 @@ render reemplaza los elementos del SVG.
 ## Comandos
 
 ```bash
-cd frontend && node --test                  # 165 tests
+cd frontend && node --test                  # 166 tests
 node tests/e2e/servir.mjs                   # http://localhost:8000/Simulador-2.0/
 cd tests/e2e && npm install && node verificar.mjs capturas   # 38 comprobaciones en Chrome
 node tests/e2e/actualizacion.mjs            # aviso de versión nueva (publicar mientras espera)
@@ -150,6 +163,8 @@ node tests/e2e/editor.mjs capturas          # editor: lámpara, interruptor, vis
 node tests/e2e/interaccion.mjs capturas     # insertar en cable, selección múltiple, copiar/pegar, ficha, tutorial
 node tests/e2e/estados.mjs capturas         # estados de la barra en claro, oscuro y proyector
 node tests/e2e/sin-modos.mjs capturas       # barra→circuito, cables desde bornes, menú, zoom y vista
+node tests/e2e/diseno.mjs capturas          # escala, barra y menús, puntos, panel, galería, etiquetas, F
+node tests/e2e/capturas-diseno.mjs carpeta  # capturas para comparar el diseño (abre los ejemplos por link)
 ```
 
 ## Cómo trabajar
