@@ -33,6 +33,47 @@ function texto(contenido, atributos, padre) {
 // `efectos` son las zonas animadas de cada forma (en coordenadas locales), para el animador.
 
 const FORMAS = {
+  // Fusible: cartucho de vidrio con tapas de metal y el hilo adentro; quemado, el hilo cortado y
+  // el vidrio tiznado. En la vista esquemática, el símbolo IEC (rectángulo atravesado por la línea).
+  fuse: {
+    cuerpo: { ilustrada: [18, 62], esquematica: [24, 56] },
+    ilustrada(g, { quemada }) {
+      el("path", { class: "pata", d: `M0 0H18M62 0H${LARGO}` }, g);
+      el("rect", { class: "fus-vidrio contorno", x: 22, y: -7, width: 36, height: 14, rx: 6 }, g);
+      if (quemada) {
+        el("ellipse", { class: "fus-hollin", cx: 40, cy: 0, rx: 9, ry: 5 }, g);
+        el("path", { class: "fus-hilo", d: "M26 0C29 -2 32 0 35 -2M45 2C48 0 51 2 54 0" }, g);
+      } else {
+        el("path", { class: "fus-hilo", d: "M26 0C32 -5 36 5 40 0S48 -5 54 0" }, g);
+      }
+      el("rect", { class: "fus-tapa contorno", x: 17, y: -8, width: 9, height: 16, rx: 2 }, g);
+      el("rect", { class: "fus-tapa contorno", x: 54, y: -8, width: 9, height: 16, rx: 2 }, g);
+    },
+    esquematica(g, { quemada }) {
+      el("rect", { class: "esq-cuerpo", x: 24, y: -6, width: 32, height: 12 }, g);
+      el("path", { class: "esq-linea", d: quemada ? `M0 0H35M45 0H${LARGO}M36 -5L44 5M44 -5L36 5` : `M0 0H${LARGO}` }, g);
+    },
+  },
+  // Potenciómetro: la pista (resistencia) y el cursor, una flecha que sale del tercer borne (abajo,
+  // a dos cuadros del medio) y apunta a la pista en `posicion` (de a hacia b).
+  potentiometer: {
+    cuerpo: { ilustrada: [18, 62], esquematica: [20, 60] },
+    ilustrada(g, { posicion = 0.5 }) {
+      el("path", { class: "pata", d: `M0 0H18M62 0H${LARGO}` }, g);
+      el("rect", { class: "pot-cuerpo contorno", x: 18, y: -10, width: 44, height: 20, rx: 9 }, g);
+      el("path", { class: "pot-pista", d: "M23 0H57" }, g);
+      cursorDePotenciometro(g, posicion, 11);
+    },
+    esquematica(g, { posicion = 0.5, simbolo }) {
+      if (simbolo === "iec") {
+        el("path", { class: "esq-linea", d: `M0 0H22M58 0H${LARGO}` }, g);
+        el("rect", { class: "esq-cuerpo", x: 22, y: -8, width: 36, height: 16 }, g);
+      } else {
+        el("path", { class: "esq-linea esq-zigzag", d: `M0 0H20L23.3 -7L30 7L36.7 -7L43.3 7L50 -7L56.7 7L60 0H${LARGO}` }, g);
+      }
+      cursorDePotenciometro(g, posicion, 9);
+    },
+  },
   resistor: {
     cuerpo: { ilustrada: [18, 62], esquematica: [22, 58] },
     // Las bandas muestran el valor real (código de colores): 4 o 5 según las cifras significativas;
@@ -162,6 +203,14 @@ const FORMAS = {
   },
 };
 
+/** Flecha del cursor: del tercer borne (40, 40) hasta la pista, en la posición del cursor. */
+function cursorDePotenciometro(g, posicion, alto) {
+  const x = 22 + 36 * Math.min(1, Math.max(0, posicion));
+  el("path", { class: "pata pot-cursor", d: `M40 40V26H${x}V${alto + 6}` }, g);
+  el("path", { class: "pot-punta", d: `M${x} ${alto}L${x - 4.5} ${alto + 7}H${x + 4.5}Z` }, g);
+  el("circle", { class: "pot-perilla contorno", cx: 40, cy: 30, r: 4 }, g);
+}
+
 const rotacionEnGrados = (a, b) => (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI;
 
 function puntoEnMundo(a, b, local) {
@@ -232,6 +281,7 @@ export function dibujarComponente(c, {
   const entrega = c.type === "voltage_source" && entregaEnergia(estado.potencia);
   if (entrega) clases.push("entregando");
   let lampara = null;
+  if (c.type === "fuse" && estado.quemada) clases.push("quemada");
   if (c.type === "lamp" && estado.quemada) {
     // Quemada: ya no conduce (potencia 0), así que no se puede deducir de la potencia.
     lampara = { brillo: 0, quemada: true };
@@ -264,7 +314,9 @@ export function dibujarComponente(c, {
     transform: `translate(${c.a.x} ${c.a.y}) rotate(${rotacionEnGrados(c.a, c.b)})`,
   }, g);
   const bandas = c.type === "resistor" && c.ohmios > 0 ? codigoDeColores(c.ohmios)?.bandas : null;
-  FORMAS[c.type][vista](forma, { quemada: lampara?.quemada, bandas, simbolo });
+  FORMAS[c.type][vista](forma, {
+    quemada: c.type === "fuse" ? Boolean(estado.quemada) : lampara?.quemada, bandas, simbolo, posicion: c.posicion,
+  });
 
   const textos = el("g", { class: "comp__textos" }, g);
   const definicion = FORMAS[c.type];
@@ -291,6 +343,48 @@ function dibujarEtiqueta(capa, c) {
     if (c.etiqueta) el("tspan", {}, t).textContent = `${c.etiqueta} `;
     if (c.valor) el("tspan", { class: "etiqueta--valor" }, t).textContent = c.valor;
   }
+}
+
+/**
+ * Multímetro, en coordenadas del SVG: la caja con el display y el selector (V, A, Ω). En A va en la
+ * rama como una pieza (cables de a y b a la caja); en V y Ω, de la caja salen los cables de las
+ * puntas roja y negra, que se dibujan en `capaPuntas` (arriba de todo, para poder arrastrarlas).
+ * m = {id, a, b, modo, puntas: {roja, negra}} en píxeles; `texto` es la lectura.
+ */
+export function dibujarMultimetro(m, { texto = "- - -", aviso = false, seleccionado = false, capaPuntas = null } = {}) {
+  const g = el("g", { class: `comp comp--multimeter${seleccionado ? " seleccionado con-foco" : ""}${aviso ? " con-aviso" : ""}` });
+  if (m.id) g.dataset.id = m.id;
+  g.dataset.tipo = "multimeter";
+  const cx = (m.a.x + m.b.x) / 2;
+  const cy = (m.a.y + m.b.y) / 2;
+  if (m.modo === "A") {
+    el("line", { class: "pata", x1: m.a.x, y1: m.a.y, x2: m.b.x, y2: m.b.y }, g);
+    el("line", { class: "comp__seleccion", x1: m.a.x, y1: m.a.y, x2: m.b.x, y2: m.b.y }, g);
+  }
+  el("rect", { class: "mm-caja contorno", x: cx - 36, y: cy - 22, width: 72, height: 44, rx: 7 }, g);
+  el("rect", { class: "mm-pantalla", x: cx - 31, y: cy - 17, width: 62, height: 18, rx: 3 }, g);
+  const lectura = el("text", { class: "mm-lectura", x: cx + 28, y: cy - 4, "text-anchor": "end" }, g);
+  lectura.textContent = texto;
+  // Selector: las tres posiciones y la elegida resaltada.
+  ["V", "A", "Ω"].forEach((modo, i) => {
+    const x = cx - 16 + i * 16;
+    el("circle", { class: `mm-boton${modo === m.modo ? " mm-boton--activo" : ""}`, cx: x, cy: cy + 12, r: 6 }, g);
+    const t = el("text", { class: "mm-modo", x, y: cy + 12, "text-anchor": "middle", "dominant-baseline": "central" }, g);
+    t.textContent = modo;
+  });
+  if (m.modo !== "A" && capaPuntas) {
+    for (const [cual, dx] of [["roja", -12], ["negra", 12]]) {
+      const punta = m.puntas[cual];
+      const desde = { x: cx + dx, y: cy + 22 };
+      const control = { x: (desde.x + punta.x) / 2, y: Math.max(desde.y, punta.y) + 30 };
+      el("path", { class: `mm-cable mm-cable--${cual}`, d: `M${desde.x} ${desde.y}Q${control.x} ${control.y} ${punta.x} ${punta.y}` }, capaPuntas);
+      const pg = el("g", { class: `mm-punta mm-punta--${cual}`, "data-punta": cual, "data-instrumento": m.id ?? "" }, capaPuntas);
+      el("circle", { class: "mm-punta__golpe", cx: punta.x, cy: punta.y, r: 12 }, pg);
+      el("circle", { class: "mm-punta__cuerpo contorno", cx: punta.x, cy: punta.y, r: 6 }, pg);
+      el("circle", { class: "mm-punta__metal", cx: punta.x, cy: punta.y, r: 2 }, pg);
+    }
+  }
+  return g;
 }
 
 export function dibujarTierra(punto, padre) {

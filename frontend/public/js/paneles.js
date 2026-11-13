@@ -1,10 +1,12 @@
 // Paneles de resultados y ecuaciones, y diálogos de texto.
 import { colorTension } from "./lib/animacion.js";
 import { MAXIMO_MATRIZ, ecuacionesDe, numeroCorto } from "./lib/ecuaciones.js";
+import { PASOS, escalaDe, posicionDeValor, rangoDe, textoDeValor, valorDePosicion } from "./lib/deslizador.js";
 import { fichaDe } from "./lib/ficha.js";
-import { buscar, nombreNodo, nodosElectricos, tierrasDe } from "./lib/modelo.js";
+import { TIPOS, buscar, nombreNodo, nodosElectricos, tieneValor, tierrasDe } from "./lib/modelo.js";
 import { puntosDeEtiqueta, tensionesPorPunto } from "./lib/netlist.js";
-import { formatearSI } from "./lib/valores.js";
+import { nombresDeCorrientes, nombresDeNodos } from "./lib/nombres.js";
+import { formatearSI, interpretarValor } from "./lib/valores.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -25,13 +27,20 @@ function fila(celdas, clase) {
 const SIN_MENSAJE = new Set(["empty"]);
 
 /** Ficha de la pieza seleccionada (solo con una sola seleccionada). */
-function renderFicha({ estado, resultado, seleccion }) {
+function renderFicha(ctl) {
+  const { estado, resultado, seleccion } = ctl;
   const ficha = $("ficha");
   const id = seleccion && seleccion.ids.length === 1 ? seleccion.ids[0] : null;
   const componente = id ? buscar(estado, id) : null;
   ficha.hidden = !componente;
+  renderControl(ctl, componente);
   if (!componente) return;
-  const datos = fichaDe(componente, resultado?.components.find((c) => c.id === id));
+  const nombres = nombresDeNodos(estado).porPunto;
+  const datos = fichaDe(componente, resultado?.components.find((c) => c.id === id), {
+    nombreCorriente: nombresDeCorrientes(estado).get(id),
+    nodos: componente.type === "ground" ? null : [nombres.get(nombreNodo(componente.a)), nombres.get(nombreNodo(componente.b))],
+    lectura: ctl.lecturas?.get(id),
+  });
   $("ficha-titulo").textContent = datos.titulo;
   $("ficha-datos").replaceChildren(...datos.filas.flatMap(([clave, valor]) => {
     const dt = document.createElement("dt");
@@ -48,6 +57,126 @@ function renderFicha({ estado, resultado, seleccion }) {
     p.textContent = texto;
     return p;
   }));
+}
+
+// --- Control de la ficha: deslizador, selector del multímetro y resistencia interna -----------------
+
+const numeroDe = (texto) => {
+  try {
+    return interpretarValor(String(texto ?? ""));
+  } catch {
+    return NaN;
+  }
+};
+let controlActual = null;
+
+function elemento(etiqueta, atributos = {}, texto = "") {
+  const e = document.createElement(etiqueta);
+  for (const [k, v] of Object.entries(atributos)) {
+    if (k === "className") e.className = v;
+    else e.setAttribute(k, v);
+  }
+  if (texto) e.textContent = texto;
+  return e;
+}
+
+/**
+ * Lo que se maneja desde la ficha. Se reconstruye solo si cambia la pieza (o el modo, o el rango):
+ * mientras se arrastra el deslizador el circuito se recalcula y la ficha se vuelve a pintar, pero
+ * el deslizador no se reemplaza (si no, se cortaría el arrastre).
+ */
+function renderControl(ctl, c) {
+  const caja = $("ficha-control");
+  if (!c) {
+    caja.replaceChildren();
+    controlActual = null;
+    return;
+  }
+  const clave = [c.id, c.type, c.modo, JSON.stringify(c.rango ?? null)].join("|");
+  if (controlActual?.clave === clave) return actualizarControl(c);
+  controlActual = { clave };
+  const partes = [];
+  if (c.type === "multimeter") {
+    const selector = elemento("div", { className: "conmutador", role: "group", "aria-label": "Selector del multímetro" });
+    for (const [modo, nombre] of [["V", "Tensión"], ["A", "Corriente"], ["Ω", "Resistencia"]]) {
+      const b = elemento("button", {
+        type: "button", "data-modo": modo, "aria-pressed": String(c.modo === modo), title: nombre, "aria-label": `${modo}: ${nombre}`,
+      }, modo);
+      b.addEventListener("click", () => ctl.cambiarModo(c.id, modo));
+      selector.append(b);
+    }
+    partes.push(selector);
+  } else if (c.type === "potentiometer") {
+    partes.push(...deslizador({
+      etiqueta: "Cursor", posicion: Math.round((c.posicion ?? 0.5) * PASOS),
+      texto: (pos) => `${Math.round((pos / PASOS) * 100)} %`,
+      alMover: (pos) => ctl.valorEnVivo(c.id, "posicion", pos / PASOS),
+      alSoltar: () => ctl.confirmarValor(),
+    }));
+  } else if (tieneValor(c.type)) {
+    const escala = escalaDe(c);
+    const rango = rangoDe(c);
+    const unidad = TIPOS[c.type].unidad;
+    partes.push(...deslizador({
+      etiqueta: `Valor (${escala === "log" ? "escala logarítmica" : "escala lineal"})`,
+      posicion: posicionDeValor(numeroDe(c.value), rango, escala),
+      texto: (pos) => formatearSI(valorDePosicion(pos, rango, escala), unidad),
+      extremos: [formatearSI(rango.min, unidad), formatearSI(rango.max, unidad)],
+      alMover: (pos) => ctl.valorEnVivo(c.id, "value", textoDeValor(valorDePosicion(pos, rango, escala))),
+      alSoltar: () => ctl.confirmarValor(),
+    }));
+    const botonRango = elemento("button", { type: "button", className: "boton boton--chico" }, c.rango ? "Rango fijado…" : "Fijar el rango…");
+    botonRango.title = "Elegir el mínimo y el máximo del deslizador";
+    botonRango.addEventListener("click", () => ctl.fijarRango(c.id));
+    partes.push(botonRango);
+  }
+  if (c.type === "voltage_source") {
+    const fila = elemento("label", { className: "ficha__interna" });
+    fila.append(elemento("span", {}, "Resistencia interna"));
+    const entrada = elemento("input", { id: "ficha-interna", value: c.rInterna ?? "0", inputmode: "decimal", autocomplete: "off" });
+    entrada.addEventListener("change", () => ctl.cambiarResistenciaInterna(c.id, entrada.value));
+    fila.append(entrada, elemento("span", {}, "Ω"));
+    partes.push(fila);
+  }
+  caja.replaceChildren(...partes);
+}
+
+/** Un deslizador con su lectura: alMover en cada paso, alSoltar al terminar. */
+function deslizador({ etiqueta, posicion, texto, extremos, alMover, alSoltar }) {
+  const titulo = elemento("div", { className: "ficha__deslizador-titulo" });
+  const salida = elemento("output", { className: "ficha__lectura" }, texto(posicion));
+  titulo.append(elemento("span", {}, etiqueta), salida);
+  const barra = elemento("input", { type: "range", id: "ficha-deslizador", min: "0", max: String(PASOS), step: "1", value: String(posicion) });
+  barra.setAttribute("aria-label", etiqueta);
+  barra.addEventListener("input", () => {
+    salida.textContent = texto(Number(barra.value));
+    alMover(Number(barra.value));
+  });
+  barra.addEventListener("change", alSoltar);
+  const partes = [titulo, barra];
+  if (extremos) {
+    const pie = elemento("div", { className: "ficha__extremos" });
+    pie.append(elemento("span", {}, extremos[0]), elemento("span", {}, extremos[1]));
+    partes.push(pie);
+  }
+  controlActual.barra = barra;
+  controlActual.salida = salida;
+  controlActual.texto = texto;
+  return partes;
+}
+
+/** Misma pieza: solo se acomoda la lectura (y la barra, si no la está moviendo el usuario). */
+function actualizarControl(c) {
+  const { barra, salida, texto } = controlActual;
+  if (barra && document.activeElement !== barra) {
+    const posicion = c.type === "potentiometer" ? Math.round((c.posicion ?? 0.5) * PASOS)
+      : posicionDeValor(numeroDe(c.value), rangoDe(c), escalaDe(c));
+    barra.value = String(posicion);
+    salida.textContent = texto(posicion);
+  }
+  for (const b of $("ficha-control").querySelectorAll("[data-modo]")) b.setAttribute("aria-pressed", String(b.dataset.modo === c.modo));
+  const interna = $("ficha-interna");
+  if (interna && document.activeElement !== interna) interna.value = c.rInterna ?? "0";
 }
 
 function celda(etiqueta, texto, clase) {
@@ -83,7 +212,7 @@ const soloCircuito = (estado, circuito) => {
   return { ...estado, components: estado.components.filter((c) => ids.has(c.id)) };
 };
 
-function llenarResultados(grupo, circuito, estado, escala) {
+function llenarResultados(grupo, circuito, estado, escala, nombres) {
   const { resultado, error } = circuito;
   const errorReal = error && !SIN_MENSAJE.has(error.code);
   const caja = grupo.querySelector(".grupo__error");
@@ -112,8 +241,10 @@ function llenarResultados(grupo, circuito, estado, escala) {
     .filter((c) => c.type !== "wire" && c.type !== "switch")
     .map((c) => {
       const potencia = formatearSI(c.power, "W") + (c.power < -1e-15 ? " ↑" : "");
-      let nombre = c.type !== "lamp" ? c.id
-        : `${c.id} · ${c.burned ? "quemada" : `${Math.round(Math.min(1, c.brightness) * 100)} %`}`;
+      const corriente = nombres.corrientes.get(c.id);
+      let nombre = corriente ? `${c.id} (${corriente})` : c.id;
+      if (c.type === "lamp") nombre += ` · ${c.burned ? "quemada" : `${Math.round(Math.min(1, c.brightness) * 100)} %`}`;
+      if (c.type === "fuse" && c.blown) nombre += " · quemado";
       if (c.unconnected) nombre = `${c.id} · sin conectar`;
       return fila([
         { contenido: nombre },
@@ -137,7 +268,7 @@ function llenarResultados(grupo, circuito, estado, escala) {
       const muestra = document.createElement("span");
       muestra.className = "muestra";
       muestra.style.background = colorTension(v, escala.minimo, escala.maximo);
-      const nombre = deTierra.has(nodos.get(nombreNodo(p))) ? `GND (${p.x}, ${p.y})` : `(${p.x}, ${p.y})`;
+      const nombre = deTierra.has(nodos.get(nombreNodo(p))) ? "GND" : nombres.nodos.get(nombreNodo(p)) ?? `(${p.x}, ${p.y})`;
       return fila([{ nodo: muestra, contenido: nombre }, { contenido: formatearSI(v, "V"), num: true }]);
     }));
 
@@ -177,11 +308,12 @@ export function renderResultados(ctl) {
   $("leyenda-maxima").textContent = `${formatearSI(escala.maximo, "V")} (más alto)`;
 
   const varios = circuitos.length > 1;
+  const nombres = { nodos: nombresDeNodos(estado).porPunto, corrientes: nombresDeCorrientes(estado) };
   // Con un solo circuito incompleto el aviso general alcanza; si no, un grupo por circuito.
   const mostrar = circuitos.filter((c) => varios || c.error?.code !== "empty");
   $("grupos-resultados").replaceChildren(...mostrar.map((c) => {
     const grupo = grupoDe("plantilla-resultados", c, ctl, varios, estadoDe(c));
-    llenarResultados(grupo, c, estado, escala);
+    llenarResultados(grupo, c, estado, escala, nombres);
     return grupo;
   }));
 }

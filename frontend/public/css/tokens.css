@@ -120,6 +120,16 @@
   --ilus-interruptor-palanca: #fffaf0;
   --ilus-interruptor-borne: #6f7a99;
   --ilus-interruptor-contacto: #c9932f;   /* contacto de bronce donde cae la palanca */
+  --ilus-fusible-vidrio: #e6f1f4;         /* cartucho de vidrio */
+  --ilus-fusible-tapa: #b8bec6;           /* tapas de metal */
+  --ilus-fusible-hilo: #7a6a5c;
+  --ilus-fusible-hollin: #5b4f47;
+  --ilus-pot-cuerpo: #6b8fb8;             /* potenciómetro: cuerpo azul acero */
+  --ilus-multimetro-caja: #f2b535;        /* multímetro amarillo de taller */
+  --ilus-multimetro-pantalla: #c9dcc0;    /* display de cristal líquido */
+  --ilus-multimetro-texto: #1f2a1c;
+  --ilus-punta-roja: #d2342c;
+  --ilus-punta-negra: #2b2623;
   --ilus-tierra: var(--color-tinta);
 
   /* --- Tipografía ------------------------------------------------------------------------- */

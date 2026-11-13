@@ -38,7 +38,8 @@ async function nuevaPagina(opciones = {}) {
 // La CSP no permite eval: las esperas usan locators, nunca waitForFunction.
 const esperarFase = (pagina, fase) =>
   pagina.locator(`#estado-simulacion[data-fase="${fase}"]`).waitFor({ timeout: 10000 });
-const etiquetas = (pagina) => pagina.locator("text.tension").allTextContents();
+// Cada etiqueta de nodo dice "A = 8.00 V": acá interesa la tensión.
+const etiquetas = async (pagina) => (await pagina.locator("text.tension").allTextContents()).map((t) => t.split(" = ").pop());
 
 async function clicEnGrilla(pagina, x, y, doble = false) {
   const punto = await pagina.evaluate(([gx, gy]) => {
@@ -98,8 +99,8 @@ await pagina.screenshot({ path: `${SALIDA}/01-tp4.png` });
 
 await pagina.click("#pestana-ecuaciones");
 const ecuaciones = await pagina.locator(".ecuaciones-nodos").innerText();
-ok(ecuaciones.includes("V(12,8)/6 Ω") && ecuaciones.includes("I(V1)"), "Ecuaciones: KCL con los valores del circuito");
-ok((await pagina.locator(".solucion-mna").innerText()).includes("V(12,8) = 30 V"), "Ecuaciones: la solución del sistema da 30 V");
+ok(ecuaciones.includes("V(B)/6 Ω") && ecuaciones.includes("I₁"), "Ecuaciones: KCL con los valores del circuito y los nombres del dibujo (V(B), I₁)");
+ok((await pagina.locator(".solucion-mna").innerText()).includes("V(B) = 30 V"), "Ecuaciones: la solución del sistema da 30 V");
 ok(await pagina.locator(".matriz-mna table tbody tr").count() === 3, "Ecuaciones: matriz MNA de 3 × 3");
 await pagina.screenshot({ path: `${SALIDA}/02-ecuaciones.png` });
 
@@ -196,7 +197,7 @@ await esperarFase(pagina, "ok");
 ok((await pagina.locator("text", { hasText: "4.7 Ω" }).count()) === 1, "R1 = 4,7 Ω aceptado");
 
 // --- Compartir: el link reproduce el circuito exacto -----------------------------------
-await pagina.click('[data-herramienta="current_source"]');
+await pagina.keyboard.press("i"); // la fuente de corriente está en el menú «Más»: con su atajo
 await clicEnGrilla(pagina, 30, 8);
 await pagina.click('[data-herramienta="resistor"]');
 await pagina.keyboard.press("Space");
@@ -257,8 +258,8 @@ await pagina.click("#boton-menu-exportar");
 const [svg] = await Promise.all([pagina.waitForEvent("download"), pagina.click("#accion-svg")]);
 await svg.saveAs(`${SALIDA}/04-export-tp4.svg`);
 const textoSvg = readFileSync(`${SALIDA}/04-export-tp4.svg`, "utf-8");
-ok(textoSvg.includes(">30.0 V<") && !textoSvg.includes("class=") && !textoSvg.includes("data-id"),
-  "SVG exportado: con resultados y sin clases del editor");
+ok(textoSvg.includes(" = 30.0 V<") && textoSvg.includes(">B<") && !textoSvg.includes("class=") && !textoSvg.includes("data-id"),
+  "SVG exportado: con resultados y nombres de nodo, sin clases del editor");
 
 // --- Sin internet ------------------------------------------------------------------------
 await pagina.evaluate(() => navigator.serviceWorker.ready.then(() => true));

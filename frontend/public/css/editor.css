@@ -528,7 +528,8 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 }
 
 /* La edición va solo con íconos (el nombre está en el tooltip y en aria-label): deja lugar al dibujo. */
-.barra--editor [aria-label="Edición"] > .boton span:not(.icono) { display: none; }
+.barra--editor [aria-label="Edición"] > .boton span:not(.icono),
+.barra--editor [aria-label="Vista"] > .boton span:not(.icono) { display: none; }
 .barra--editor [aria-label="Edición"] > .boton { padding: 0 var(--esp-3); }
 /* Métricas compactas: cuatro en fila si entran, si no dos. */
 .grupo .metricas { grid-template-columns: repeat(auto-fit, minmax(calc(var(--esp-7) * 1.55), 1fr)); }
@@ -541,8 +542,31 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 /* --- Etiquetas: Todo / Valores / Nada (menú Vista) --------------------------------------------- */
 /* Valores: nombre y valor de cada pieza y flechas sin número. Nada: solo el dibujo. En los dos, lo
    seleccionado o bajo el mouse (con-foco) muestra sus números. */
-.editor.etiquetas-valores .tension:not(.con-foco),
+.editor.etiquetas-valores .tension:not(.con-foco) .valor-nodo,
 .editor.etiquetas-valores [data-de]:not(.con-foco) .texto-corriente,
 .editor.etiquetas-nada .tension:not(.con-foco),
 .editor.etiquetas-nada [data-de]:not(.con-foco) .texto-corriente,
 .editor.etiquetas-nada .comp:not(.con-foco) .comp__textos .etiqueta { display: none; }
+.editor .etiqueta--tension { cursor: text; }
+.editor .nombre-nodo { font-family: var(--fuente); font-weight: var(--peso-titulo); fill: var(--color-azul-rey); }
+
+/* --- Control de la ficha: deslizador, selector del multímetro, resistencia interna --------------- */
+.ficha__control { display: grid; gap: var(--esp-2); }
+.ficha__control:empty { display: none; }
+.ficha__deslizador-titulo { display: flex; justify-content: space-between; gap: var(--esp-2); font-size: var(--texto-sm); color: var(--color-texto-suave); }
+.ficha__lectura { color: var(--color-texto); font-weight: var(--peso-titulo); font-variant-numeric: tabular-nums; }
+.ficha__control input[type="range"] { width: 100%; accent-color: var(--color-primario); }
+.ficha__extremos { display: flex; justify-content: space-between; color: var(--color-texto-suave); font-size: var(--texto-xs); }
+.ficha__control .conmutador { justify-self: start; flex-wrap: wrap; }
+.ficha__interna { display: flex; align-items: center; gap: var(--esp-2); font-size: var(--texto-sm); }
+.ficha__interna input {
+  width: calc(var(--esp-7) * 1.6);
+  min-height: var(--alto-control-chico);
+  padding: 0 var(--esp-2);
+  border: var(--borde-fino) solid var(--color-tinta);
+  border-radius: var(--radio-sm);
+  background: var(--color-fondo);
+  color: var(--color-texto);
+  font: inherit;
+}
+.desplegable__panel kbd { margin-left: auto; padding-left: var(--esp-3); color: var(--color-texto-suave); font: inherit; font-size: var(--texto-xs); }

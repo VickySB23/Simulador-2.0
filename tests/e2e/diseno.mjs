@@ -258,20 +258,21 @@ for (const id of ["serie-contra-paralelo", "distintas-potencias", "linterna", "t
   // Etiquetas: Valores por defecto en el Wheatstone; al pasar el mouse se ven los números de esa pieza.
   const { contexto, pagina } = await abrir(await link("wheatstone"));
   const visibles = (sel) => pagina.locator(sel).evaluateAll((es) => es.filter((e) => e.getBoundingClientRect().width > 0).length);
-  ok(await visibles("#editor text.tension") === 0 && await visibles("#editor .texto-corriente") === 0
+  ok(await visibles("#editor text.tension .valor-nodo") === 0 && await visibles("#editor .nombre-nodo") >= 3
+    && await visibles("#editor .texto-corriente") === 0
     && await visibles("#editor .punta") > 0 && await visibles("#editor .comp__textos .etiqueta") >= 6,
-  "Etiquetas «Valores» por defecto: nombres y valores, flechas sin número");
+  "Etiquetas «Valores» por defecto: nombres de piezas y nodos y valores, flechas sin número");
   await pagina.screenshot({ path: `${SALIDA}/f2-wheatstone-valores.png` });
   const r1 = await pagina.locator('#editor [data-id="R1"] line.comp__seleccion').boundingBox();
   await pagina.mouse.move(r1.x + r1.width / 2, r1.y + r1.height / 2);
   await pagina.locator('#editor [data-de="R1"].con-foco').waitFor({ state: "attached" });
-  ok(await visibles('#editor [data-de="R1"] .texto-corriente') === 1 && await visibles("#editor text.tension") >= 1,
+  ok(await visibles('#editor [data-de="R1"] .texto-corriente') === 1 && await visibles("#editor text.tension .valor-nodo") >= 1,
     "al pasar el mouse por R1 se ven su corriente y las tensiones de sus nodos");
   await pagina.screenshot({ path: `${SALIDA}/f3-wheatstone-foco.png` });
   await pagina.mouse.move(5, 5);
   await pagina.click("#boton-menu-vista");
   await pagina.click('#control-etiquetas [data-etiquetas="todo"]');
-  ok(await visibles("#editor text.tension") >= 3 && await visibles("#editor .texto-corriente") >= 5, "«Todo» muestra todos los números (para proyectar)");
+  ok(await visibles("#editor text.tension .valor-nodo") >= 3 && await visibles("#editor .texto-corriente") >= 5, "«Todo» muestra todos los números (para proyectar)");
   await pagina.click('#control-etiquetas [data-etiquetas="nada"]');
   ok(await visibles("#editor .comp__textos .etiqueta") === 0, "«Nada» deja solo el dibujo");
   await pagina.click('#control-etiquetas [data-etiquetas="valores"]');

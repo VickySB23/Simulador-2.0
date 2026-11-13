@@ -165,3 +165,34 @@
 @media (prefers-reduced-motion: reduce) {
   .int-palanca, .esq-cuchilla { transition: none; }
 }
+
+/* --- Fusible ------------------------------------------------------------------------------------ */
+.fus-vidrio { fill: var(--ilus-fusible-vidrio); }
+.fus-tapa { fill: var(--ilus-fusible-tapa); }
+.fus-hilo { fill: none; stroke: var(--ilus-fusible-hilo); stroke-width: var(--trazo-componente); stroke-linecap: round; }
+.fus-hollin { fill: var(--ilus-fusible-hollin); opacity: 0.45; }
+.comp--fuse.quemada .fus-hilo, .comp--fuse.quemada .esq-linea { stroke: var(--color-error); }
+
+/* --- Potenciómetro --------------------------------------------------------------------------------- */
+.pot-cuerpo { fill: var(--ilus-pot-cuerpo); }
+.pot-pista { fill: none; stroke: var(--color-tinta); stroke-width: var(--trazo-componente); stroke-dasharray: var(--esp-1) calc(var(--esp-1) * 0.6); }
+.pot-punta { fill: var(--color-tinta); }
+.pot-perilla { fill: var(--color-primario); }
+
+/* --- Multímetro -------------------------------------------------------------------------------------- */
+.mm-caja { fill: var(--ilus-multimetro-caja); }
+.mm-pantalla { fill: var(--ilus-multimetro-pantalla); stroke: var(--color-tinta); stroke-width: var(--borde-fino); }
+.mm-lectura { fill: var(--ilus-multimetro-texto); font-family: var(--fuente-mono); font-size: var(--texto-etiqueta-valor); font-weight: var(--peso-fuerte); }
+.mm-boton { fill: var(--color-superficie); stroke: var(--color-tinta); stroke-width: var(--borde-fino); }
+.mm-boton--activo { fill: var(--color-tinta); }
+.mm-modo { fill: var(--color-tinta); font-family: var(--fuente); font-size: var(--texto-etiqueta-valor); font-weight: var(--peso-titulo); pointer-events: none; }
+.mm-boton--activo + .mm-modo { fill: var(--ilus-multimetro-caja); }
+.comp--multimeter.con-aviso .mm-pantalla { stroke: var(--color-aviso); stroke-width: var(--borde); }
+.mm-cable { fill: none; stroke-width: var(--trazo-componente); stroke-linecap: round; }
+.mm-cable--roja { stroke: var(--ilus-punta-roja); }
+.mm-cable--negra { stroke: var(--ilus-punta-negra); }
+.mm-punta { cursor: grab; }
+.mm-punta__golpe { fill: transparent; }
+.mm-punta--roja .mm-punta__cuerpo { fill: var(--ilus-punta-roja); }
+.mm-punta--negra .mm-punta__cuerpo { fill: var(--ilus-punta-negra); }
+.mm-punta__metal { fill: var(--ilus-fusible-tapa); }

@@ -1,6 +1,6 @@
 // Galería de ejemplos: un diálogo con una tarjeta por circuito (miniatura, nombre y descripción),
 // en lugar de una lista larga dentro del panel.
-import { dibujarComponente, dibujarTierra, el } from "./dibujo.js";
+import { dibujarComponente, dibujarMultimetro, dibujarTierra, el } from "./dibujo.js";
 import { interpretarValor } from "./lib/valores.js";
 
 const $ = (id) => document.getElementById(id);
@@ -8,7 +8,7 @@ const PASO = 20;
 
 /** Miniatura SVG del circuito, encuadrada en sus piezas. */
 function miniatura(estado, vista, simbolo) {
-  const puntos = estado.components.flatMap((c) => [c.a, c.b]);
+  const puntos = estado.components.flatMap((c) => [c.a, c.b, ...(c.puntas ? [c.puntas.roja, c.puntas.negra] : [])]);
   const xs = puntos.map((p) => p.x);
   const ys = puntos.map((p) => p.y);
   const margen = 2;
@@ -23,6 +23,12 @@ function miniatura(estado, vista, simbolo) {
   for (const c of estado.components) {
     if (c.type === "ground") {
       dibujarTierra(px(c.a), piezas);
+      continue;
+    }
+    if (c.type === "multimeter") {
+      piezas.append(dibujarMultimetro({
+        a: px(c.a), b: px(c.b), modo: c.modo, puntas: { roja: px(c.puntas.roja), negra: px(c.puntas.negra) },
+      }, { texto: c.modo, capaPuntas: piezas }));
       continue;
     }
     let ohmios;

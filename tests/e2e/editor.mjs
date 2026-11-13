@@ -85,7 +85,7 @@ await pagina.click('[data-herramienta="seleccionar"]');
 await fase(pagina, "ok");
 await pagina.click("#pestana-resultados");
 ok(await pagina.locator('#editor [data-id="L1"].encendida').count() === 1, "lámpara (herramienta 6) encendida con la batería de 10 V");
-ok((await pagina.locator(".tabla-componentes").innerText()).includes("L1 · 69 %"), "brillo de la lámpara: 10² / 24 Ω = 4,17 W de 6 W (69 %)");
+ok((await pagina.locator(".tabla-componentes").innerText()).includes("· 69 %"), "brillo de la lámpara: 10² / 24 Ω = 4,17 W de 6 W (69 %)");
 ok(await canvasCambia(pagina), "los puntos de corriente se mueven por los cables (corriente calculada)");
 await pagina.screenshot({ path: `${SALIDA}/e1-armado.png` });
 

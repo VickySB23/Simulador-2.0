@@ -13,12 +13,13 @@
 // sus puntas, que se arrastran para estirarlo. Ctrl/Shift + clic suma o saca de la selección;
 // Shift + arrastrar el fondo selecciona con un rectángulo (Ctrl + arrastrar lo suma). Zoom con la
 // rueda o con dos dedos; mantener presionada una pieza en el celular abre su menú.
-import { dibujarComponente, dibujarNodo, dibujarTierra, el } from "./dibujo.js";
+import { dibujarComponente, dibujarMultimetro, dibujarNodo, dibujarTierra, el } from "./dibujo.js";
+import { nombresDeCorrientes, nombresDeNodos } from "./lib/nombres.js";
 import { calorResistencia, colorTension } from "./lib/animacion.js";
 import { corrientesDeTramos } from "./lib/corrientes.js";
 import {
   ALTO_MUNDO, ANCHO_MUNDO, TIPOS, centro, esVertical, mismoPunto, nombreNodo, nodosElectricos,
-  puntosConTerminal, terminalesDesdeCentro, tramosEnL,
+  puntosConTerminal, terminales, terminalesDesdeCentro, tramosEnL,
 } from "./lib/modelo.js";
 import { resumenFlotante } from "./lib/ficha.js";
 import { puntosDeEtiqueta, sentidoCorriente, tensionesPorPunto } from "./lib/netlist.js";
@@ -29,7 +30,7 @@ export const PASO = 20;
 const MARGEN = 10;
 const ANCHO_PX = ANCHO_MUNDO * PASO + 2 * MARGEN;
 const ALTO_PX = ALTO_MUNDO * PASO + 2 * MARGEN;
-const PIEZAS = new Set(["resistor", "voltage_source", "current_source", "lamp", "switch"]);
+const PIEZAS = new Set(["resistor", "voltage_source", "current_source", "lamp", "switch", "fuse", "potentiometer", "multimeter"]);
 const DOBLE_CLIC_MS = 400;
 const PRESION_LARGA_MS = 550;
 const ZOOM_MINIMO = 0.4;
@@ -54,6 +55,9 @@ function compacto(valor, unidad) {
 /** Texto del valor que acompaña al nombre del componente. */
 function valorTexto(c) {
   if (c.type === "lamp") return `${compacto(c.value, "Ω")} · ${compacto(c.potencia, "W")}`;
+  if (c.type === "voltage_source" && Number(String(c.rInterna ?? "0").replace(",", ".")) > 0) {
+    return `${compacto(c.value, "V")} · r ${compacto(c.rInterna, "Ω")}`;
+  }
   if (c.type === "switch" || c.type === "wire") return null;
   return compacto(c.value, TIPOS[c.type].unidad);
 }
@@ -96,6 +100,10 @@ function dibujarFlecha(capaTextos, c, corriente, enfocada = false) {
 function cajaDePieza(c) {
   const a = px(c.a);
   const b = px(c.b);
+  if (c.type === "multimeter") {
+    const m = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    return { x1: m.x - 40, x2: m.x + 40, y1: m.y - 26, y2: m.y + 26 };
+  }
   const [x1, x2] = [Math.min(a.x, b.x), Math.max(a.x, b.x)];
   const [y1, y2] = [Math.min(a.y, b.y), Math.max(a.y, b.y)];
   if (y1 === y2) return { x1: x1 + 12, x2: x2 - 12, y1: y1 - 32, y2: y1 + 24 };
@@ -104,15 +112,19 @@ function cajaDePieza(c) {
 
 const seTocan = (u, v) => u.x1 < v.x2 && v.x1 < u.x2 && u.y1 < v.y2 && v.y1 < u.y2;
 
-/** Lugar para una etiqueta de ancho `ancho` junto al punto p: arriba a la izquierda si se puede. */
+/** Lugar para una etiqueta de ancho `ancho` junto al punto p: arriba a la izquierda si se puede; si
+ * no entra al lado (por ejemplo, entre dos lámparas pegadas), más arriba o más abajo. */
 function lugarDeEtiqueta(p, ancho, ocupado) {
   const alto = 11;
   const candidatos = [
     { x: p.x - 7, y: p.y - 9, ancla: "end" }, { x: p.x + 7, y: p.y - 9, ancla: "start" },
     { x: p.x - 7, y: p.y + 18, ancla: "end" }, { x: p.x + 7, y: p.y + 18, ancla: "start" },
     { x: p.x - 9, y: p.y + 4, ancla: "end" }, { x: p.x + 9, y: p.y + 4, ancla: "start" },
+    // Más lejos, arriba o abajo de las piezas (entre dos lámparas pegadas no entra al lado).
+    { x: p.x, y: p.y + 50, ancla: "middle" }, { x: p.x, y: p.y - 46, ancla: "middle" },
+    { x: p.x - 7, y: p.y + 50, ancla: "end" }, { x: p.x + 7, y: p.y + 50, ancla: "start" },
   ].map((c) => {
-    const x1 = c.ancla === "end" ? c.x - ancho : c.x;
+    const x1 = c.ancla === "end" ? c.x - ancho : c.ancla === "middle" ? c.x - ancho / 2 : c.x;
     return { ...c, caja: { x1, x2: x1 + ancho, y1: c.y - alto + 2, y2: c.y + 2 } };
   });
   const elegido = candidatos.find((c) => !ocupado.some((o) => seTocan(c.caja, o))) ?? candidatos[0];
@@ -150,6 +162,9 @@ export function crearEditor(svg, contenedor, ctl, animador, info) {
   let previa = null;
   /** Nodos eléctricos del último dibujo (para mostrar los números de lo enfocado). */
   let nodosActuales = new Map();
+  /** Nombres de nodos (A, B…) y de corrientes (I₁, I₂…) del último dibujo. */
+  let nombres = { porPunto: new Map(), porGrupo: new Map() };
+  let corrientesNombradas = new Map();
   let enfocado = null;
   let ocultarCartel = null;
 
@@ -218,7 +233,7 @@ export function crearEditor(svg, contenedor, ctl, animador, info) {
     const g = { x: Math.round(e.x), y: Math.round(e.y) };
     const radio = evento.pointerType === "mouse" ? 9 : 16;
     if (Math.hypot(e.x - g.x, e.y - g.y) * PASO * zoom > radio) return null;
-    return ctl.estado.components.some((c) => mismoPunto(c.a, g) || mismoPunto(c.b, g)) ? g : null;
+    return ctl.estado.components.some((c) => terminales(c).some((q) => mismoPunto(q, g))) ? g : null;
   }
 
   /** Componente bajo el puntero (las tierras también son componentes): {id} o null. */
@@ -272,11 +287,23 @@ export function crearEditor(svg, contenedor, ctl, animador, info) {
     const capaNodos = el("g", {}, svg);
     const capaTextos = el("g", {}, svg);
     const capaTierra = el("g", {}, svg);
+    const capaInstrumentos = el("g", {}, svg); // puntas del multímetro, arriba de todo
+    nombres = nombresDeNodos(estado);
+    corrientesNombradas = nombresDeCorrientes(estado);
     infoPorId = new Map();
     capaFantasma = el("g", { class: "fantasma" }, svg);
     const animaciones = [];
 
     for (const c of estado.components) {
+      if (c.type === "multimeter") {
+        const lectura = ctl.lecturas?.get(c.id);
+        const g = dibujarMultimetro({
+          id: c.id, a: px(c.a), b: px(c.b), modo: c.modo, puntas: { roja: px(c.puntas.roja), negra: px(c.puntas.negra) },
+        }, { texto: lectura?.texto, aviso: Boolean(lectura?.aviso), seleccionado: seleccionados.has(c.id), capaPuntas: capaInstrumentos });
+        capaPiezas.append(g);
+        infoPorId.set(c.id, { fila: porId.get(c.id), lectura });
+        continue;
+      }
       if (c.type === "ground") {
         const p = px(c.a);
         const g = el("g", {
@@ -308,7 +335,7 @@ export function crearEditor(svg, contenedor, ctl, animador, info) {
         }
       }
       const g = dibujarComponente({
-        id: c.id, type: c.type, a: px(c.a), b: px(c.b), closed: c.closed, ohmios,
+        id: c.id, type: c.type, a: px(c.a), b: px(c.b), closed: c.closed, ohmios, posicion: c.posicion,
         etiqueta: c.type === "wire" ? null : c.id, valor: valorTexto(c),
       }, {
         vista: ctl.vista,
@@ -318,7 +345,7 @@ export function crearEditor(svg, contenedor, ctl, animador, info) {
           corriente,
           potencia: res?.power,
           potenciaNominal,
-          quemada: res?.burned,
+          quemada: Boolean(res?.burned || res?.blown || c.quemada || c.quemado),
           calor: c.type === "resistor" ? calorResistencia(res?.power, potenciaMaxima) : 0,
           color: c.type === "wire" ? colorDe(c.a) : null,
           seleccionado: seleccionados.has(c.id),
@@ -326,9 +353,10 @@ export function crearEditor(svg, contenedor, ctl, animador, info) {
         },
       });
       // Tensión y corriente para el cartel que aparece al pasar el mouse.
+      const nodoDe = (p) => nombres.porPunto.get(nombreNodo(p));
       infoPorId.set(c.id, esTramo
-        ? { fila: res, tension: tensiones.get(nombreNodo(c.a)), corriente: resultado ? corriente : undefined }
-        : { fila: res });
+        ? { fila: res, tension: tensiones.get(nombreNodo(c.a)), corriente: resultado ? corriente : undefined, nodo: nodoDe(c.a) }
+        : { fila: res, nombreCorriente: corrientesNombradas.get(c.id), nodos: [nodoDe(c.a), nodoDe(c.b)] });
       if (sinConectar.has(c.id)) g.classList.add("sin-conectar");
       // La palanca se anima: se dibuja en el estado anterior y se cambia en el cuadro siguiente.
       if (c.type === "switch" && ctl.interruptorRecienCambiado === c.id) {
@@ -359,19 +387,23 @@ export function crearEditor(svg, contenedor, ctl, animador, info) {
       el("circle", { class: "borne-suelto__anillo", cx: p.x, cy: p.y, r: 4.5 }, g);
     }
 
-    // Una etiqueta de tensión por nodo eléctrico, en el primer lugar alrededor del nodo que no
-    // tape el dibujo de una pieza (el bulbo de una lámpara, una batería acostada) ni otra etiqueta.
-    if (resultado) {
-      const ocupado = estado.components.filter((c) => c.type !== "wire" && c.type !== "ground").map(cajaDePieza);
+    // Una etiqueta por nodo eléctrico: su nombre (A, B… o el que le pusieron; doble clic para
+    // cambiarlo) y su tensión, en el primer lugar alrededor del nodo que no tape el dibujo de una
+    // pieza (el bulbo de una lámpara, una batería acostada) ni otra etiqueta. GND tiene su símbolo.
+    {
+      const ocupado = estado.components.filter((c) => !["wire", "ground"].includes(c.type)).map(cajaDePieza);
       for (const punto of puntosDeEtiqueta(estado)) {
+        const nombre = nombres.porPunto.get(nombreNodo(punto));
         const v = tensiones.get(nombreNodo(punto));
-        if (v === undefined) continue;
-        const contenido = formatearSI(v, "V");
-        const lugar = lugarDeEtiqueta(px(punto), contenido.length * 7.2, ocupado);
+        const valor = v === undefined ? "" : ` = ${formatearSI(v, "V")}`;
+        const lugar = lugarDeEtiqueta(px(punto), (nombre.length + valor.length) * 7.2, ocupado);
         ocupado.push(lugar.caja);
-        const etiqueta = texto(contenido, {
-          class: "etiqueta etiqueta--tension tension", "data-nodo": nodosActuales.get(nombreNodo(punto)), ...lugar.atributos,
+        const etiqueta = el("text", {
+          class: "etiqueta etiqueta--tension tension", "data-nodo": nodosActuales.get(nombreNodo(punto)),
+          "data-punto": nombreNodo(punto), ...lugar.atributos,
         }, capaTextos);
+        el("tspan", { class: "nombre-nodo" }, etiqueta).textContent = nombre;
+        if (valor) el("tspan", { class: "valor-nodo" }, etiqueta).textContent = valor;
         if (nodosEnfocados(seleccion.ids).has(etiqueta.dataset.nodo)) etiqueta.classList.add("con-foco");
       }
     }
@@ -466,10 +498,13 @@ export function crearEditor(svg, contenedor, ctl, animador, info) {
     const herramienta = piezaArrastrada ?? ctl.herramienta;
     if (!puntero || (herramienta === "seleccionar" && !previa)) return;
     const p = px(puntero);
-    if (PIEZAS.has(herramienta)) {
+    if (herramienta === "multimeter") {
+      const { a, b } = terminalesDesdeCentro(puntero, ctl.rotacion);
+      capaFantasma.append(dibujarMultimetro({ a: px(a), b: px(b), modo: "V", puntas: { roja: px(a), negra: px(b) } }));
+    } else if (PIEZAS.has(herramienta)) {
       const { a, b } = terminalesDesdeCentro(puntero, ctl.rotacion);
       capaFantasma.append(dibujarComponente(
-        { type: herramienta, a: px(a), b: px(b), closed: true }, { vista: ctl.vista, etiquetas: false }));
+        { type: herramienta, a: px(a), b: px(b), closed: true, posicion: 0.5 }, { vista: ctl.vista, simbolo: ctl.simboloResistencia, etiquetas: false }));
     } else if (herramienta === "ground") {
       dibujarTierra(p, capaFantasma);
     }
@@ -513,6 +548,14 @@ export function crearEditor(svg, contenedor, ctl, animador, info) {
       enfocar(null);
       return cartelEn(evento.clientX, evento.clientY, ...SUELTO);
     }
+    const etiquetaNodo = evento.target.closest?.("text.tension[data-punto]");
+    if (etiquetaNodo) {
+      enfocar(null);
+      const nombre = etiquetaNodo.querySelector(".nombre-nodo")?.textContent ?? "";
+      const valor = etiquetaNodo.querySelector(".valor-nodo")?.textContent.replace(" = ", "") ?? "";
+      return cartelEn(evento.clientX, evento.clientY, `Nodo ${nombre}`,
+        `${valor ? `${valor} respecto de GND · ` : ""}doble clic para cambiarle el nombre`);
+    }
     const nodo = evento.target.closest?.("[data-id]");
     const componente = nodo && ctl.estado.components.find((c) => c.id === nodo.dataset.id);
     if (!componente) return ocultarInfo();
@@ -555,6 +598,8 @@ export function crearEditor(svg, contenedor, ctl, animador, info) {
       if (!ctl.terminarArrastre() && g.movio) render();
     } else if (g.tipo === "rectangulo") {
       g.nodo?.remove();
+    } else if (g.tipo === "punta") {
+      g.nodo.removeAttribute("transform");
     } else if (g.tipo === "cable" || g.tipo === "borne" || g.tipo === "estirar") {
       previa = null;
       renderFantasma();
@@ -634,6 +679,25 @@ export function crearEditor(svg, contenedor, ctl, animador, info) {
     if (PIEZAS.has(herramienta)) return ctl.colocarPieza(herramienta, punto, { mantener: evento.shiftKey });
 
     // --- Seleccionar (el modo normal) ---
+    // Las puntas del multímetro se arrastran a cualquier punto del circuito.
+    const punta = evento.target.closest?.("[data-punta]");
+    if (punta) {
+      gesto = { tipo: "punta", id: punta.dataset.instrumento, cual: punta.dataset.punta, inicio: punto, nodo: punta };
+      return;
+    }
+    // Doble clic (o doble toque) en la etiqueta de un nodo: cambiarle el nombre.
+    const etiquetaNodo = evento.target.closest?.("text.tension[data-punto]");
+    if (etiquetaNodo) {
+      const clave = `nodo:${etiquetaNodo.dataset.punto}`;
+      if (ultimoToque?.id === clave && evento.timeStamp - ultimoToque.tiempo < DOBLE_CLIC_MS) {
+        ultimoToque = null;
+        const [x, y] = etiquetaNodo.dataset.punto.split("_").map(Number);
+        ctl.renombrarNodo({ x, y });
+      } else {
+        ultimoToque = { id: clave, tiempo: evento.timeStamp };
+      }
+      return;
+    }
     const asa = evento.target.closest?.("[data-asa]");
     if (asa) {
       gesto = { tipo: "estirar", id: asa.dataset.cable, extremo: asa.dataset.asa, inicio: punto };
@@ -737,6 +801,9 @@ export function crearEditor(svg, contenedor, ctl, animador, info) {
       }
     } else if (gesto.tipo === "cable") {
       if (cambio) dibujarHasta(punto);
+    } else if (gesto.tipo === "punta") {
+      // La punta sigue al puntero (solo ella: el resto del dibujo no se toca hasta soltar).
+      gesto.nodo.setAttribute("transform", `translate(${(punto.x - gesto.inicio.x) * PASO} ${(punto.y - gesto.inicio.y) * PASO})`);
     } else if (gesto.tipo === "estirar" && cambio) {
       const cable = ctl.estado.components.find((c) => c.id === gesto.id);
       if (!cable) return;
@@ -781,6 +848,10 @@ export function crearEditor(svg, contenedor, ctl, animador, info) {
       } else if (clic && g.tipoPieza === "switch") {
         // Un clic sin arrastrar sobre un interruptor lo abre o lo cierra.
         ctl.alternarInterruptor(g.sel.id);
+      } else if (clic) {
+        // Un clic sobre un fusible o una lámpara quemados los reemplaza por uno nuevo.
+        const pieza = ctl.estado.components.find((c) => c.id === g.sel.id);
+        if (pieza?.quemado || pieza?.quemada) ctl.reemplazarQuemado(pieza.id);
       }
     } else if (g.tipo === "borne") {
       // Clic sobre un borne, sin arrastrar: como un clic sobre lo que hay ahí. Si está al aire, el
@@ -798,6 +869,9 @@ export function crearEditor(svg, contenedor, ctl, animador, info) {
         ctl.seleccionar(SELECCION_VACIA);
         render();
       }
+    } else if (g.tipo === "punta") {
+      if (punto && !mismoPunto(punto, g.inicio)) ctl.moverPunta(g.id, g.cual, punto);
+      else g.nodo.removeAttribute("transform");
     } else if (g.tipo === "estirar") {
       previa = null;
       if (punto && !mismoPunto(punto, g.inicio)) ctl.estirarCable(g.id, g.extremo, punto);

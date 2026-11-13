@@ -11,10 +11,13 @@ import { PREFIJO_HASH, codificar, decodificar } from "./lib/compartir.js";
 import { EJEMPLOS } from "./lib/ejemplos.js";
 import { Historial } from "./lib/historial.js";
 import {
-  TIPOS, aLayout, agregarCableEnL, agregarPieza, alternarInterruptor, buscar, cambiarPotencia, cambiarValor,
-  circuitoVacio, desdeLayout, estirarCable, insercionEnCable, ponerTierra, restaurar, rotar, tieneValor,
+  TIPOS, aLayout, agregarCableEnL, agregarPieza, alternarInterruptor, buscar, cambiarCampo, cambiarModoMultimetro,
+  cambiarPotencia, cambiarValor, circuitoVacio, desdeLayout, estirarCable, insercionEnCable, marcarQuemados, moverPunta,
+  nombreNodo, ponerTierra, reemplazarQuemado, restaurar, rotar, tieneValor,
 } from "./lib/modelo.js";
 import { conTierrasAutomaticas, recordarTierrasBorradas, simularHoja } from "./lib/netlist.js";
+import { escalaDe, rangoDe, textoDeValor } from "./lib/deslizador.js";
+import { nombresDeNodos, renombrarNodo, validarNombreNodo } from "./lib/nombres.js";
 import {
   SELECCION_VACIA, copiarSeleccion, eliminarSeleccion, moverSeleccion, pegar, rotarSeleccion, seleccionVacia,
 } from "./lib/seleccion.js";
@@ -24,10 +27,11 @@ import { crearTutorial } from "./tutorial.js";
 
 const $ = (id) => document.getElementById(id);
 const HERRAMIENTAS = ["seleccionar", "wire", "resistor", "voltage_source", "current_source", "lamp", "switch", "ground"];
-const PIEZAS = new Set(["resistor", "voltage_source", "current_source", "lamp", "switch"]);
+const PIEZAS = new Set(["resistor", "voltage_source", "current_source", "lamp", "switch", "fuse", "potentiometer", "multimeter"]);
 /** Atajos de una letra para las herramientas (también en los tooltips de la barra). */
 const ATAJOS = {
   c: "wire", r: "resistor", b: "voltage_source", i: "current_source", l: "lamp", s: "switch", g: "ground",
+  m: "multimeter", u: "fuse", o: "potentiometer",
 };
 
 function leerPreferencia(clave, porDefecto) {
@@ -55,6 +59,8 @@ const ctl = {
   /** Cada circuito de la hoja con su resultado o su error (lib/netlist.js simularHoja). */
   circuitos: [],
   vacio: null,
+  /** Lectura de cada multímetro: Map<id, {modo, texto, valor, aviso}>. */
+  lecturas: new Map(),
   /** Circuito resaltado al tocar su grupo en Resultados o Ecuaciones. */
   circuitoResaltado: null,
   /** En el celular: tocar suma o saca piezas y un dedo sobre el fondo dibuja el rectángulo. */
@@ -97,6 +103,78 @@ const ctl = {
   ponerTierra(punto) {
     if (ctl.herramienta === "ground") elegirHerramienta("seleccionar");
     aplicar(ponerTierra(ctl.estado, punto).estado);
+  },
+  /** Un clic sobre un fusible o una lámpara quemados: uno nuevo en su lugar. */
+  reemplazarQuemado(id) {
+    aplicar(reemplazarQuemado(ctl.estado, id));
+    avisar(`${id} reemplazado por uno nuevo.`);
+  },
+  moverPunta(id, cual, punto) {
+    aplicar(moverPunta(ctl.estado, id, cual, punto));
+  },
+  /** Selector del multímetro: V, A o Ω. */
+  cambiarModo(id, modo) {
+    aplicar(cambiarModoMultimetro(ctl.estado, id, modo));
+  },
+  /** Mientras se mueve el deslizador: el circuito se recalcula sin llenar el historial. */
+  valorEnVivo(id, campo, valor) {
+    if (!ctl._antesDelDeslizador) ctl._antesDelDeslizador = ctl.estado;
+    ctl.estado = cambiarCampo(ctl.estado, id, campo, valor);
+    simular();
+  },
+  /** Al soltar el deslizador: un solo paso en el historial. */
+  confirmarValor() {
+    const antes = ctl._antesDelDeslizador;
+    ctl._antesDelDeslizador = null;
+    if (antes && antes !== ctl.estado) {
+      historial.registrar(antes);
+      circuitoCambiado();
+    }
+  },
+  async fijarRango(id) {
+    const c = buscar(ctl.estado, id);
+    if (!c) return;
+    const unidad = TIPOS[c.type].unidad;
+    const rango = rangoDe(c);
+    const valores = await pedirValores({
+      titulo: `Rango del deslizador de ${id}`,
+      ayuda: `Mínimo y máximo (${escalaDe(c) === "log" ? "escala logarítmica: el mínimo tiene que ser mayor que 0" : "escala lineal"}). Dejalos vacíos para volver al rango automático.`,
+      campos: [
+        { etiqueta: `Mínimo (${unidad})`, valor: c.rango?.min ?? textoDeValor(rango.min), validar: (t) => validarNumero(t, true) },
+        { etiqueta: `Máximo (${unidad})`, valor: c.rango?.max ?? textoDeValor(rango.max), validar: (t) => validarNumero(t, true) },
+      ],
+    });
+    if (!valores) return;
+    const [min, max] = valores.map((t) => normalizarTexto(t.trim()));
+    if (!min && !max) return aplicar(cambiarCampo(ctl.estado, id, "rango", undefined));
+    const [vmin, vmax] = [interpretarValor(min || "0"), interpretarValor(max || "0")];
+    if (!(vmax > vmin) || (escalaDe(c) === "log" && !(vmin > 0))) {
+      avisar("El máximo tiene que ser mayor que el mínimo (y, en escala logarítmica, el mínimo mayor que 0).");
+      return;
+    }
+    aplicar(cambiarCampo(ctl.estado, id, "rango", { min, max }));
+  },
+  cambiarResistenciaInterna(id, texto) {
+    const error = validarNumero(texto, false, true);
+    if (error) {
+      avisar(`Resistencia interna: ${error}`);
+      renderResultados(ctl);
+      return;
+    }
+    aplicar(cambiarCampo(ctl.estado, id, "rInterna", normalizarTexto(texto.trim() || "0")));
+  },
+  /** Doble clic en la etiqueta de un nodo: cambiarle el nombre (vacío vuelve a la letra). */
+  async renombrarNodo(punto) {
+    const nombres = nombresDeNodos(ctl.estado);
+    const actual = nombres.porPunto.get(nombreNodo(punto));
+    if (!actual || actual === "GND") return;
+    const otros = [...new Set(nombres.porGrupo.values())].filter((n) => n !== actual);
+    const texto = await pedirTexto({
+      titulo: "Nombre del nodo", etiqueta: "Nombre", valor: actual,
+      ayuda: "Hasta 8 letras o números. Vacío vuelve a la letra automática. GND es siempre la tierra (0 V).",
+      validar: (t) => validarNombreNodo(t, otros),
+    });
+    if (texto !== null) aplicar(renombrarNodo(ctl.estado, punto, texto));
   },
   /** Resalta un circuito en el dibujo (o lo deja de resaltar si ya estaba). */
   resaltarCircuito(numero) {
@@ -171,6 +249,7 @@ const ctl = {
     const componente = buscar(ctl.estado, id);
     if (!componente || !tieneValor(componente.type)) return;
     if (componente.type === "lamp") return editarLampara(componente);
+    if (componente.type === "voltage_source") return editarBateria(componente);
     const { nombre, unidad } = TIPOS[componente.type];
     const texto = await pedirTexto({
       titulo: `Valor de ${id}`,
@@ -183,6 +262,7 @@ const ctl = {
           if (componente.type === "resistor" && v <= 0) {
             return "La resistencia tiene que ser mayor que 0 Ω (para un corto usá un cable).";
           }
+          if ((componente.type === "fuse" || componente.type === "potentiometer") && v <= 0) return "Tiene que ser mayor que 0.";
           return null;
         } catch (e) {
           return e.message;
@@ -200,6 +280,32 @@ function validarPositivo(t, que) {
   } catch (e) {
     return e.message;
   }
+}
+
+/** Valida un número con prefijos: vacío permitido si `vacio`; si `cero`, se acepta 0. */
+function validarNumero(t, vacio = false, cero = false) {
+  if (vacio && !t.trim()) return null;
+  try {
+    const v = interpretarValor(t.trim() || "0");
+    return v > 0 || (cero && v === 0) ? null : `Tiene que ser mayor que 0${cero ? " (o 0)" : ""}.`;
+  } catch (e) {
+    return e.message;
+  }
+}
+
+/** Batería: tensión y resistencia interna (0 Ω si es ideal). */
+async function editarBateria(bateria) {
+  const valores = await pedirValores({
+    titulo: `Batería ${bateria.id}`,
+    ayuda: "Con resistencia interna, la tensión en bornes baja cuando la batería entrega corriente.",
+    campos: [
+      { etiqueta: "Tensión (V)", valor: bateria.value, validar: (t) => { try { interpretarValor(t); return null; } catch (e) { return e.message; } } },
+      { etiqueta: "Resistencia interna (Ω)", valor: bateria.rInterna ?? "0", validar: (t) => validarNumero(t, false, true) },
+    ],
+  });
+  if (!valores) return;
+  const [tension, interna] = valores.map(normalizarTexto);
+  aplicar(cambiarCampo(cambiarValor(ctl.estado, bateria.id, tension), bateria.id, "rInterna", interna));
 }
 
 async function editarLampara(lampara) {
@@ -245,6 +351,14 @@ function simular() {
   ctl.vacio = hoja.vacio;
   ctl.sinConectar = hoja.sinConectar;
   ctl.bornesSueltos = hoja.bornesSueltos;
+  ctl.lecturas = hoja.lecturas;
+  // Lo que se quemó queda quemado hasta que se reemplace (no "revive" al bajar la tensión).
+  const quemados = [...(hoja.resultado?.stats.burned_lamps ?? []), ...(hoja.resultado?.stats.blown_fuses ?? [])];
+  const marcado = marcarQuemados(ctl.estado, quemados);
+  if (marcado !== ctl.estado) {
+    ctl.estado = marcado;
+    programarBorrador();
+  }
   if (ctl.circuitoResaltado && !hoja.circuitos.some((c) => c.numero === ctl.circuitoResaltado)) ctl.circuitoResaltado = null;
   mostrarEstado();
   editor.render();
@@ -819,9 +933,11 @@ document.addEventListener("pointerdown", (evento) => {
   if (!evento.target.closest?.(".desplegable")) cerrarDesplegables();
 });
 addEventListener("resize", () => cerrarDesplegables());
-$("menu-exportar").addEventListener("click", (evento) => {
-  if (evento.target.closest("button")) cerrarDesplegables();
-});
+for (const menu of ["menu-exportar", "menu-mas"]) {
+  $(menu).addEventListener("click", (evento) => {
+    if (evento.target.closest("button")) cerrarDesplegables();
+  });
+}
 
 function elegirEtiquetas(modo) {
   ctl.etiquetas = modo;
@@ -848,6 +964,7 @@ function alternarPausa() {
   boton.setAttribute("aria-pressed", String(pausadas));
   boton.querySelector("svg").replaceWith(icono(pausadas ? "reproducir" : "pausa"));
   boton.querySelector("span").textContent = pausadas ? "Reanudar" : "Pausa";
+  boton.setAttribute("aria-label", pausadas ? "Reanudar" : "Pausa");
   animador.pausar(pausadas);
 }
 
@@ -889,6 +1006,7 @@ function arrastrableDesdeBarra(boton, tipo) {
       setTimeout(() => { ignorarClic = false; }, 0);
       if (soltar) editor.soltarPieza(tipo, e.clientX, e.clientY);
       else editor.mostrarPieza(null, -1, -1);
+      cerrarDesplegables();
     };
     const alSoltar = (e) => terminar(e, true);
     const alCancelar = (e) => terminar(e, false);

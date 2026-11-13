@@ -50,10 +50,18 @@
       <button class="boton herramienta" data-herramienta="wire" title="Cable (C)"><span data-icono="cable"></span><span>Cable</span></button>
       <button class="boton herramienta" data-herramienta="resistor" title="Resistencia (R) · también se arrastra al circuito"><span data-icono="resistencia"></span><span>R</span></button>
       <button class="boton herramienta" data-herramienta="voltage_source" title="Batería / fuente de tensión (B) · también se arrastra al circuito"><span data-icono="bateria"></span><span>Batería</span></button>
-      <button class="boton herramienta" data-herramienta="current_source" title="Fuente de corriente (I) · también se arrastra al circuito"><span data-icono="fuente-corriente"></span><span>I</span></button>
       <button class="boton herramienta" data-herramienta="lamp" title="Lámpara (L) · también se arrastra al circuito"><span data-icono="lampara"></span><span>Lámpara</span></button>
       <button class="boton herramienta" data-herramienta="switch" title="Interruptor (S) · también se arrastra al circuito"><span data-icono="interruptor"></span><span>Interruptor</span></button>
       <button class="boton herramienta" data-herramienta="ground" title="Tierra (G) · también se arrastra al circuito"><span data-icono="tierra"></span><span>GND</span></button>
+      <button class="boton herramienta" data-herramienta="multimeter" title="Multímetro (M): V, A y Ω · arrastralo al circuito"><span data-icono="multimetro"></span><span>Multímetro</span></button>
+      <div class="desplegable">
+        <button id="boton-menu-mas" class="boton" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="menu-mas" title="Más piezas: fuente de corriente, fusible y potenciómetro"><span>Más</span><span data-icono="abajo"></span></button>
+        <div id="menu-mas" class="desplegable__panel" hidden>
+          <button class="boton boton--plano herramienta" data-herramienta="current_source" title="Fuente de corriente (I) · también se arrastra al circuito"><span data-icono="fuente-corriente"></span><span>Fuente de corriente</span><kbd>I</kbd></button>
+          <button class="boton boton--plano herramienta" data-herramienta="fuse" title="Fusible (U) · también se arrastra al circuito"><span data-icono="fusible"></span><span>Fusible</span><kbd>U</kbd></button>
+          <button class="boton boton--plano herramienta" data-herramienta="potentiometer" title="Potenciómetro (O) · también se arrastra al circuito"><span data-icono="potenciometro"></span><span>Potenciómetro</span><kbd>O</kbd></button>
+        </div>
+      </div>
     </div>
     <div class="barra__grupo" role="group" aria-label="Edición">
       <button id="accion-varios" aria-label="Seleccionar varios" class="boton solo-tactil" type="button" aria-pressed="false" title="Seleccionar varios: tocá piezas para sumarlas o arrastrá un rectángulo con un dedo"><span data-icono="varios"></span><span>Varios</span></button>
@@ -64,8 +72,8 @@
       <button id="accion-rehacer" aria-label="Rehacer" class="boton" type="button" title="Rehacer (Ctrl+Y)"><span data-icono="rehacer"></span><span>Rehacer</span></button>
     </div>
     <div class="barra__grupo" role="group" aria-label="Vista">
-      <button id="accion-ajustar" class="boton" type="button" title="Ajustar el circuito a la pantalla (F)"><span data-icono="ajustar"></span><span>Ajustar</span></button>
-      <button id="accion-pausa" class="boton" type="button" title="Pausar o reanudar las animaciones" aria-pressed="false"><span data-icono="pausa"></span><span>Pausa</span></button>
+      <button id="accion-ajustar" aria-label="Ajustar el circuito a la pantalla" class="boton" type="button" title="Ajustar el circuito a la pantalla (F)"><span data-icono="ajustar"></span><span>Ajustar</span></button>
+      <button id="accion-pausa" aria-label="Pausa" class="boton" type="button" title="Pausar o reanudar las animaciones" aria-pressed="false"><span data-icono="pausa"></span><span>Pausa</span></button>
       <div class="desplegable">
         <button id="boton-menu-vista" class="boton" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="menu-vista" title="Vista del dibujo y de la corriente"><span data-icono="ilustrada"></span><span>Vista</span><span data-icono="abajo"></span></button>
         <div id="menu-vista" class="desplegable__panel" hidden>
@@ -163,6 +171,7 @@
         <div class="tarjeta__cuerpo">
           <section id="ficha" class="ficha" aria-live="polite" hidden>
             <h3 id="ficha-titulo" class="ficha__titulo"></h3>
+            <div id="ficha-control" class="ficha__control"></div>
             <dl id="ficha-datos" class="ficha__datos"></dl>
             <div id="ficha-avisos" class="ficha__avisos"></div>
           </section>
@@ -215,6 +224,8 @@
         <summary>Atajos de teclado</summary>
         <dl>
           <dt>C R B I L S G</dt><dd>Cable, resistencia, batería, fuente de corriente, lámpara, interruptor, tierra</dd>
+          <dt>M U O</dt><dd>Multímetro, fusible, potenciómetro</dd>
+          <dt>Doble clic en un nodo</dt><dd>Cambiarle el nombre</dd>
           <dt>Esc</dt><dd>Volver a Seleccionar</dd>
           <dt>Espacio</dt><dd>Rotar</dd>
           <dt>F</dt><dd>Ajustar el circuito a la pantalla</dd>
