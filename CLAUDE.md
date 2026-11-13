@@ -78,7 +78,19 @@ relativa a la escala).
   `floating_nodes` (en rojo). Ecuaciones usa el mismo estado activo.
 - **Insertar en un cable:** al colocar una pieza, o al soltar una sola arrastrada, con el centro
   sobre un cable, `insertarEnCable` la alinea y corta el cable en sus bornes.
-- **Selección:** `ctl.seleccion = {ids, tierra}` (lib/seleccion.js); operaciones todo o nada.
+- **Selección:** `ctl.seleccion = {ids}` (lib/seleccion.js); operaciones todo o nada.
+- **Tierras:** son componentes `type: "ground"` de un solo punto (a = b, ids G1, G2…; contador G).
+  `armarNetlist` usa la primera como referencia y une las demás con cables ideales (`~G2`). Los
+  layouts y links viejos con `ground` se convierten en G1. `conTierrasAutomaticas` (netlist.js) pone
+  una `auto` en el borne − de la batería de cada circuito sin tierra y saca las automáticas
+  sueltas; `recordarTierrasBorradas` guarda en `estado.sinTierraAuto` la firma del circuito cuya
+  automática se borró (no vuelve hasta que la firma cambia). app.js lo aplica en `aplicar`,
+  `terminarArrastre` y `cargar` (`normalizar`).
+- **Varios circuitos:** `simularHoja` parte la hoja en circuitos (`circuitosDe`: lo que se toca por
+  bornes o cables, numerados de izquierda a derecha) y simula cada uno con `simularEstado`. Un
+  error queda en su circuito (`ctl.errores` con `numero`); `ctl.resultado` combina los que dieron.
+  Sin fuente ni tierra un circuito es "incompleto", no un error. Los paneles clonan
+  `<template id="plantilla-resultados">` / `plantilla-ecuaciones` por circuito (clases, no ids).
 - **Sin modos (editor.js, un gesto por vez en `gesto`):** con Seleccionar, apretar cerca de un
   borne o punta (9 px con mouse, 16 con el dedo) y arrastrar dibuja un cable (`agregarCableEnL`,
   dobla según el primer movimiento y parte el cable sobre el que termina); sobre una pieza la
@@ -129,9 +141,9 @@ render reemplaza los elementos del SVG.
 ## Comandos
 
 ```bash
-cd frontend && node --test                  # 155 tests
+cd frontend && node --test                  # 165 tests
 node tests/e2e/servir.mjs                   # http://localhost:8000/Simulador-2.0/
-cd tests/e2e && npm install && node verificar.mjs capturas   # 33 comprobaciones en Chrome
+cd tests/e2e && npm install && node verificar.mjs capturas   # 38 comprobaciones en Chrome
 node tests/e2e/actualizacion.mjs            # aviso de versión nueva (publicar mientras espera)
 node tests/e2e/galeria.mjs capturas         # capturas de la galería y cuadros/s con 50 componentes
 node tests/e2e/editor.mjs capturas          # editor: lámpara, interruptor, vista, arrastre y cuadros/s

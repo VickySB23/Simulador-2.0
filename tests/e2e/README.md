@@ -1,12 +1,15 @@
 # Pruebas de la página en el navegador
 
 `verificar.mjs` maneja un Chrome real (headless) y recorre la página como lo haría un usuario
-(33 comprobaciones):
+(38 comprobaciones):
 
 - los trece ejemplos simulan; el TP4 da 30 V y la fuente entrega 12,5 A, el Wheatstone equilibrado no tiene
   corriente en el galvanómetro y las dos mallas dan 7,5 V;
 - el panel de ecuaciones (KCL con valores, matriz MNA y solución);
-- una pieza suelta se marca "sin conectar" sin frenar el resto, y un lazo sin tierra se marca en rojo con el mensaje del motor;
+- una pieza suelta se marca "sin conectar" sin frenar el resto;
+- un segundo circuito recibe su tierra automática (con aviso que se cierra), se nombra en el dibujo
+  y en Resultados; un lazo de fuentes en él se marca en rojo solo ahí mientras el TP4 sigue dando
+  30 V, y tocar un grupo resalta su circuito; la tierra se arrastra a otro nodo;
 - deshacer y rehacer (con la tierra) e ids que no se repiten;
 - edición de valores con validación;
 - **Compartir:** el link abierto en otro navegador reproduce el circuito exacto (componentes,

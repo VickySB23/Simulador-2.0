@@ -28,7 +28,9 @@ nueva — Actualizar"**: con un clic se recarga con la versión nueva (el circui
    clic agrega un tramo desde el anterior; **Esc** termina.
 3. Dos terminales quedan conectados si caen en el mismo punto de la grilla o si los une un cable
    (un cable que termina en el medio de otro también se conecta).
-4. **Poné la tierra** con **GND** en algún nodo. Sin tierra no hay referencia y el simulador lo avisa.
+4. **La tierra (GND)** se pone sola en el borne − de la batería, con un aviso que se puede cerrar.
+   Arrastrala a cualquier nodo; puede haber varias (todas valen 0 V). Si la borrás, no vuelve a
+   aparecer en ese circuito hasta que lo cambies.
 5. **Cambiá los valores** con **doble clic** sobre la pieza. Se aceptan prefijos: `10k`, `4.7k`
    (o `4,7k`), `1MEG`, `5m`, `2.2u`. `M` y `MEG` son mega; `m` es mili. La lámpara pide dos:
    su resistencia y su potencia nominal.
@@ -48,6 +50,12 @@ duplica con **Ctrl+D**. Con una sola pieza seleccionada, arriba de los resultado
 
 Un componente con un borne al aire se marca **"sin conectar"** y no frena nada: por él no circula
 corriente y el resto del circuito se sigue simulando.
+
+**Varios circuitos en la misma hoja:** cada uno se calcula por separado. Si uno tiene un error
+(por ejemplo, dos baterías en paralelo) se marca en rojo solo ese, y los demás siguen mostrando sus
+resultados. Resultados y Ecuaciones los agrupan ("Circuito 1", "Circuito 2"…): tocar un grupo
+resalta su circuito en el dibujo. En el celular, el botón **Varios** de la barra permite elegir
+varias piezas tocándolas o con un rectángulo dibujado con un dedo.
 
 **¿Primera vez?** El botón **?** del encabezado abre un tutorial corto, paso a paso: batería,
 lámpara, cables, GND, encenderla, interruptor y quemarla. Cada paso espera a que lo hagas; se
@@ -104,8 +112,8 @@ rojo el lugar del problema.
 
 | Mensaje | Qué pasa | Cómo se arregla |
 | --- | --- | --- |
-| Falta la tierra | No hay GND | Poné GND en un nodo |
-| Nodos sin camino a tierra | Una parte cerrada del circuito no toca la tierra, o un nodo solo tiene una fuente de corriente | Conectala con una resistencia o una fuente de tensión (los nodos quedan marcados en rojo) |
+| Falta la tierra | Borraste la tierra automática de un circuito | Arrastrá GND hasta un nodo (o cambiá el circuito y vuelve sola) |
+| Nodos sin camino a tierra | Un nodo solo tiene una fuente de corriente | Conectalo con una resistencia o una fuente de tensión (los nodos quedan marcados en rojo) |
 | Lazo de fuentes de tensión | Dos fuentes de tensión en paralelo (o un lazo solo de fuentes) | Agregá una resistencia en el lazo |
 | Fuente en cortocircuito | Un cable une los dos bornes de una fuente de tensión | Sacá el cable |
 | La resistencia debe ser mayor que 0 Ω | Se cargó 0 o un valor negativo | Para un corto, usá un cable |
