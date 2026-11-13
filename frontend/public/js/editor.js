@@ -429,7 +429,7 @@ export function crearEditor(svg, contenedor, ctl, animador, info) {
     }
   }
 
-  function empezarMover(evento, punto, sel, tipo) {
+  function empezarMover(punto, sel, tipo) {
     const yaEstaba = sel.tipo === "tierra" ? ctl.seleccion.tierra : ctl.seleccion.ids.includes(sel.id);
     const sola = sel.tipo === "tierra" ? { ids: [], tierra: true } : { ids: [sel.id], tierra: false };
     // Sobre algo ya seleccionado se arrastra todo el grupo; si no, se elige solo esa pieza.
@@ -541,7 +541,7 @@ export function crearEditor(svg, contenedor, ctl, animador, info) {
       gesto = { tipo: "borne", inicio: borne, horizontal: null, sel, tipoPieza: tipo };
       return;
     }
-    if (sel) return empezarMover(evento, punto, sel, tipo);
+    if (sel) return empezarMover(punto, sel, tipo);
     if (sumar) {
       // Shift + arrastrar: rectángulo nuevo; Ctrl + arrastrar: se suma a lo seleccionado.
       const base = evento.ctrlKey || evento.metaKey ? ctl.seleccion : SELECCION_VACIA;
