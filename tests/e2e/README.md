@@ -73,6 +73,12 @@ También prueba el bloque F: bandas del código de colores y su lectura en la fi
 deja suelta) y sobre uno largo (la inserta), que el TP4 ya no esté en la galería, las etiquetas
 Todo / Valores / Nada con los números al pasar el mouse y los bornes sueltos con su cartel.
 
+`medir.mjs` prueba la etapa 2A: nombres de nodos (y renombrar con doble clic) y de corrientes en
+el dibujo, Resultados, Ecuaciones y el cartel; el deslizador de la ficha (en vivo, un solo Ctrl+Z y
+rango fijo); la resistencia interna de la batería; el multímetro arrastrado desde la barra en V
+(puntas), Ω y A; los ejemplos del multímetro y del fusible (se quema, queda quemado y se reemplaza
+con un clic) y el potenciómetro con su perilla.
+
 `capturas-diseno.mjs` saca las mismas capturas con cualquier versión (abre los circuitos por
 link), para comparar el antes y el después de un cambio de diseño.
 

@@ -36,6 +36,8 @@ frontend/public/          lo que se publica (HTML + CSS + JS vanilla con módulo
   js/animador.js          animaciones en un canvas sobre el SVG (puntos, halo, calor, pulso)
   js/iconos.js            íconos propios; js/lib/animacion.js: velocidad, brillo, calor y color (tests)
   js/lib/corrientes.js    corriente de cada cable e interruptor cerrado por KCL (lazos: por largo)
+  js/lib/nombres.js       nombres de nodos (A, B…, renombrables; GND) y de corrientes (I₁, I₂…)
+  js/lib/deslizador.js    deslizador de la ficha: escala, rango, valor ↔ posición
 frontend/tests/           node --test (sin dependencias)
 tests/e2e/                verificar.mjs (Chrome real con playwright-core) y servir.mjs
 tests/comparacion/        motor JS contra POST /simulate de la rama microservicios
@@ -95,6 +97,25 @@ relativa a la escala).
 - **Links:** después de abrir un `#c=…` la app lo saca de la dirección (`history.replaceState`),
   así recargar retoma el borrador con los cambios. El TP4 ya no es un ejemplo: vive en
   `frontend/tests/circuitos-de-prueba.js` y las pruebas de Chrome lo abren por link.
+- **Piezas nuevas de la etapa 2A** (armarNetlist las arma con las que el motor ya conoce, ids y
+  nodos con "~" que traducirResultado saca): **amperímetro** (multímetro en A) = fuente de 0 V;
+  **fusible** = fuente de 0 V (al final del netlist: si cierra un lazo de fuentes es un corto y se
+  quema) y quemado = lámpara con `burned: true`; si pasa su corriente nominal se quema el más
+  exigido y se vuelve a resolver. **Potenciómetro** = dos resistencias hasta el cursor
+  (`cursorDe`, derivado de a y b; la posición no llega a 0 ni a 1: contacto de 0,05 %). **Batería
+  con resistencia interna** = fuente + resistencia por un nodo oculto `~V1`. `terminales(c)` da los
+  puntos de conexión (tres en el potenciómetro, ninguno en el multímetro en V u Ω).
+- **Quemados:** el motor acepta lámparas con `burned: true` (siguen abiertas). La app marca
+  `quemada`/`quemado` en el estado después de simular (`marcarQuemados`) y se reemplazan con un
+  clic (`reemplazarQuemado`).
+- **Multímetro:** `lecturasDeMultimetros` (netlist.js): V = tensión de la punta roja menos la negra
+  (`puntoDeApoyo`: un borne o cualquier punto de un cable); Ω = `resistenciaEntre` (fuentes
+  apagadas, 1 A de prueba); A = corriente de la rama. Al salir de A, la rama se cierra con un cable.
+- **Nombres:** `nombresDeNodos` (letras en orden de lectura, `estado.nombresNodos` para los
+  propios, GND), `nombresDeCorrientes` (I₁…). Ecuaciones usa V(A) e I₁. La etiqueta del nodo es
+  `text.tension` con `.nombre-nodo` y `.valor-nodo` ("Valores" oculta solo el valor).
+- **Deslizador:** `valorEnVivo` cambia el estado y simula sin historial; `confirmarValor` registra un
+  paso. La ficha no reconstruye el deslizador mientras se arrastra (`renderControl`).
 - **Selección:** `ctl.seleccion = {ids}` (lib/seleccion.js); operaciones todo o nada.
 - **Tierras:** son componentes `type: "ground"` de un solo punto (a = b, ids G1, G2…; contador G).
   `armarNetlist` usa la primera como referencia y une las demás con cables ideales (`~G2`). Los
@@ -169,7 +190,7 @@ render reemplaza los elementos del SVG.
 ## Comandos
 
 ```bash
-cd frontend && node --test                  # 176 tests
+cd frontend && node --test                  # 196 tests
 node tests/e2e/servir.mjs                   # http://localhost:8000/Simulador-2.0/
 cd tests/e2e && npm install && node verificar.mjs capturas   # 38 comprobaciones en Chrome
 node tests/e2e/actualizacion.mjs            # aviso de versión nueva (publicar mientras espera)
@@ -180,6 +201,7 @@ node tests/e2e/estados.mjs capturas         # estados de la barra en claro, oscu
 node tests/e2e/sin-modos.mjs capturas       # barra→circuito, cables desde bornes, menú, zoom y vista
 node tests/e2e/diseno.mjs capturas          # escala, barra y menús, puntos, panel, galería, etiquetas, F
 node tests/e2e/capturas-diseno.mjs carpeta  # capturas para comparar el diseño (abre los ejemplos por link)
+node tests/e2e/medir.mjs capturas           # nombres, deslizador, multímetro, fusible, potenciómetro, r interna
 ```
 
 ## Cómo trabajar

@@ -72,7 +72,7 @@ lámpara, cables, GND, encenderla, interruptor y quemarla. Cada paso espera a qu
 puede saltear o cerrar.
 
 ¿Querés partir de algo hecho? En la pestaña **Circuitos**, el botón **Ejemplos de Física 2…** abre una
-galería con una tarjeta (y un dibujito) por circuito. Hay doce:
+galería con una tarjeta (y un dibujito) por circuito. Hay catorce:
 
 | Ejemplo | Qué muestra |
 | --- | --- |
@@ -87,6 +87,8 @@ galería con una tarjeta (y un dibujito) por circuito. Hay doce:
 | En paralelo las demás siguen | Tres lámparas de 24 Ω con 12 V reciben 6 W; la de 4 W se quema y las otras siguen al 100 % |
 | Dimmer con resistencia | 12 Ω en serie dejan la lámpara al 25 %; cerrando S1 se puentea y sube al 100 % |
 | Lámparas de distintas potencias en serie | 6 W y 48 W con la misma corriente: 79 % y apenas 1 % (la ficha avisa que la corriente es baja) |
+| Medir con el multímetro | Un voltímetro sobre R2 marca +8 V y un amperímetro en serie +4 mA; se pueden mover las puntas o pasar a Ω |
+| Fusible que protege el circuito | Fusible de 2 A con una lámpara (1 A); al cerrar S1 pasan 4 A y el fusible se quema |
 | Una casa con tres lámparas | Tres lámparas en paralelo, cada una con su interruptor: S2 abierto apaga solo la suya |
 
 ## Cómo leer los resultados
@@ -107,6 +109,26 @@ galería con una tarjeta (y un dibujito) por circuito. Hay doce:
   corriente, una flecha con su sentido.
 - **Vista ilustrada o esquemática:** en el menú **Vista** (o con la tecla **V**) se cambia entre los
   dibujos y los símbolos IEC de los libros.
+- **Nombres:** cada nodo se llama con una letra (A, B, C…) y **GND** es siempre la referencia, 0 V.
+  Doble clic en la etiqueta de un nodo para ponerle otro nombre (por ejemplo, Vout). Las corrientes
+  de rama se llaman I₁, I₂… Esos nombres se usan en el dibujo, Resultados, Ecuaciones, el cartel, la
+  ficha y las imágenes exportadas.
+- **Deslizador:** con una pieza seleccionada, la ficha tiene una barra para variar su valor en vivo
+  (escala logarítmica para resistencias, lineal para baterías) y el circuito se recalcula mientras
+  se mueve; todo el arrastre se deshace con un solo Ctrl+Z. **Fijar el rango…** elige el mínimo y el
+  máximo.
+- **Multímetro** (tecla **M**): se arrastra desde la barra; el selector de la ficha elige **V**, **A** u
+  **Ω**. En **V** se apoyan las dos puntas (roja y negra) en dos puntos cualesquiera y marca la tensión
+  con signo; en **A** se intercala en una rama como una pieza (ideal, sin resistencia); en **Ω** mide la
+  resistencia equivalente entre las puntas con las fuentes apagadas. Si está mal conectado lo dice
+  en palabras simples (amperímetro en paralelo con una fuente, puntas sueltas).
+- **Fusible** (tecla **U**, en el menú **Más**): conduce sin resistencia; si la corriente supera la
+  nominal se abre y queda quemado hasta que lo tocás para reemplazarlo. Las lámparas quemadas
+  funcionan igual: quedan quemadas hasta reemplazarlas con un clic.
+- **Potenciómetro** (tecla **O**, en el menú **Más**): tres bornes; la perilla se mueve con el
+  deslizador de la ficha.
+- **Resistencia interna de la batería:** en la ficha (0 Ω por defecto). Con carga, la ficha muestra la
+  tensión de la pila (fem), la tensión en bornes y la pérdida adentro.
 - **Resistencias:** sus bandas muestran el **código de colores** del valor real: cuatro bandas (dos
   cifras, multiplicador y tolerancia dorada) o cinco si el valor tiene tres cifras significativas
   (con tolerancia marrón, ±1 %). Al seleccionar una, la ficha da la lectura, por ejemplo
@@ -184,6 +206,8 @@ al lado.
 | Tecla | Acción |
 | --- | --- |
 | C, R, B, I, L, S, G | Cable, Resistencia, Batería, fuente de corriente (I), Lámpara, Interruptor (S), tierra (G) |
+| M, U, O | Multímetro, fusible, potenciómetro |
+| Doble clic en un nodo | Cambiarle el nombre |
 | Esc | Volver a Seleccionar (también termina un cable o cierra el menú) |
 | 1 a 8 | Las mismas herramientas, en el orden de la barra |
 | Espacio | Girar la pieza (la que vas a poner o lo seleccionado) |
