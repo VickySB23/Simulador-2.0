@@ -112,15 +112,15 @@ test("un link dañado da un error claro", async () => {
 test("TP4: ecuaciones de nodo, restricción de la fuente y sistema MNA", () => {
   const e = ecuacionesDe(ejemplo("tp4"));
   assert.equal(e.error, undefined);
-  // De arriba hacia abajo: el nodo de la fuente (6,4), el del medio (12,8) y la corriente de V1.
-  assert.deepEqual(e.incognitas, ["V(6,4)", "V(12,8)", "I(V1)"]);
-  const medio = e.nodos.find((n) => n.nombre === "V(12,8)");
+  // Con los nombres del dibujo: A arriba (el + de la fuente), B en el medio, e I₁ la corriente de V1.
+  assert.deepEqual(e.incognitas, ["V(A)", "V(B)", "I₁"]);
+  const medio = e.nodos.find((n) => n.nombre === "V(B)");
   assert.equal(medio.ecuacion,
-    "(V(12,8) − V(6,4))/3 Ω + (V(12,8) − V(6,4))/12 Ω + V(12,8)/6 Ω + V(12,8)/4 Ω = 0");
-  const arriba = e.nodos.find((n) => n.nombre === "V(6,4)");
-  assert.ok(arriba.ecuacion.includes("+ I(V1)"), arriba.ecuacion);
-  assert.deepEqual(e.fuentes, [{ nombre: "V1", ecuacion: "V(6,4) = 60 V" }]);
-  assert.deepEqual(e.nodos.map((n) => n.nombre), ["V(6,4)", "V(12,8)"]);
+    "(V(B) − V(A))/3 Ω + (V(B) − V(A))/12 Ω + V(B)/6 Ω + V(B)/4 Ω = 0");
+  const arriba = e.nodos.find((n) => n.nombre === "V(A)");
+  assert.ok(arriba.ecuacion.includes("+ I₁"), arriba.ecuacion);
+  assert.deepEqual(e.fuentes, [{ nombre: "V1 (I₁)", ecuacion: "V(A) = 60 V" }]);
+  assert.deepEqual(e.nodos.map((n) => n.nombre), ["V(A)", "V(B)"]);
   // G del nodo del medio: 1/3 + 1/12 + 1/6 + 1/4 = 5/6 S.
   assert.ok(Math.abs(e.A[1][1] - 5 / 6) < 1e-12);
   assert.deepEqual(e.z, [0, 0, 60]);
@@ -137,7 +137,7 @@ test("la fuente de corriente pasa al lado derecho con su signo", () => {
   // Falta unir 4_8 con 8_8: la R2 queda flotando de un lado. Se cierra con otra R a tierra.
   ({ estado } = agregarPieza(estado, "resistor", p(6, 8), 0, "1k")); // 4_8 a 8_8
   const e = ecuacionesDe(estado);
-  const nodo = e.nodos.find((n) => n.nombre === "V(4,4)");
+  const nodo = e.nodos.find((n) => n.nombre === "V(A)"); // el nodo 4_4, el primero en orden de lectura
   assert.match(nodo.ecuacion, /= 1 mA$/);
 });
 

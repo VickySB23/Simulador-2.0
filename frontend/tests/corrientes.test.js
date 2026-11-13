@@ -123,5 +123,5 @@ test("lámpara e interruptor en el modelo: ids, netlist, layout y link", async (
 test("un link viejo (sin lámparas ni interruptores) se sigue abriendo", async () => {
   const viejo = { components: [], ground: null, counters: { R: 3, V: 1, I: 0, W: 2 } };
   const { estado } = await decodificar(await codificar(viejo, "viejo"));
-  assert.deepEqual(estado.counters, { R: 3, V: 1, I: 0, W: 2, L: 0, S: 0, G: 0 });
+  assert.deepEqual(estado.counters, { R: 3, V: 1, I: 0, W: 2, L: 0, S: 0, G: 0, F: 0, P: 0, M: 0 });
 });

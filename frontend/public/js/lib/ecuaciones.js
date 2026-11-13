@@ -2,10 +2,12 @@
 // del circuito y el sistema MNA [G B; Bᵀ 0]·[V; I] = [J; E] que resuelve el motor. Sin DOM.
 //
 // Convención de las ecuaciones de nodo: suma de corrientes que SALEN del nodo = 0, con las
-// corrientes conocidas (fuentes de corriente) pasadas al lado derecho. I(Vk) es la corriente que
-// entra a la fuente Vk por su borne + y sale por el −, igual que en los resultados.
+// corrientes conocidas (fuentes de corriente) pasadas al lado derecho. Los nodos se llaman como en
+// el dibujo (V(A), V(B)…) y la corriente de cada fuente de tensión con su nombre de rama (I₁, I₂…),
+// la que entra por su borne + y sale por el −, igual que en los resultados.
 import { ErrorCircuito, TIERRA, analizar, armarSistema, matrizDensa, simulate } from "./mna.js";
-import { armarNetlist, estadoActivo, problemaLocal, puntoRepresentativo } from "./netlist.js";
+import { nombresDeCorrientes, nombresDeNodos } from "./nombres.js";
+import { armarNetlist, estadoActivo, problemaLocal, puntoRepresentativo, simularEstado } from "./netlist.js";
 import { formatearCompacto } from "./valores.js";
 
 export const MAXIMO_MATRIZ = 30;
@@ -17,7 +19,10 @@ function puntosDeGrupos(estado, analisis) {
   const representativo = puntoRepresentativo(estado);
   const puntos = new Map();
   for (const g of analisis.grupos) {
-    if (g !== TIERRA) puntos.set(g, representativo.get(analisis.miembros.get(g)[0]));
+    if (g === TIERRA) continue;
+    // Un nodo oculto (el de adentro de una batería con resistencia interna) va al final.
+    const real = analisis.miembros.get(g).find((m) => !m.startsWith("~"));
+    puntos.set(g, real ? representativo.get(real) : { x: Infinity, y: Infinity, oculto: analisis.miembros.get(g)[0] });
   }
   return puntos;
 }
@@ -48,10 +53,14 @@ export function ecuacionesDe(estadoCompleto) {
   const estado = estadoActivo(estadoCompleto);
   const problema = problemaLocal(estado);
   if (problema) return { error: problema };
+  // Con los fusibles que la simulación abrió (corto o sobrecorriente), igual que en el resultado.
+  const simulado = simularEstado(estadoCompleto);
+  if (simulado.error && simulado.error.code !== "empty") return { error: simulado.error };
+  const abiertos = new Set(simulado.resultado?.stats.blown_fuses ?? []);
   let analisis;
   let resultado;
   try {
-    const netlist = armarNetlist(estado);
+    const netlist = armarNetlist(estado, abiertos);
     resultado = simulate(netlist);
     // Con las lámparas quemadas abiertas, igual que en el resultado.
     analisis = analizar(netlist, new Set(resultado.stats.burned_lamps));
@@ -61,7 +70,13 @@ export function ecuacionesDe(estadoCompleto) {
   }
   const { activos, incognitasNodo, fuentesTension, grupo } = analisis;
   const puntos = puntosDeGrupos(estado, analisis);
-  const nombreDe = (g) => `V(${puntos.get(g).x},${puntos.get(g).y})`;
+  const nombresNodo = nombresDeNodos(estadoCompleto).porPunto;
+  const nombresCorriente = nombresDeCorrientes(estadoCompleto);
+  const nombreDe = (g) => {
+    const p = puntos.get(g);
+    return p.oculto ? `V(int ${p.oculto.slice(1)})` : `V(${nombresNodo.get(`${p.x}_${p.y}`) ?? `${p.x},${p.y}`})`;
+  };
+  const corrienteDe = (c) => nombresCorriente.get(c.id) ?? `I(${c.id})`;
   // El motor numera los nodos por nombre; para leer, de arriba hacia abajo y de izquierda a derecha.
   const ordenNodos = incognitasNodo
     .map((g, i) => ({ g, i, p: puntos.get(g) }))
@@ -83,7 +98,7 @@ export function ecuacionesDe(estadoCompleto) {
       if (c.type === "resistor" || c.type === "lamp") {
         izquierda.push(terminoResistencia(nombreDe, g, enA ? gb : ga, c.value));
       } else if (c.type === "voltage_source") {
-        deFuentes.push(`${enA ? "+" : restar} I(${c.id})`);
+        deFuentes.push(`${enA ? "+" : restar} ${corrienteDe(c)}`);
       } else {
         // La fuente lleva corriente de a hacia b por dentro: sale del nodo a y entra al nodo b.
         derecha += enA ? -c.value : c.value;
@@ -103,10 +118,10 @@ export function ecuacionesDe(estadoCompleto) {
     const partes = [];
     if (ga !== TIERRA) partes.push(nombreDe(ga));
     if (gb !== TIERRA) partes.push(partes.length ? `${restar} ${nombreDe(gb)}` : `${restar}${nombreDe(gb)}`);
-    return { nombre: c.id, ecuacion: `${partes.join(" ")} = ${formatearCompacto(c.value, "V")}` };
+    return { nombre: `${c.id} (${corrienteDe(c)})`, ecuacion: `${partes.join(" ")} = ${formatearCompacto(c.value, "V")}` };
   });
 
-  const incognitas = [...ordenNodos.map((o) => nombreDe(o.g)), ...fuentesTension.map((c) => `I(${c.id})`)];
+  const incognitas = [...ordenNodos.map((o) => nombreDe(o.g)), ...fuentesTension.map((c) => corrienteDe(c))];
   const { tamano, entradas, rhs } = armarSistema(analisis);
   if (tamano > MAXIMO_MATRIZ) return { nodos, fuentes, incognitas, A: [], z: [], x: [], recortada: true };
   const corrientes = new Map(resultado.components.map((c) => [c.id, c.current]));

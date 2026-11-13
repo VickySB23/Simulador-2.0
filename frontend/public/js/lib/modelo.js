@@ -17,10 +17,16 @@ export const TIPOS = {
   wire: { prefijo: "W", unidad: "", porDefecto: null, nombre: "Cable" },
   // La tierra es un componente de un solo punto (a = b). Puede haber varias: todas valen 0 V.
   ground: { prefijo: "G", unidad: "", porDefecto: null, nombre: "Tierra (GND)" },
+  // Fusible: conduce sin resistencia; si la corriente supera la nominal (value, en A) se abre.
+  fuse: { prefijo: "F", unidad: "A", porDefecto: "1", nombre: "Fusible" },
+  // Potenciómetro: resistencia total (value) con un tercer borne, el cursor, en `posicion` (0 a 1).
+  potentiometer: { prefijo: "P", unidad: "Ω", porDefecto: "10k", nombre: "Potenciómetro" },
+  // Multímetro: en V y Ω mide entre sus puntas (no se conecta); en A va en la rama como una pieza.
+  multimeter: { prefijo: "M", unidad: "", porDefecto: null, nombre: "Multímetro" },
 };
 
 /** Tipos con un valor numérico editable (los cables e interruptores no tienen). */
-export const tieneValor = (tipo) => tipo !== "wire" && tipo !== "switch" && tipo !== "ground";
+export const tieneValor = (tipo) => !["wire", "switch", "ground", "multimeter"].includes(tipo);
 
 export const esTierra = (c) => c.type === "ground";
 
@@ -33,7 +39,7 @@ export function circuitoVacio() {
   return { components: [], counters: { ...CONTADORES }, sinTierraAuto: [] };
 }
 
-const CONTADORES = Object.freeze({ R: 0, V: 0, I: 0, W: 0, L: 0, S: 0, G: 0 });
+const CONTADORES = Object.freeze({ R: 0, V: 0, I: 0, W: 0, L: 0, S: 0, G: 0, F: 0, P: 0, M: 0 });
 
 export function nombreNodo(punto) {
   return `${punto.x}_${punto.y}`;
@@ -88,6 +94,13 @@ function conComponente(estado, tipo, a, b, value) {
   if (tieneValor(tipo)) componente.value = value ?? TIPOS[tipo].porDefecto;
   if (tipo === "lamp") componente.potencia = TIPOS.lamp.potenciaPorDefecto;
   if (tipo === "switch") componente.closed = true;
+  if (tipo === "potentiometer") componente.posicion = 0.5;
+  if (tipo === "multimeter") {
+    componente.modo = "V";
+    // Las puntas empiezan sueltas, debajo de cada extremo: se arrastran hasta el circuito.
+    const abajo = (p) => ({ x: p.x, y: Math.min(ALTO_MUNDO, p.y + 3) });
+    componente.puntas = { roja: abajo(a), negra: abajo(b) };
+  }
   return { estado: { ...estado, components: [...estado.components, componente], counters }, id };
 }
 
@@ -184,7 +197,8 @@ function recorridoRecto(estado, punto, horizontal) {
 export function insercionEnCable(estado, id) {
   const pieza = buscar(estado, id);
   const sinCambio = { estado, sobreCable: false, motivo: null };
-  if (!pieza || pieza.type === "wire" || esTierra(pieza)) return sinCambio;
+  if (!pieza || pieza.type === "wire" || esTierra(pieza) || pieza.type === "potentiometer"
+    || (pieza.type === "multimeter" && pieza.modo !== "A")) return sinCambio;
   const m = centro(pieza);
   const largo = Math.abs(pieza.b.x - pieza.a.x) + Math.abs(pieza.b.y - pieza.a.y);
   if (!Number.isInteger(m.x) || !Number.isInteger(m.y)) return sinCambio;
@@ -200,7 +214,7 @@ export function insercionEnCable(estado, id) {
     const propios = new Set(recorrido.cables.map((c) => c.id));
     // Una unión es un punto del recorrido donde llega algo más que los cables del recorrido.
     const union = (t) => estado.components.some((c) => c.id !== pieza.id && !propios.has(c.id)
-      && (mismoPunto(c.a, enPunto(t)) || mismoPunto(c.b, enPunto(t))));
+      && terminales(c).some((q) => mismoPunto(q, enPunto(t))));
     let mejor = null;
     for (let inicio = recorrido.desde; inicio + largo <= recorrido.hasta; inicio++) {
       let libre = true;
@@ -344,13 +358,84 @@ export function buscar(estado, id) {
   return estado.components.find((c) => c.id === id) ?? null;
 }
 
+/**
+ * Cursor (tercer borne) de un potenciómetro: dos cuadros al costado del medio, a la derecha de
+ * a→b. Sale de a y b, así que se mueve y gira solo con la pieza.
+ */
+export function cursorDe(c) {
+  const largo = Math.hypot(c.b.x - c.a.x, c.b.y - c.a.y) || 1;
+  const u = { x: (c.b.x - c.a.x) / largo, y: (c.b.y - c.a.y) / largo };
+  const m = centro(c);
+  return { x: Math.round(m.x - u.y * 2), y: Math.round(m.y + u.x * 2) };
+}
+
+/** Puntos donde se conecta la pieza: los dos bornes, uno en la tierra, tres en el potenciómetro. */
+export function terminales(c) {
+  if (c.type === "ground") return [c.a];
+  if (c.type === "multimeter") return c.modo === "A" ? [c.a, c.b] : [];
+  if (c.type === "potentiometer") return [c.a, c.b, cursorDe(c)];
+  return [c.a, c.b];
+}
+
 /** Nombres de los puntos donde hay al menos un terminal. */
 export function puntosConTerminal(estado) {
   const puntos = new Map();
   for (const c of estado.components) {
-    for (const p of [c.a, c.b]) puntos.set(nombreNodo(p), { x: p.x, y: p.y });
+    for (const p of terminales(c)) puntos.set(nombreNodo(p), { x: p.x, y: p.y });
   }
   return puntos;
+}
+
+/** Cambia un dato de la pieza (posición del cursor, resistencia interna, rango…). */
+export function cambiarCampo(estado, id, campo, valor) {
+  return reemplazar(estado, id, (c) => (c[campo] === valor ? c : { ...c, [campo]: valor }));
+}
+
+/** Un fusible o una lámpara quemados quedan así hasta que se reemplazan (con un clic). */
+export function reemplazarQuemado(estado, id) {
+  return reemplazar(estado, id, (c) => {
+    if (!c.quemado && !c.quemada) return c;
+    const { quemado, quemada, ...nuevo } = c;
+    return nuevo;
+  });
+}
+
+/** Marca como quemados los fusibles y lámparas `ids` (lo que abrió la simulación). */
+export function marcarQuemados(estado, ids) {
+  const pendientes = new Set(ids);
+  if (!estado.components.some((c) => pendientes.has(c.id) && !c.quemado && !c.quemada)) return estado;
+  return {
+    ...estado,
+    components: estado.components.map((c) => {
+      if (!pendientes.has(c.id)) return c;
+      if (c.type === "fuse" && !c.quemado) return { ...c, quemado: true };
+      if (c.type === "lamp" && !c.quemada) return { ...c, quemada: true };
+      return c;
+    }),
+  };
+}
+
+/** Lleva una punta del multímetro ("roja" o "negra") a un punto de la grilla. */
+export function moverPunta(estado, id, cual, punto) {
+  if (!dentroDelMundo(punto)) return estado;
+  return reemplazar(estado, id, (c) => (c.type !== "multimeter" || mismoPunto(c.puntas[cual], punto) ? c
+    : { ...c, puntas: { ...c.puntas, [cual]: { x: punto.x, y: punto.y } } }));
+}
+
+/**
+ * Cambia el selector del multímetro. Al pasar a A se intercala en el cable que tiene debajo (si
+ * entra); al salir de A, su lugar en la rama se cierra con un cable para no dejarla cortada.
+ */
+export function cambiarModoMultimetro(estado, id, modo) {
+  const m = buscar(estado, id);
+  if (!m || m.type !== "multimeter" || m.modo === modo) return estado;
+  let nuevo = reemplazar(estado, id, (c) => ({ ...c, modo }));
+  if (m.modo === "A") {
+    const usados = puntosConTerminal({ components: estado.components.filter((c) => c.id !== id) });
+    if (usados.has(nombreNodo(m.a)) && usados.has(nombreNodo(m.b))) nuevo = agregarCable(nuevo, m.a, m.b).estado;
+  }
+  if (modo === "A") nuevo = insertarEnCable(nuevo, id);
+  return nuevo;
 }
 
 /**
@@ -406,6 +491,7 @@ export function aLayout(estado) {
     components: estado.components.map((c) => ({ ...c, a: { ...c.a }, b: { ...c.b } })),
     counters: { ...estado.counters },
     sinTierraAuto: [...(estado.sinTierraAuto ?? [])],
+    ...(Object.keys(estado.nombresNodos ?? {}).length ? { nombresNodos: { ...estado.nombresNodos } } : {}),
   };
 }
 
@@ -434,10 +520,27 @@ export function desdeLayout(layout) {
       copia.b = { ...c.a };
       if (c.auto) copia.auto = true;
     }
+    if (c.type === "lamp" && c.quemada) copia.quemada = true;
+    if (c.type === "fuse" && c.quemado) copia.quemado = true;
+    if (c.type === "potentiometer") copia.posicion = Number.isFinite(c.posicion) ? Math.min(1, Math.max(0, c.posicion)) : 0.5;
+    if (c.type === "voltage_source" && c.rInterna !== undefined) copia.rInterna = String(c.rInterna);
+    if (c.type === "multimeter") {
+      copia.modo = ["V", "A", "Ω"].includes(c.modo) ? c.modo : "V";
+      copia.puntas = {
+        roja: esPunto(c.puntas?.roja) ? { ...c.puntas.roja } : { ...c.a },
+        negra: esPunto(c.puntas?.negra) ? { ...c.puntas.negra } : { ...c.b },
+      };
+    }
+    if (c.rango && typeof c.rango.min === "string" && typeof c.rango.max === "string") copia.rango = { ...c.rango };
     return copia;
   });
   const sinTierraAuto = Array.isArray(layout.sinTierraAuto) ? layout.sinTierraAuto.filter((f) => typeof f === "string") : [];
+  const nombresNodos = {};
+  for (const [punto, nombre] of Object.entries(layout.nombresNodos ?? {})) {
+    if (typeof nombre === "string" && /^\d+_\d+$/.test(punto)) nombresNodos[punto] = nombre;
+  }
   let estado = { components, counters, sinTierraAuto };
+  if (Object.keys(nombresNodos).length) estado.nombresNodos = nombresNodos;
   // Formato anterior: una sola tierra en layout.ground.
   if (esPunto(layout.ground)) estado = ponerTierra(estado, layout.ground).estado;
   return estado;

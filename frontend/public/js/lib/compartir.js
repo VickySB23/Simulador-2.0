@@ -5,8 +5,34 @@ import { VERSION_LAYOUT, desdeLayout } from "./modelo.js";
 
 export const PREFIJO_HASH = "#c=";
 const VERSION = 1;
-const CODIGOS = { resistor: "r", voltage_source: "v", current_source: "i", wire: "w", lamp: "l", switch: "s", ground: "g" };
-const PREFIJOS = ["R", "V", "I", "W", "L", "S", "G"];
+const CODIGOS = {
+  resistor: "r", voltage_source: "v", current_source: "i", wire: "w", lamp: "l", switch: "s", ground: "g",
+  fuse: "f", potentiometer: "p", multimeter: "m",
+};
+const PREFIJOS = ["R", "V", "I", "W", "L", "S", "G", "F", "P", "M"];
+
+/** Datos opcionales de una pieza, al final de su fila como objeto (los links viejos no lo tienen). */
+function extras(c) {
+  const e = {};
+  if (c.quemado || c.quemada) e.q = 1;
+  if (c.type === "potentiometer") e.pos = c.posicion;
+  if (c.type === "voltage_source" && c.rInterna !== undefined) e.ri = c.rInterna;
+  if (c.type === "multimeter") Object.assign(e, { modo: c.modo, pr: [c.puntas.roja.x, c.puntas.roja.y], pn: [c.puntas.negra.x, c.puntas.negra.y] });
+  if (c.rango) e.rg = [c.rango.min, c.rango.max];
+  return Object.keys(e).length ? e : null;
+}
+
+function aplicarExtras(c, e) {
+  if (!e) return;
+  if (e.q) c[c.type === "lamp" ? "quemada" : "quemado"] = true;
+  if (c.type === "potentiometer" && Number.isFinite(e.pos)) c.posicion = e.pos;
+  if (c.type === "voltage_source" && e.ri !== undefined) c.rInterna = String(e.ri);
+  if (c.type === "multimeter") {
+    c.modo = e.modo;
+    c.puntas = { roja: { x: e.pr?.[0], y: e.pr?.[1] }, negra: { x: e.pn?.[0], y: e.pn?.[1] } };
+  }
+  if (Array.isArray(e.rg)) c.rango = { min: String(e.rg[0]), max: String(e.rg[1]) };
+}
 const TIPOS = Object.fromEntries(Object.entries(CODIGOS).map(([tipo, codigo]) => [codigo, tipo]));
 
 /**
@@ -19,12 +45,15 @@ function compactar(estado, nombre) {
     n: nombre,
     k: PREFIJOS.map((p) => estado.counters[p] ?? 0),
     t: estado.sinTierraAuto ?? [],
+    nn: estado.nombresNodos ?? {},
     c: estado.components.map((c) => {
       const fila = [c.id, CODIGOS[c.type], c.a.x, c.a.y, c.b.x, c.b.y];
       if (c.type === "switch") fila.push(c.closed === false ? 0 : 1);
       else if (c.type === "ground") fila.push(c.auto ? 1 : 0);
-      else if (c.type !== "wire") fila.push(c.value);
+      else if (c.type !== "wire" && c.type !== "multimeter") fila.push(c.value);
       if (c.type === "lamp") fila.push(c.potencia);
+      const e = extras(c);
+      if (e) fila.push(e);
       return fila;
     }),
   };
@@ -38,12 +67,18 @@ function expandir(datos) {
     ground: Array.isArray(datos.g) ? { x: datos.g[0], y: datos.g[1] } : null,
     counters: Object.fromEntries(PREFIJOS.map((p, i) => [p, datos.k?.[i] ?? 0])),
     sinTierraAuto: Array.isArray(datos.t) ? datos.t : [],
-    components: datos.c.map(([id, codigo, ax, ay, bx, by, extra, potencia]) => {
+    nombresNodos: datos.nn && typeof datos.nn === "object" ? datos.nn : {},
+    components: datos.c.map((fila) => {
+      // El último elemento puede ser el objeto de datos opcionales.
+      const ultimo = fila.at(-1);
+      const e = ultimo && typeof ultimo === "object" && !Array.isArray(ultimo) ? ultimo : null;
+      const [id, codigo, ax, ay, bx, by, extra, potencia] = e ? fila.slice(0, -1) : fila;
       const c = { id, type: TIPOS[codigo], a: { x: ax, y: ay }, b: { x: bx, y: by } };
       if (codigo === "s") c.closed = extra !== 0;
       else if (codigo === "g") c.auto = extra === 1;
-      else if (codigo !== "w") c.value = extra;
+      else if (codigo !== "w" && codigo !== "m") c.value = extra;
       if (codigo === "l") c.potencia = potencia;
+      aplicarExtras(c, e);
       return c;
     }),
   };

@@ -51,7 +51,13 @@ export function corrientesDeTramos(estado, resultado) {
   const sumar = (p, v) => entrante.set(nombreNodo(p), (entrante.get(nombreNodo(p)) ?? 0) + v);
   for (const c of estado.components) {
     if (esTramo(c)) continue;
-    const i = porId.get(c.id)?.current ?? 0;
+    const fila = porId.get(c.id);
+    // Con tres bornes (potenciómetro) el resultado trae la corriente que entra por cada uno.
+    if (fila?.bornes) {
+      for (const { punto, corriente } of fila.bornes) entrante.set(punto, (entrante.get(punto) ?? 0) - corriente);
+      continue;
+    }
+    const i = fila?.current ?? 0;
     if (!i) continue;
     sumar(c.a, -i);
     sumar(c.b, i);

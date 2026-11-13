@@ -22,7 +22,7 @@ export const TP4 = {
       cable("W4", p(6, 8), p(6, 12)), cable("W5", p(6, 12), p(12, 12)), cable("W6", p(12, 12), p(18, 12)),
       { id: "G1", type: "ground", a: p(6, 12), b: p(6, 12) },
     ],
-    counters: { R: 4, V: 1, I: 0, W: 6, L: 0, S: 0, G: 1 },
+    counters: { R: 4, V: 1, I: 0, W: 6, L: 0, S: 0, G: 1, F: 0, P: 0, M: 0 },
     sinTierraAuto: [],
   },
 };
