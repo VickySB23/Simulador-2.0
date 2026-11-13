@@ -80,7 +80,9 @@ test("simularEstado: resultado o error con códigos del motor", () => {
   const ok = simularEstado(divisorChico());
   assert.ok(ok.resultado && !ok.error);
   let e = divisorChico();
-  ({ estado: e } = agregarPieza(e, "resistor", p(20, 20), 0)); // 18_20 a 22_20, suelta
+  // Dos resistencias en paralelo entre 18_20 y 22_20, sin camino a tierra: lazo flotante.
+  ({ estado: e } = agregarPieza(e, "resistor", p(20, 20), 0));
+  ({ estado: e } = agregarPieza(e, "resistor", p(20, 20), 0));
   const { error } = simularEstado(e);
   assert.equal(error.code, "floating_nodes");
   assert.deepEqual(error.details.nodes, ["18_20", "22_20"]);
@@ -99,4 +101,46 @@ test("el ejemplo del TP4 arma el circuito del ejercicio", () => {
   const piezas = netlist.components.filter((c) => c.type !== "wire");
   assert.deepEqual(piezas.map((c) => [c.id, c.value]),
     [["V1", "60"], ["R1", "3"], ["R2", "12"], ["R3", "6"], ["R4", "4"]]);
+});
+
+test("un borne sin conectar no frena la simulación del resto", () => {
+  let e = divisorChico();
+  const antes = simularEstado(e).resultado;
+  let suelta;
+  ({ estado: e, id: suelta } = agregarPieza(e, "resistor", p(20, 20), 0)); // 18_20 a 22_20, suelta
+  const r = simularEstado(e);
+  assert.ok(r.resultado && !r.error);
+  assert.deepEqual([...r.sinConectar], [suelta]);
+  assert.deepEqual(r.bornesSueltos, [{ x: 18, y: 20 }, { x: 22, y: 20 }]);
+  const fila = r.resultado.components.find((c) => c.id === suelta);
+  assert.equal(fila.unconnected, true);
+  assert.equal(fila.current, 0);
+  assert.equal(fila.voltage, null);
+  assert.deepEqual(r.resultado.stats.unconnected, [suelta]);
+  // El resto da lo mismo que sin la pieza suelta.
+  for (const c of antes.components) {
+    assert.ok(Math.abs(r.resultado.components.find((x) => x.id === c.id).current - c.current) < 1e-12);
+  }
+});
+
+test("al sacar un componente colgado puede quedar otro colgado (se repite)", () => {
+  let e = divisorChico();
+  // Dos resistencias en cadena con un extremo al aire: se sacan las dos.
+  let r1, r2;
+  ({ estado: e, id: r1 } = agregarPieza(e, "resistor", p(20, 20), 0)); // 18_20 a 22_20
+  ({ estado: e, id: r2 } = agregarPieza(e, "resistor", p(24, 20), 0)); // 22_20 a 26_20
+  const r = simularEstado(e);
+  assert.ok(r.resultado);
+  assert.deepEqual([...r.sinConectar].sort(), [r1, r2].sort());
+  // Solo los bornes que estaban al aire de entrada se marcan "sin conectar".
+  assert.deepEqual(r.bornesSueltos, [{ x: 18, y: 20 }, { x: 26, y: 20 }]);
+});
+
+test("una sola pieza suelta no es un error: avisa que falta cerrar el circuito", () => {
+  let e = circuitoVacio();
+  ({ estado: e } = agregarPieza(e, "resistor", p(20, 20), 0));
+  const r = simularEstado(e);
+  assert.equal(r.error.code, "empty");
+  assert.match(r.error.message, /circuito cerrado/);
+  assert.equal(r.bornesSueltos.length, 2);
 });

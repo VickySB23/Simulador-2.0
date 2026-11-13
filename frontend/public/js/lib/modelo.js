@@ -70,7 +70,7 @@ export function esVertical(componente) {
 }
 
 /** Reserva el próximo id del tipo. Los contadores solo crecen: un id borrado no se reutiliza. */
-function reservarId(estado, tipo) {
+export function reservarId(estado, tipo) {
   const prefijo = TIPOS[tipo].prefijo;
   const siguiente = (estado.counters[prefijo] ?? 0) + 1;
   return { id: `${prefijo}${siguiente}`, counters: { ...estado.counters, [prefijo]: siguiente } };
@@ -127,6 +127,47 @@ export function rotar(estado, id) {
     const { a, b } = terminalesDesdeCentro(centro(c), rotacionDe(c) + 1);
     return dentroDelMundo(a) && dentroDelMundo(b) ? { ...c, a, b } : c;
   });
+}
+
+const entre = (v, p, q) => v > Math.min(p, q) && v < Math.max(p, q);
+const enTramo = (v, p, q) => v >= Math.min(p, q) && v <= Math.max(p, q);
+
+/**
+ * Si el centro de la pieza `id` cae sobre un cable recto en el que entra entera, la pieza queda en
+ * serie: se alinea con el cable (si ya lo estaba, conserva su sentido, para no invertir una
+ * batería) y el cable se parte en dos tramos que llegan a sus bornes. Si no, devuelve el estado.
+ */
+export function insertarEnCable(estado, id) {
+  const pieza = buscar(estado, id);
+  if (!pieza || pieza.type === "wire") return estado;
+  const m = centro(pieza);
+  for (const cable of estado.components) {
+    if (cable.type !== "wire") continue;
+    const horizontal = cable.a.y === cable.b.y;
+    const vertical = cable.a.x === cable.b.x;
+    const sobre = (horizontal && m.y === cable.a.y && entre(m.x, cable.a.x, cable.b.x))
+      || (vertical && m.x === cable.a.x && entre(m.y, cable.a.y, cable.b.y));
+    if (!sobre) continue;
+    const alineada = horizontal ? !esVertical(pieza) : esVertical(pieza);
+    const { a, b } = alineada ? pieza : terminalesDesdeCentro(m, horizontal ? 0 : 1);
+    const dentro = (p) => (horizontal ? enTramo(p.x, cable.a.x, cable.b.x) : enTramo(p.y, cable.a.y, cable.b.y));
+    if (!dentro(a) || !dentro(b)) continue;
+    // El borne más cercano al extremo a del cable se une con él; el otro, con el extremo b.
+    const distancia = (p, q) => Math.abs(p.x - q.x) + Math.abs(p.y - q.y);
+    const [cerca, lejos] = distancia(a, cable.a) <= distancia(b, cable.a) ? [a, b] : [b, a];
+    let components = estado.components.map((c) => (c.id === pieza.id ? { ...c, a: { ...a }, b: { ...b } } : c));
+    components = mismoPunto(cable.a, cerca)
+      ? components.filter((c) => c.id !== cable.id)
+      : components.map((c) => (c.id === cable.id ? { ...c, b: { ...cerca } } : c));
+    let counters = estado.counters;
+    if (!mismoPunto(lejos, cable.b)) {
+      const reserva = reservarId(estado, "wire");
+      counters = reserva.counters;
+      components = [...components, { id: reserva.id, type: "wire", a: { ...lejos }, b: { ...cable.b } }];
+    }
+    return { ...estado, components, counters };
+  }
+  return estado;
 }
 
 export function cambiarValor(estado, id, value) {

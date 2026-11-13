@@ -142,6 +142,10 @@ test("la fuente de corriente pasa al lado derecho con su signo", () => {
 
 test("un circuito con error devuelve el mensaje del motor", () => {
   let estado = ejemplo("tp4");
+  // Una pieza suelta no participa: las ecuaciones siguen siendo las del TP4.
+  ({ estado } = agregarPieza(estado, "resistor", p(30, 20), 0));
+  assert.ok(!ecuacionesDe(estado).error);
+  // Un lazo sin camino a tierra sí es un error.
   ({ estado } = agregarPieza(estado, "resistor", p(30, 20), 0));
   assert.equal(ecuacionesDe(estado).error.code, "floating_nodes");
   assert.equal(ecuacionesDe(circuitoVacio()).error.code, "empty");

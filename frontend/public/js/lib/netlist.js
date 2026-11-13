@@ -96,16 +96,75 @@ export function colorTension(tension, minimo, maximo) {
 }
 
 /**
+ * Bornes sin conectar: un punto con un solo borne (y sin tierra) está al aire. Por un componente
+ * con un borne al aire no puede circular corriente, así que se saca de la simulación; al sacarlo
+ * puede quedar otro colgando, por eso se repite. Devuelve el estado activo (lo que sí se simula),
+ * los ids que quedaron afuera y los puntos de los bornes al aire (para marcarlos "sin conectar").
+ */
+export function analizarConexiones(estado) {
+  const conexiones = new Map();
+  const sumar = (p, n) => conexiones.set(nombreNodo(p), (conexiones.get(nombreNodo(p)) ?? 0) + n);
+  for (const c of estado.components) {
+    sumar(c.a, 1);
+    sumar(c.b, 1);
+  }
+  if (estado.ground) sumar(estado.ground, 1);
+  const bornesSueltos = [];
+  for (const c of estado.components) {
+    for (const p of [c.a, c.b]) if (conexiones.get(nombreNodo(p)) === 1) bornesSueltos.push({ x: p.x, y: p.y });
+  }
+  const sinConectar = new Set();
+  let cambio = true;
+  while (cambio) {
+    cambio = false;
+    for (const c of estado.components) {
+      if (sinConectar.has(c.id)) continue;
+      if (conexiones.get(nombreNodo(c.a)) === 1 || conexiones.get(nombreNodo(c.b)) === 1) {
+        sinConectar.add(c.id);
+        sumar(c.a, -1);
+        sumar(c.b, -1);
+        cambio = true;
+      }
+    }
+  }
+  const activo = sinConectar.size
+    ? { ...estado, components: estado.components.filter((c) => !sinConectar.has(c.id)) }
+    : estado;
+  return { activo, sinConectar, bornesSueltos };
+}
+
+/** El estado que de verdad se simula: sin los componentes que tienen un borne al aire. */
+export function estadoActivo(estado) {
+  return analizarConexiones(estado).activo;
+}
+
+/**
  * Simula el estado del editor en el navegador. Devuelve {resultado} o {error} con
- * {code, message, details}; los problemas de dibujo (vacío, sin tierra) se detectan antes.
+ * {code, message, details}, y siempre {sinConectar, bornesSueltos}. Un borne al aire nunca frena
+ * la simulación del resto: ese componente queda con corriente 0 y marcado como sin conectar.
  */
 export function simularEstado(estado) {
-  const problema = problemaLocal(estado);
-  if (problema) return { error: { ...problema, details: {} } };
+  const { activo, sinConectar, bornesSueltos } = analizarConexiones(estado);
+  const conexiones = { sinConectar, bornesSueltos };
+  let problema = problemaLocal(activo);
+  if (problema && estado.components.length && !activo.components.some((c) => tieneValor(c.type))) {
+    problema = sinConectar.size
+      ? { code: "empty", message: "Todavía no hay un circuito cerrado: uní los dos bornes de cada componente." }
+      : problema;
+  }
+  if (problema) return { error: { ...problema, details: {} }, ...conexiones };
   try {
-    return { resultado: simulate(armarNetlist(estado)) };
+    const resultado = simulate(armarNetlist(activo));
+    for (const c of estado.components) {
+      if (!sinConectar.has(c.id)) continue;
+      const fila = { id: c.id, type: c.type, voltage: null, current: 0, power: 0, unconnected: true };
+      if (c.type === "lamp") Object.assign(fila, { brightness: 0, burned: false });
+      resultado.components.push(fila);
+    }
+    resultado.stats.unconnected = [...sinConectar];
+    return { resultado, ...conexiones };
   } catch (e) {
-    if (e instanceof ErrorCircuito) return { error: { code: e.code, message: e.message, details: e.details } };
+    if (e instanceof ErrorCircuito) return { error: { code: e.code, message: e.message, details: e.details }, ...conexiones };
     throw e;
   }
 }

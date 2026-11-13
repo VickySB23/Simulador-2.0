@@ -3,7 +3,7 @@ import { test } from "node:test";
 
 import {
   ANCHO_MUNDO, LARGO, agregarCable, agregarPieza, aLayout, cambiarValor, circuitoVacio,
-  conectados, desdeLayout, eliminar, mover, moverTierra, nodosElectricos, ponerTierra,
+  conectados, desdeLayout, eliminar, insertarEnCable, mover, moverTierra, nodosElectricos, ponerTierra,
   quitarTierra, restaurar, rotar,
 } from "../public/js/lib/modelo.js";
 
@@ -132,4 +132,40 @@ test("desdeLayout corrige contadores menores que los ids y rechaza formatos desc
   assert.throws(() => desdeLayout(null), /layout/);
   assert.throws(() => desdeLayout({ version: 99, components: [] }), /layout/);
   assert.throws(() => desdeLayout({ version: 1, components: [{ id: "X", type: "diodo" }] }), /inválido/);
+});
+
+test("soltar una pieza sobre un cable la inserta en serie", () => {
+  let e = circuitoVacio();
+  ({ estado: e } = agregarCable(e, p(2, 4), p(12, 4)));
+  let id;
+  ({ estado: e, id } = agregarPieza(e, "resistor", p(6, 4), 0)); // 4_4 a 8_4, sobre el cable
+  e = insertarEnCable(e, id);
+  const cables = e.components.filter((c) => c.type === "wire");
+  assert.deepEqual(cables.map((c) => [c.a, c.b]), [[p(2, 4), p(4, 4)], [p(8, 4), p(12, 4)]]);
+  assert.equal(new Set(e.components.map((c) => c.id)).size, e.components.length);
+  // Ya no hay un cable que la puentee: entre sus bornes hay dos nodos distintos.
+  const nodos = nodosElectricos(e);
+  assert.notEqual(nodos.get("4_4"), nodos.get("8_4"));
+});
+
+test("una pieza girada se acuesta sobre el cable; si toca un extremo, el cable se acorta", () => {
+  let e = circuitoVacio();
+  ({ estado: e } = agregarCable(e, p(4, 2), p(4, 10)));
+  let id;
+  ({ estado: e, id } = agregarPieza(e, "lamp", p(4, 4), 0)); // horizontal, centro sobre un cable vertical
+  e = insertarEnCable(e, id);
+  const lampara = e.components.find((c) => c.id === id);
+  assert.deepEqual([lampara.a, lampara.b], [p(4, 2), p(4, 6)]);
+  const cables = e.components.filter((c) => c.type === "wire");
+  assert.deepEqual(cables.map((c) => [c.a, c.b]), [[p(4, 6), p(4, 10)]]);
+});
+
+test("si la pieza no entra en el cable o no está encima, no cambia nada", () => {
+  let e = circuitoVacio();
+  ({ estado: e } = agregarCable(e, p(2, 4), p(4, 4)));
+  let id;
+  ({ estado: e, id } = agregarPieza(e, "resistor", p(3, 4), 0));
+  assert.equal(insertarEnCable(e, id), e);
+  ({ estado: e, id } = agregarPieza(e, "resistor", p(10, 10), 0));
+  assert.equal(insertarEnCable(e, id), e);
 });

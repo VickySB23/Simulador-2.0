@@ -5,7 +5,7 @@
 // corrientes conocidas (fuentes de corriente) pasadas al lado derecho. I(Vk) es la corriente que
 // entra a la fuente Vk por su borne + y sale por el −, igual que en los resultados.
 import { ErrorCircuito, TIERRA, analizar, armarSistema, matrizDensa, simulate } from "./mna.js";
-import { armarNetlist, problemaLocal, puntoRepresentativo } from "./netlist.js";
+import { armarNetlist, estadoActivo, problemaLocal, puntoRepresentativo } from "./netlist.js";
 import { formatearCompacto } from "./valores.js";
 
 export const MAXIMO_MATRIZ = 30;
@@ -43,7 +43,9 @@ function terminoResistencia(nombreDe, g, otro, r) {
  * - incognitas: nombres de las columnas (tensiones de nodo y corrientes de las fuentes).
  * - A, z: el sistema MNA; x: la solución. Vacíos si tiene más de MAXIMO_MATRIZ incógnitas.
  */
-export function ecuacionesDe(estado) {
+export function ecuacionesDe(estadoCompleto) {
+  // Los componentes con un borne al aire no participan (no circula corriente por ellos).
+  const estado = estadoActivo(estadoCompleto);
   const problema = problemaLocal(estado);
   if (problema) return { error: problema };
   let analisis;
