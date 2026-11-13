@@ -139,41 +139,104 @@ const entre = (v, p, q) => v > Math.min(p, q) && v < Math.max(p, q);
 const enTramo = (v, p, q) => v >= Math.min(p, q) && v <= Math.max(p, q);
 
 /**
- * Si el centro de la pieza `id` cae sobre un cable recto en el que entra entera, la pieza queda en
- * serie: se alinea con el cable (si ya lo estaba, conserva su sentido, para no invertir una
- * batería) y el cable se parte en dos tramos que llegan a sus bornes. Si no, devuelve el estado.
+ * Recorrido recto de cables que pasa por `punto` en la dirección dada: el tramo de cable que lo
+ * toca (también en un extremo) más los cables alineados que siguen pegados en la misma línea.
+ * Devuelve {desde, hasta, cables} en la coordenada del eje (x si es horizontal), o null.
  */
-export function insertarEnCable(estado, id) {
-  const pieza = buscar(estado, id);
-  if (!pieza || pieza.type === "wire" || esTierra(pieza)) return estado;
-  const m = centro(pieza);
-  for (const cable of estado.components) {
-    if (cable.type !== "wire") continue;
-    const horizontal = cable.a.y === cable.b.y;
-    const vertical = cable.a.x === cable.b.x;
-    const sobre = (horizontal && m.y === cable.a.y && entre(m.x, cable.a.x, cable.b.x))
-      || (vertical && m.x === cable.a.x && entre(m.y, cable.a.y, cable.b.y));
-    if (!sobre) continue;
-    const alineada = horizontal ? !esVertical(pieza) : esVertical(pieza);
-    const { a, b } = alineada ? pieza : terminalesDesdeCentro(m, horizontal ? 0 : 1);
-    const dentro = (p) => (horizontal ? enTramo(p.x, cable.a.x, cable.b.x) : enTramo(p.y, cable.a.y, cable.b.y));
-    if (!dentro(a) || !dentro(b)) continue;
-    // El borne más cercano al extremo a del cable se une con él; el otro, con el extremo b.
-    const distancia = (p, q) => Math.abs(p.x - q.x) + Math.abs(p.y - q.y);
-    const [cerca, lejos] = distancia(a, cable.a) <= distancia(b, cable.a) ? [a, b] : [b, a];
-    let components = estado.components.map((c) => (c.id === pieza.id ? { ...c, a: { ...a }, b: { ...b } } : c));
-    components = mismoPunto(cable.a, cerca)
-      ? components.filter((c) => c.id !== cable.id)
-      : components.map((c) => (c.id === cable.id ? { ...c, b: { ...cerca } } : c));
-    let counters = estado.counters;
-    if (!mismoPunto(lejos, cable.b)) {
-      const reserva = reservarId(estado, "wire");
-      counters = reserva.counters;
-      components = [...components, { id: reserva.id, type: "wire", a: { ...lejos }, b: { ...cable.b } }];
+function recorridoRecto(estado, punto, horizontal) {
+  const eje = horizontal ? "x" : "y";
+  const otro = horizontal ? "y" : "x";
+  const enLinea = estado.components.filter((c) => c.type === "wire" && c.a[otro] === punto[otro] && c.b[otro] === punto[otro]
+    && c.a[eje] !== c.b[eje]);
+  const intervalo = (c) => [Math.min(c.a[eje], c.b[eje]), Math.max(c.a[eje], c.b[eje])];
+  const inicial = enLinea.find((c) => {
+    const [d, h] = intervalo(c);
+    return punto[eje] >= d && punto[eje] <= h;
+  });
+  if (!inicial) return null;
+  let [desde, hasta] = intervalo(inicial);
+  const cables = new Set([inicial]);
+  let creció = true;
+  while (creció) {
+    creció = false;
+    for (const c of enLinea) {
+      if (cables.has(c)) continue;
+      const [d, h] = intervalo(c);
+      if (h >= desde && d <= hasta) {
+        desde = Math.min(desde, d);
+        hasta = Math.max(hasta, h);
+        cables.add(c);
+        creció = true;
+      }
     }
-    return { ...estado, components, counters };
   }
-  return estado;
+  return { desde, hasta, cables: [...cables] };
+}
+
+/**
+ * Inserta la pieza `id` en serie en el cable sobre el que cae su centro. Busca el recorrido recto
+ * de cables (varios cables alineados cuentan como uno) y desliza la pieza a la posición más
+ * cercana donde entra entera sin tapar una unión con otra rama; ahí corta los cables en sus bornes
+ * y saca lo que queda debajo. Devuelve {estado, sobreCable, motivo}: si el centro no cae sobre un
+ * cable, sobreCable es false y el estado no cambia; si cae pero la pieza no entra, el estado
+ * tampoco cambia y `motivo` explica por qué (para avisar en lugar de dejarla suelta encima).
+ */
+export function insercionEnCable(estado, id) {
+  const pieza = buscar(estado, id);
+  const sinCambio = { estado, sobreCable: false, motivo: null };
+  if (!pieza || pieza.type === "wire" || esTierra(pieza)) return sinCambio;
+  const m = centro(pieza);
+  const largo = Math.abs(pieza.b.x - pieza.a.x) + Math.abs(pieza.b.y - pieza.a.y);
+  if (!Number.isInteger(m.x) || !Number.isInteger(m.y)) return sinCambio;
+  // Primero en la dirección de la pieza; si no hay cable ahí, en la otra (la pieza se gira).
+  const direcciones = esVertical(pieza) ? [false, true] : [true, false];
+  let motivo = null;
+  for (const horizontal of direcciones) {
+    const recorrido = recorridoRecto(estado, m, horizontal);
+    if (!recorrido) continue;
+    const eje = horizontal ? "x" : "y";
+    const otro = horizontal ? "y" : "x";
+    const enPunto = (t) => ({ [eje]: t, [otro]: m[otro] });
+    const propios = new Set(recorrido.cables.map((c) => c.id));
+    // Una unión es un punto del recorrido donde llega algo más que los cables del recorrido.
+    const union = (t) => estado.components.some((c) => c.id !== pieza.id && !propios.has(c.id)
+      && (mismoPunto(c.a, enPunto(t)) || mismoPunto(c.b, enPunto(t))));
+    let mejor = null;
+    for (let inicio = recorrido.desde; inicio + largo <= recorrido.hasta; inicio++) {
+      let libre = true;
+      for (let t = inicio + 1; t < inicio + largo && libre; t++) libre = !union(t);
+      if (!libre) continue;
+      const distancia = Math.abs(inicio + largo / 2 - m[eje]);
+      if (!mejor || distancia < mejor.distancia) mejor = { inicio, distancia };
+    }
+    if (!mejor) {
+      motivo = recorrido.hasta - recorrido.desde < largo
+        ? `No entra en ese cable: el tramo mide ${recorrido.hasta - recorrido.desde} y la pieza ${largo}. Soltala sobre un cable más largo.`
+        : "No entra en ese cable sin tapar una unión con otra rama. Soltala sobre un tramo libre.";
+      continue;
+    }
+    // Bornes en la nueva posición, conservando el sentido de la pieza si ya estaba alineada.
+    let a = enPunto(mejor.inicio);
+    let b = enPunto(mejor.inicio + largo);
+    const alineada = horizontal ? !esVertical(pieza) : esVertical(pieza);
+    if (alineada && pieza.a[eje] > pieza.b[eje]) [a, b] = [b, a];
+    let nuevo = partirCablesEn(partirCablesEn(estado, a), b);
+    const [d, h] = [mejor.inicio, mejor.inicio + largo];
+    const debajo = (c) => c.type === "wire" && c.a[otro] === m[otro] && c.b[otro] === m[otro]
+      && Math.min(c.a[eje], c.b[eje]) >= d && Math.max(c.a[eje], c.b[eje]) <= h;
+    nuevo = {
+      ...nuevo,
+      components: nuevo.components.filter((c) => !debajo(c))
+        .map((c) => (c.id === pieza.id ? { ...c, a: { ...a }, b: { ...b } } : c)),
+    };
+    return { estado: nuevo, sobreCable: true, motivo: null };
+  }
+  return motivo ? { estado, sobreCable: true, motivo } : sinCambio;
+}
+
+/** Como insercionEnCable, pero devuelve solo el estado (igual si no se pudo insertar). */
+export function insertarEnCable(estado, id) {
+  return insercionEnCable(estado, id).estado;
 }
 
 // --- Cables en L, partir y estirar -------------------------------------------------------------

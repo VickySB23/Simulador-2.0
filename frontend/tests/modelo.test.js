@@ -3,7 +3,7 @@ import { test } from "node:test";
 
 import {
   ANCHO_MUNDO, LARGO, agregarCable, agregarPieza, aLayout, cambiarValor, circuitoVacio,
-  agregarCableEnL, buscar, conectados, desdeLayout, eliminar, estirarCable, insertarEnCable, partirCablesEn, tramosEnL, mover, nodosElectricos, ponerTierra,
+  agregarCableEnL, buscar, conectados, desdeLayout, eliminar, estirarCable, insercionEnCable, insertarEnCable, partirCablesEn, tramosEnL, mover, nodosElectricos, ponerTierra,
   restaurar, rotar,
 } from "../public/js/lib/modelo.js";
 
@@ -214,4 +214,64 @@ test("estirar la punta de un cable: alineado se alarga, si no se dobla en L", ()
   assert.deepEqual(doblado.components.map((c) => [c.a, c.b]), [[p(2, 2), p(9, 2)], [p(9, 2), p(9, 5)]]);
   assert.equal(estirarCable(e, "W1", "b", p(2, 2)), e, "sobre el otro extremo no hace nada");
   assert.equal(estirarCable(e, "W1", "b", p(99, 2)), e, "fuera del mundo no hace nada");
+});
+
+// Bug: al soltar una resistencia sobre un cable donde no entraba, quedaba encima sin conectar
+// ("Circuito 2" con dos bornes sueltos, a veces tapada por la batería).
+test("sobre un cable corto donde no entra: no se inserta y explica por qué", () => {
+  let e = circuitoVacio();
+  ({ estado: e } = agregarPieza(e, "voltage_source", p(6, 8), 1)); // 6_6 a 6_10
+  ({ estado: e } = agregarCable(e, p(6, 6), p(6, 4))); // el cable corto de la batería (mide 2)
+  let id;
+  ({ estado: e, id } = agregarPieza(e, "resistor", p(6, 5), 1));
+  const r = insercionEnCable(e, id);
+  assert.equal(r.estado, e);
+  assert.equal(r.sobreCable, true);
+  assert.match(r.motivo, /mide 2 y la pieza 4/);
+});
+
+test("varios cables alineados cuentan como uno: la pieza entra cruzando la unión entre ellos", () => {
+  let e = circuitoVacio();
+  ({ estado: e } = agregarCable(e, p(2, 4), p(6, 4)));
+  ({ estado: e } = agregarCable(e, p(6, 4), p(12, 4)));
+  let id;
+  ({ estado: e, id } = agregarPieza(e, "resistor", p(6, 4), 0));
+  e = insertarEnCable(e, id);
+  const r = buscar(e, id);
+  assert.deepEqual([r.a, r.b], [p(4, 4), p(8, 4)]);
+  const cables = e.components.filter((c) => c.type === "wire").map((c) => `${c.a.x}-${c.b.x}`).sort();
+  assert.deepEqual(cables, ["2-4", "8-12"]);
+});
+
+test("si taparía una unión con otra rama, la pieza se corre a la posición libre más cercana", () => {
+  let e = circuitoVacio();
+  ({ estado: e } = agregarCable(e, p(0, 4), p(6, 4)));
+  ({ estado: e } = agregarCable(e, p(6, 4), p(14, 4)));
+  ({ estado: e } = agregarCable(e, p(6, 4), p(6, 8))); // rama que baja desde 6_4
+  let id;
+  ({ estado: e, id } = agregarPieza(e, "resistor", p(6, 4), 0));
+  e = insertarEnCable(e, id);
+  const r = buscar(e, id);
+  assert.deepEqual([r.a, r.b], [p(2, 4), p(6, 4)]);
+  // La rama sigue unida a un borne de la pieza.
+  assert.ok(nodosElectricos(e).get("6_8") === nodosElectricos(e).get("6_4"));
+});
+
+test("en cada ejemplo, soltar una resistencia sobre cualquier punto de un cable la inserta o explica por qué", async () => {
+  const { EJEMPLOS } = await import("../public/js/lib/ejemplos.js");
+  const { simularHoja } = await import("../public/js/lib/netlist.js");
+  for (const ejemplo of EJEMPLOS) {
+    for (const w of ejemplo.estado.components.filter((c) => c.type === "wire")) {
+      const horizontal = w.a.y === w.b.y;
+      const [d, h] = horizontal ? [Math.min(w.a.x, w.b.x), Math.max(w.a.x, w.b.x)] : [Math.min(w.a.y, w.b.y), Math.max(w.a.y, w.b.y)];
+      for (let k = d; k <= h; k++) {
+        const centro = horizontal ? p(k, w.a.y) : p(w.a.x, k);
+        const { estado, id } = agregarPieza(ejemplo.estado, "resistor", centro, horizontal ? 0 : 1);
+        if (!id) continue;
+        const r = insercionEnCable(estado, id);
+        if (r.motivo) continue;
+        assert.ok(!simularHoja(r.estado).sinConectar.has(id), `${ejemplo.id}: ${w.id} en ${k}`);
+      }
+    }
+  }
 });
