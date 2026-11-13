@@ -31,19 +31,19 @@ export const PASOS = [
   {
     id: "bateria",
     titulo: "Poné una batería",
-    texto: "Elegí Batería en la barra (o la tecla 4) y hacé clic en el lienzo.",
+    texto: "Arrastrá la Batería desde la barra hasta el lienzo (o tocala, o apretá B, y hacé clic donde va).",
     cumplido: ({ estado }) => de(estado, "voltage_source").length > 0,
   },
   {
     id: "lampara",
     titulo: "Agregá una lámpara",
-    texto: "Elegí Lámpara (tecla 6) y colocala a un costado de la batería, sin tocarla.",
+    texto: "Traé una Lámpara (tecla L) y dejala a un costado de la batería, sin tocarla.",
     cumplido: ({ estado }) => de(estado, "lamp").length > 0,
   },
   {
     id: "cables",
     titulo: "Uní con cables",
-    texto: "Con Cable (tecla 2), arrastrá desde cada borne de la batería hasta un borne de la lámpara. "
+    texto: "Arrastrá desde cada borne de la batería hasta un borne de la lámpara: el cable se dobla solo. "
       + "Un borne suelto queda marcado \"sin conectar\".",
     cumplido: ({ estado, resultado }) =>
       lamparaConectada(estado) || filas(resultado, "lamp").some((l) => Math.abs(l.current) > 1e-12),
@@ -51,7 +51,7 @@ export const PASOS = [
   {
     id: "tierra",
     titulo: "Poné la tierra (GND)",
-    texto: "Elegí GND (tecla 8) y hacé clic sobre el borne − de la batería. Es la referencia de 0 V: "
+    texto: "Arrastrá GND (tecla G) hasta el borne − de la batería. Es la referencia de 0 V: "
       + "sin ella no se puede simular.",
     cumplido: ({ estado, resultado }) => Boolean(estado.ground && resultado),
   },
@@ -65,8 +65,8 @@ export const PASOS = [
   {
     id: "interruptor",
     titulo: "Agregá un interruptor",
-    texto: "Elegí Interruptor (tecla 7) y soltalo sobre uno de los cables: queda en serie. Después, con "
-      + "Seleccionar (tecla 1), tocalo para abrirlo y apagar la lámpara.",
+    texto: "Arrastrá un Interruptor (tecla S) y soltalo sobre uno de los cables: queda en serie. Después "
+      + "tocalo para abrirlo y apagar la lámpara.",
     cumplido: ({ estado, resultado }) => {
       const lamparas = filas(resultado, "lamp");
       return de(estado, "switch").some((s) => s.closed === false)

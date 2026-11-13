@@ -75,7 +75,7 @@ code, .mono { font-family: var(--fuente-mono); font-size: var(--texto-sm); }
 .boton--primario { background: var(--color-primario); color: var(--color-texto-invertido); }
 .boton--primario:hover:not(:disabled) { background: var(--color-primario-hover); }
 .boton--peligro:hover:not(:disabled) { background: var(--color-error-suave); color: var(--color-error); }
-.boton--icono { padding: 0; width: var(--alto-control); }
+.boton--icono { flex-shrink: 0; padding: 0; width: var(--alto-control); }
 .boton--chico {
   min-height: var(--alto-control-chico);
   padding: 0 var(--esp-3);

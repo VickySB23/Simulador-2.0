@@ -18,6 +18,8 @@ export const ICONOS = {
   tierra: [p("M12 3v9M5 12h14M8 16h8M10.5 20h3")],
   rotar: [p("M19.5 12a7.5 7.5 0 1 1-2.2-5.3M19.5 4v5h-5")],
   valor: [p("M4 20h4L19 9l-4-4L4 16z", "relleno-suave"), p("M4 20h4L19 9l-4-4L4 16zM13 7l4 4")],
+  duplicar: [r(8.5, 8.5, 12, 12, 2.5, "relleno-suave"), r(8.5, 8.5, 12, 12, 2.5),
+    p("M15.5 8.5V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7.5a2 2 0 0 0 2 2h2.5")],
   borrar: [p("M6 7l1 13h10l1-13z", "relleno-suave"), p("M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v5M14 11v5")],
   deshacer: [p("M9 14L4 9l5-5M4 9h10a6 6 0 0 1 0 12h-3")],
   rehacer: [p("M15 14l5-5-5-5M20 9H10a6 6 0 0 0 0 12h3")],

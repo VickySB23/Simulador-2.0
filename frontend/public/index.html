@@ -46,17 +46,17 @@
 
   <nav class="barra barra--editor" role="toolbar" aria-label="Herramientas">
     <div class="barra__grupo" role="radiogroup" aria-label="Herramienta">
-      <button class="boton herramienta" data-herramienta="seleccionar" title="Seleccionar y mover; un clic abre o cierra un interruptor (1)" aria-pressed="true"><span data-icono="seleccionar"></span><span>Seleccionar</span></button>
-      <button class="boton herramienta" data-herramienta="wire" title="Cable (2)"><span data-icono="cable"></span><span>Cable</span></button>
-      <button class="boton herramienta" data-herramienta="resistor" title="Resistencia (3)"><span data-icono="resistencia"></span><span>R</span></button>
-      <button class="boton herramienta" data-herramienta="voltage_source" title="Batería / fuente de tensión (4)"><span data-icono="bateria"></span><span>Batería</span></button>
-      <button class="boton herramienta" data-herramienta="current_source" title="Fuente de corriente (5)"><span data-icono="fuente-corriente"></span><span>I</span></button>
-      <button class="boton herramienta" data-herramienta="lamp" title="Lámpara (6)"><span data-icono="lampara"></span><span>Lámpara</span></button>
-      <button class="boton herramienta" data-herramienta="switch" title="Interruptor (7)"><span data-icono="interruptor"></span><span>Interruptor</span></button>
-      <button class="boton herramienta" data-herramienta="ground" title="Tierra (8)"><span data-icono="tierra"></span><span>GND</span></button>
+      <button class="boton herramienta" data-herramienta="seleccionar" title="Seleccionar (Esc): mover piezas, dibujar cables desde un borne, abrir o cerrar un interruptor con un clic" aria-pressed="true"><span data-icono="seleccionar"></span><span>Seleccionar</span></button>
+      <button class="boton herramienta" data-herramienta="wire" title="Cable (C)"><span data-icono="cable"></span><span>Cable</span></button>
+      <button class="boton herramienta" data-herramienta="resistor" title="Resistencia (R) · también se arrastra al circuito"><span data-icono="resistencia"></span><span>R</span></button>
+      <button class="boton herramienta" data-herramienta="voltage_source" title="Batería / fuente de tensión (B) · también se arrastra al circuito"><span data-icono="bateria"></span><span>Batería</span></button>
+      <button class="boton herramienta" data-herramienta="current_source" title="Fuente de corriente (I) · también se arrastra al circuito"><span data-icono="fuente-corriente"></span><span>I</span></button>
+      <button class="boton herramienta" data-herramienta="lamp" title="Lámpara (L) · también se arrastra al circuito"><span data-icono="lampara"></span><span>Lámpara</span></button>
+      <button class="boton herramienta" data-herramienta="switch" title="Interruptor (S) · también se arrastra al circuito"><span data-icono="interruptor"></span><span>Interruptor</span></button>
+      <button class="boton herramienta" data-herramienta="ground" title="Tierra (G) · también se arrastra al circuito"><span data-icono="tierra"></span><span>GND</span></button>
     </div>
     <div class="barra__grupo">
-      <button id="accion-rotar" class="boton" type="button" title="Rotar (R o espacio)"><span data-icono="rotar"></span><span>Rotar</span></button>
+      <button id="accion-rotar" class="boton" type="button" title="Rotar (espacio)"><span data-icono="rotar"></span><span>Rotar</span></button>
       <button id="accion-valor" class="boton" type="button" title="Editar valor (doble clic)"><span data-icono="valor"></span><span>Valor</span></button>
       <button id="accion-borrar" class="boton" type="button" title="Borrar (Supr)"><span data-icono="borrar"></span><span>Borrar</span></button>
     </div>
@@ -91,6 +91,7 @@
         <button id="zoom-ajustar" class="boton boton--icono boton--chico" type="button" title="Ajustar al ancho" aria-label="Ajustar al ancho">⤢</button>
         <button id="zoom-mas" class="boton boton--icono boton--chico" type="button" title="Acercar" aria-label="Acercar">+</button>
       </div>
+      <div id="info-flotante" class="info-flotante" role="tooltip" hidden></div>
       <aside id="tutorial" class="tutorial" aria-label="Tutorial" hidden>
         <button id="tutorial-pestana" class="tutorial__pestana" type="button" aria-expanded="false" aria-controls="tutorial-cuerpo">? Tutorial</button>
         <div id="tutorial-cuerpo" class="tutorial__cuerpo" hidden>
@@ -225,6 +226,13 @@
   <div id="aviso-version" class="aviso-version aviso-version--flotante" role="status" aria-live="polite" hidden>
     <span>Hay una versión nueva —</span>
     <button id="boton-actualizar" class="boton boton--primario boton--chico" type="button">Actualizar</button>
+  </div>
+
+  <div id="menu-contextual" class="menu-contextual" role="menu" aria-label="Acciones" hidden>
+    <button type="button" role="menuitem" data-accion="rotar"><span data-icono="rotar"></span><span>Rotar</span><kbd>Espacio</kbd></button>
+    <button type="button" role="menuitem" data-accion="valor"><span data-icono="valor"></span><span>Editar valor</span><kbd>Doble clic</kbd></button>
+    <button type="button" role="menuitem" data-accion="duplicar"><span data-icono="duplicar"></span><span>Duplicar</span><kbd>Ctrl+D</kbd></button>
+    <button type="button" role="menuitem" data-accion="borrar"><span data-icono="borrar"></span><span>Borrar</span><kbd>Supr</kbd></button>
   </div>
 
   <dialog id="dialogo" class="dialogo">

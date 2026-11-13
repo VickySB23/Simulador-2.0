@@ -2,14 +2,15 @@
 import { Animador } from "./animador.js";
 import { crearEditor } from "./editor.js";
 import { colocarIconos, icono } from "./iconos.js";
+import { crearMenu } from "./menu.js";
 import { descargar, nombreDeArchivo, pngDelCircuito, svgDelCircuito } from "./exportar.js";
 import { Almacen, aArchivo, desdeArchivo } from "./lib/almacen.js";
 import { PREFIJO_HASH, codificar, decodificar } from "./lib/compartir.js";
 import { EJEMPLOS } from "./lib/ejemplos.js";
 import { Historial } from "./lib/historial.js";
 import {
-  TIPOS, aLayout, agregarCable, agregarPieza, alternarInterruptor, buscar, cambiarPotencia, cambiarValor,
-  circuitoVacio, desdeLayout, insertarEnCable, ponerTierra, restaurar, rotar, tieneValor,
+  TIPOS, aLayout, agregarCableEnL, agregarPieza, alternarInterruptor, buscar, cambiarPotencia, cambiarValor,
+  circuitoVacio, desdeLayout, estirarCable, insertarEnCable, ponerTierra, restaurar, rotar, tieneValor,
 } from "./lib/modelo.js";
 import { simularEstado } from "./lib/netlist.js";
 import {
@@ -22,6 +23,10 @@ import { crearTutorial } from "./tutorial.js";
 const $ = (id) => document.getElementById(id);
 const HERRAMIENTAS = ["seleccionar", "wire", "resistor", "voltage_source", "current_source", "lamp", "switch", "ground"];
 const PIEZAS = new Set(["resistor", "voltage_source", "current_source", "lamp", "switch"]);
+/** Atajos de una letra para las herramientas (también en los tooltips de la barra). */
+const ATAJOS = {
+  c: "wire", r: "resistor", b: "voltage_source", i: "current_source", l: "lamp", s: "switch", g: "ground",
+};
 
 function leerPreferencia(clave, porDefecto) {
   try {
@@ -53,16 +58,36 @@ const ctl = {
   _antesDelArrastre: null,
 
   // --- Acciones que dispara el editor -------------------------------------------------
-  colocarPieza(tipo, centro) {
+  /** Coloca una pieza y vuelve a Seleccionar (con Shift apretado se sigue con la misma herramienta). */
+  colocarPieza(tipo, centro, { mantener = false } = {}) {
     const { estado, id } = agregarPieza(ctl.estado, tipo, centro, ctl.rotacion);
+    if (!id) return;
+    if (!mantener) elegirHerramienta("seleccionar");
     // Sobre un cable, la pieza queda en serie: el cable se corta en sus bornes.
-    if (id) aplicar(insertarEnCable(estado, id));
+    aplicar(insertarEnCable(estado, id));
   },
-  agregarCable(a, b) {
-    aplicar(agregarCable(ctl.estado, a, b).estado);
+  /** Cable de a hasta b, doblado en L si no están alineados. */
+  agregarCable(a, b, horizontalPrimero = true) {
+    aplicar(agregarCableEnL(ctl.estado, a, b, horizontalPrimero).estado);
+  },
+  estirarCable(id, extremo, punto) {
+    aplicar(estirarCable(ctl.estado, id, extremo, punto));
   },
   ponerTierra(punto) {
+    if (ctl.herramienta === "ground") elegirHerramienta("seleccionar");
     aplicar(ponerTierra(ctl.estado, punto));
+  },
+  /** Menú contextual sobre lo seleccionado. */
+  abrirMenu(x, y) {
+    const unica = unicaSeleccionada();
+    const tipo = unica ? buscar(ctl.estado, unica)?.type : null;
+    actualizarBotones();
+    menu.abrir(x, y, {
+      rotar: !$("accion-rotar").disabled && ctl.seleccion.ids.length > 0,
+      valor: Boolean(tipo && tieneValor(tipo)),
+      duplicar: ctl.seleccion.ids.length > 0,
+      borrar: !seleccionVacia(ctl.seleccion),
+    });
   },
   seleccionar(seleccion) {
     ctl.seleccion = seleccion ?? SELECCION_VACIA;
@@ -152,7 +177,13 @@ async function editarLampara(lampara) {
 }
 
 const animador = new Animador();
-const editor = crearEditor($("editor"), $("contenedor-editor"), ctl, animador);
+const editor = crearEditor($("editor"), $("contenedor-editor"), ctl, animador, $("info-flotante"));
+const menu = crearMenu({
+  rotar: () => rotarAccion(),
+  valor: () => { const unica = unicaSeleccionada(); if (unica) ctl.editarValor(unica); },
+  duplicar: () => duplicar(),
+  borrar: () => borrarSeleccion(),
+});
 const tutorial = crearTutorial({ lienzoVacio: () => nuevo() });
 
 // --- Simulación (en el navegador, al instante) -----------------------------------------------
@@ -686,8 +717,49 @@ function alternarPausa() {
 
 // --- Eventos ------------------------------------------------------------------------------------
 
+let ignorarClic = false;
 for (const b of document.querySelectorAll("[data-herramienta]")) {
-  b.addEventListener("click", () => elegirHerramienta(b.dataset.herramienta));
+  b.addEventListener("click", () => {
+    if (ignorarClic) return;
+    elegirHerramienta(b.dataset.herramienta);
+  });
+  const tipo = b.dataset.herramienta;
+  if (PIEZAS.has(tipo) || tipo === "ground") arrastrableDesdeBarra(b, tipo);
+}
+
+/** Las piezas también se arrastran desde la barra hasta el circuito; un clic elige la herramienta. */
+function arrastrableDesdeBarra(boton, tipo) {
+  boton.addEventListener("pointerdown", (evento) => {
+    if (evento.button !== 0) return;
+    const inicio = { x: evento.clientX, y: evento.clientY };
+    let arrastrando = false;
+    boton.setPointerCapture(evento.pointerId);
+    const mover = (e) => {
+      if (!arrastrando && Math.hypot(e.clientX - inicio.x, e.clientY - inicio.y) < 8) return;
+      if (!arrastrando) {
+        arrastrando = true;
+        document.documentElement.classList.add("arrastrando-pieza");
+      }
+      editor.mostrarPieza(tipo, e.clientX, e.clientY);
+    };
+    const terminar = (e, soltar) => {
+      boton.removeEventListener("pointermove", mover);
+      boton.removeEventListener("pointerup", alSoltar);
+      boton.removeEventListener("pointercancel", alCancelar);
+      document.documentElement.classList.remove("arrastrando-pieza");
+      if (!arrastrando) return;
+      // El clic que sigue a un arrastre no tiene que elegir la herramienta.
+      ignorarClic = true;
+      setTimeout(() => { ignorarClic = false; }, 0);
+      if (soltar) editor.soltarPieza(tipo, e.clientX, e.clientY);
+      else editor.mostrarPieza(null, -1, -1);
+    };
+    const alSoltar = (e) => terminar(e, true);
+    const alCancelar = (e) => terminar(e, false);
+    boton.addEventListener("pointermove", mover);
+    boton.addEventListener("pointerup", alSoltar);
+    boton.addEventListener("pointercancel", alCancelar);
+  });
 }
 $("accion-rotar").addEventListener("click", rotarAccion);
 $("accion-valor").addEventListener("click", () => {
@@ -762,15 +834,22 @@ document.addEventListener("keydown", (evento) => {
     seleccionarTodo();
   } else if (control || evento.altKey) {
     return;
-  } else if (tecla === "r" || tecla === "R" || tecla === " ") {
+  } else if (tecla === " ") {
     // También con foco en un botón de la barra: el espacio rota en lugar de volver a apretarlo.
     evento.preventDefault();
     rotarAccion();
+  } else if (ATAJOS[tecla.toLowerCase()]) {
+    elegirHerramienta(ATAJOS[tecla.toLowerCase()]);
   } else if (tecla === "Delete" || tecla === "Backspace") {
     evento.preventDefault();
     borrarSeleccion();
   } else if (tecla === "Escape") {
-    if (!editor.cancelarCable() && !seleccionVacia(ctl.seleccion)) {
+    // Esc deshace lo último en curso: el menú, el cable a medio dibujar, la herramienta elegida
+    // (vuelve a Seleccionar) y por último la selección.
+    if (menu.cerrar() || editor.cancelarCable()) return;
+    if (ctl.herramienta !== "seleccionar") {
+      elegirHerramienta("seleccionar");
+    } else if (!seleccionVacia(ctl.seleccion)) {
       ctl.seleccion = SELECCION_VACIA;
       editor.render();
       actualizarBotones();

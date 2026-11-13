@@ -36,14 +36,16 @@ async function clic(x, y, { doble = false, modificador = null } = {}) {
   else await pagina.mouse.click(p.x, p.y);
   if (modificador) await pagina.keyboard.up(modificador);
 }
-async function arrastrar(desde, hasta) {
+async function arrastrar(desde, hasta, modificador = null) {
   const a = await enPantalla(...desde);
   const b = await enPantalla(...hasta);
+  if (modificador) await pagina.keyboard.down(modificador);
   await pagina.mouse.move(a.x, a.y);
   await pagina.mouse.down();
   await pagina.mouse.move((a.x + b.x) / 2, (a.y + b.y) / 2, { steps: 4 });
   await pagina.mouse.move(b.x, b.y, { steps: 4 });
   await pagina.mouse.up();
+  if (modificador) await pagina.keyboard.up(modificador);
 }
 async function abrirEjemplo(texto) {
   await pagina.click("#pestana-circuitos");
@@ -91,8 +93,8 @@ ok(!(await pagina.locator("#estado-simulacion").innerText()).includes("sin conec
 // --- Selección múltiple ---------------------------------------------------------------------
 await abrirEjemplo("Serie");
 await pagina.click('[data-herramienta="seleccionar"]');
-await arrastrar([7, 2], [20, 5]); // rectángulo alrededor de R1, R2 y el cable W3 que las une
-ok(JSON.stringify(await seleccionados()) === JSON.stringify(["R1", "R2", "W3"]), `rectángulo: selecciona R1, R2 y el cable entre ellas (${await seleccionados()})`);
+await arrastrar([7, 2], [20, 5], "Shift"); // Shift + arrastrar: rectángulo alrededor de R1, R2 y el cable W3 que las une
+ok(JSON.stringify(await seleccionados()) === JSON.stringify(["R1", "R2", "W3"]), `Shift + arrastrar: rectángulo con R1, R2 y el cable entre ellas (${await seleccionados()})`);
 await clic(22, 8, { modificador: "Control" });
 ok((await seleccionados()).length === 4, "Ctrl + clic suma R3");
 await clic(22, 8, { modificador: "Shift" });
@@ -106,7 +108,7 @@ const despues2 = await posicion("R2");
 ok(despues1[1] - antes1[1] === 200 && despues2[1] - antes2[1] === 200 && (await seleccionados()).length === 3,
   "arrastrar mueve el grupo entero (R1 y R2 bajan 10 celdas)");
 await pagina.screenshot({ path: `${SALIDA}/i2-grupo-movido.png` });
-await pagina.keyboard.press("r");
+await pagina.keyboard.press("Space");
 const rotado = await posicion("R1");
 ok(rotado[0] === rotado[2], "R rota el grupo (R1 queda vertical)");
 await pagina.keyboard.press("Delete");
@@ -119,7 +121,7 @@ ok((await ids()).includes("R2"), "Ctrl+Z repone el grupo");
 // Copiar, pegar y duplicar.
 await abrirEjemplo("Serie");
 await pagina.click('[data-herramienta="seleccionar"]');
-await arrastrar([7, 2], [20, 5]);
+await arrastrar([7, 2], [20, 5], "Shift");
 await pagina.keyboard.press("Control+c");
 await pagina.locator("#aviso", { hasText: "Copiados 3" }).waitFor();
 await pagina.keyboard.press("Control+v");
@@ -160,7 +162,7 @@ ok((await progreso()) === "Paso 1 de 7", "tutorial: paso 1 con el lienzo vacío"
 await pagina.screenshot({ path: `${SALIDA}/i5-tutorial-paso-1.png` });
 
 await pagina.click('[data-herramienta="voltage_source"]');
-await pagina.keyboard.press("r");
+await pagina.keyboard.press("Space");
 await clic(4, 6);
 await pagina.locator("#tutorial-progreso", { hasText: "Paso 2" }).waitFor();
 await pagina.click('[data-herramienta="lamp"]');

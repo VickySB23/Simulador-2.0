@@ -112,6 +112,8 @@ ok(await pagina.locator("g.borne-suelto").count() === 2 && (await etiquetas(pagi
   "borne suelto: R5 marcada \"sin conectar\" y el resto sigue simulando (30 V)");
 ok((await pagina.locator("#aviso-sueltos").innerText()).includes("R5"), "borne suelto: aviso en Resultados");
 await pagina.screenshot({ path: `${SALIDA}/03-nodo-suelto.png` });
+// Después de colocar una pieza se vuelve solo a Seleccionar: hay que volver a elegir R.
+await pagina.click('[data-herramienta="resistor"]');
 await clicEnGrilla(pagina, 30, 18); // R6 encima: un lazo cerrado sin camino a tierra
 await esperarFase(pagina, "error");
 ok(await pagina.locator("circle.anillo-error").count() === 2, "lazo flotante: sus 2 nodos en rojo");
@@ -155,7 +157,7 @@ ok((await pagina.locator("text", { hasText: "4.7 Ω" }).count()) === 1, "R1 = 4,
 await pagina.click('[data-herramienta="current_source"]');
 await clicEnGrilla(pagina, 30, 8);
 await pagina.click('[data-herramienta="resistor"]');
-await pagina.keyboard.press("r");
+await pagina.keyboard.press("Space");
 await clicEnGrilla(pagina, 32, 8);
 await pagina.click('[data-herramienta="seleccionar"]');
 const original = await huella(pagina);

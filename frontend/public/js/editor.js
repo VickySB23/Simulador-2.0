@@ -6,15 +6,21 @@
 // - al arrastrar, lo seleccionado (con sus flechas y etiquetas) pasa a un SVG superpuesto que se
 //   desplaza con transform de CSS, sin repintar el circuito; al soltar se simula y se redibuja una
 //   vez. Reconstruir el SVG en cada movimiento costaba ~280 ms con la CPU 4× más lenta.
-// Selección: clic elige una pieza; Ctrl/Shift + clic suma o saca; arrastrar sobre el fondo dibuja
-// un rectángulo (con Ctrl/Shift se suma a lo que había).
+//
+// Sin cambiar de modo: con Seleccionar (el modo normal), arrastrar desde un borne o la punta de un
+// cable dibuja un cable nuevo (en L si hace falta); arrastrar una pieza la mueve; un clic en un
+// interruptor lo abre o lo cierra; arrastrar el fondo mueve la vista. Un cable seleccionado muestra
+// sus puntas, que se arrastran para estirarlo. Ctrl/Shift + clic suma o saca de la selección;
+// Shift + arrastrar el fondo selecciona con un rectángulo (Ctrl + arrastrar lo suma). Zoom con la
+// rueda o con dos dedos; mantener presionada una pieza en el celular abre su menú.
 import { dibujarComponente, dibujarNodo, dibujarTierra, el } from "./dibujo.js";
 import { calorResistencia, colorTension } from "./lib/animacion.js";
 import { corrientesDeTramos } from "./lib/corrientes.js";
 import {
   ALTO_MUNDO, ANCHO_MUNDO, TIPOS, centro, esVertical, mismoPunto, nombreNodo, nodosElectricos,
-  puntosConTerminal, terminalesDesdeCentro,
+  puntosConTerminal, terminalesDesdeCentro, tramosEnL,
 } from "./lib/modelo.js";
+import { resumenFlotante } from "./lib/ficha.js";
 import { puntosDeEtiqueta, sentidoCorriente, tensionesPorPunto } from "./lib/netlist.js";
 import { SELECCION_VACIA, alternarEnSeleccion, seleccionEnRectangulo, unirSelecciones } from "./lib/seleccion.js";
 import { formatearCompacto, formatearSI, interpretarValor } from "./lib/valores.js";
@@ -25,6 +31,9 @@ const ANCHO_PX = ANCHO_MUNDO * PASO + 2 * MARGEN;
 const ALTO_PX = ALTO_MUNDO * PASO + 2 * MARGEN;
 const PIEZAS = new Set(["resistor", "voltage_source", "current_source", "lamp", "switch"]);
 const DOBLE_CLIC_MS = 400;
+const PRESION_LARGA_MS = 550;
+const ZOOM_MINIMO = 0.4;
+const ZOOM_MAXIMO = 3;
 
 const px = (punto) => ({ x: punto.x * PASO + MARGEN, y: punto.y * PASO + MARGEN });
 
@@ -88,23 +97,34 @@ function dibujarFlecha(capaTextos, c, corriente) {
  * @param {HTMLElement} contenedor  elemento con scroll que contiene al SVG
  * @param {object} ctl  controlador (app.js): estado, seleccion, herramienta, rotacion, vista,
  *   resultado, error y las acciones colocarPieza, agregarCable, ponerTierra, seleccionar,
- *   empezarArrastre, arrastrar, terminarArrastre, editarValor y alternarInterruptor.
+ *   empezarArrastre, arrastrar, terminarArrastre, editarValor, alternarInterruptor, estirarCable y
+ *   abrirMenu.
  * @param {import("./animador.js").Animador} animador
+ * @param {HTMLElement} info  cartel flotante con tensión y corriente al pasar el mouse
  */
-export function crearEditor(svg, contenedor, ctl, animador) {
+export function crearEditor(svg, contenedor, ctl, animador, info) {
   svg.setAttribute("viewBox", `0 0 ${ANCHO_PX} ${ALTO_PX}`);
   let zoom = 1;
   let puntero = null;
   let cablePendiente = null;
-  let arrastre = null;
-  let rectangulo = null;
+  /** Gesto en curso con el puntero: mover, cable, borne, estirar, rectangulo, vista o pinza. */
+  let gesto = null;
+  const punteros = new Map();
+  let ultimoTipoPuntero = "mouse";
+  let presionLarga = null;
   let ultimoToque = null;
   let capaFantasma = null;
   let animacionesActuales = [];
+  /** Lo que muestra el cartel flotante de cada componente: {fila, tension, corriente}. */
+  let infoPorId = new Map();
+  /** Pieza que se arrastra desde la barra (su tipo), para dibujar el fantasma. */
+  let piezaArrastrada = null;
+  /** Cable que se está dibujando o estirando: {desde, hasta, horizontal}. */
+  let previa = null;
   const capa = animador.registrar(contenedor, svg, []);
 
   function aplicarZoom(nuevo) {
-    zoom = Math.min(2, Math.max(0.5, nuevo));
+    zoom = Math.min(ZOOM_MAXIMO, Math.max(ZOOM_MINIMO, nuevo));
     svg.setAttribute("width", Math.round(ANCHO_PX * zoom));
     svg.setAttribute("height", Math.round(ALTO_PX * zoom));
     animador.reajustar(capa);
@@ -125,6 +145,27 @@ export function crearEditor(svg, contenedor, ctl, animador) {
       x: Math.min(ANCHO_MUNDO, Math.max(0, Math.round(p.x))),
       y: Math.min(ALTO_MUNDO, Math.max(0, Math.round(p.y))),
     };
+  }
+
+  /** Zoom manteniendo quieto el punto de la pantalla (cx, cy). */
+  function zoomEn(nuevo, cx, cy) {
+    const antes = svg.getBoundingClientRect();
+    const ux = (cx - antes.left) / zoom;
+    const uy = (cy - antes.top) / zoom;
+    aplicarZoom(nuevo);
+    const despues = svg.getBoundingClientRect();
+    contenedor.scrollLeft += despues.left + ux * zoom - cx;
+    contenedor.scrollTop += despues.top + uy * zoom - cy;
+  }
+
+  /** Punto de la grilla con un borne o la punta de un cable cerca del puntero, o null. */
+  function borneCercano(evento) {
+    const e = puntoExacto(evento);
+    if (!e) return null;
+    const g = { x: Math.round(e.x), y: Math.round(e.y) };
+    const radio = evento.pointerType === "mouse" ? 9 : 16;
+    if (Math.hypot(e.x - g.x, e.y - g.y) * PASO * zoom > radio) return null;
+    return ctl.estado.components.some((c) => mismoPunto(c.a, g) || mismoPunto(c.b, g)) ? g : null;
   }
 
   function objetivo(evento) {
@@ -167,6 +208,7 @@ export function crearEditor(svg, contenedor, ctl, animador) {
     const capaNodos = el("g", {}, svg);
     const capaTextos = el("g", {}, svg);
     const capaTierra = el("g", {}, svg);
+    infoPorId = new Map();
     capaFantasma = el("g", { class: "fantasma" }, svg);
     const animaciones = [];
 
@@ -200,8 +242,10 @@ export function crearEditor(svg, contenedor, ctl, animador) {
           error: componentesConError.has(c.id),
         },
       });
-      el("title", {}, g).textContent = (c.type === "wire" ? c.id : `${c.id} · ${TIPOS[c.type].nombre}`)
-        + (sinConectar.has(c.id) ? " · sin conectar" : "");
+      // Tensión y corriente para el cartel que aparece al pasar el mouse.
+      infoPorId.set(c.id, esTramo
+        ? { fila: res, tension: tensiones.get(nombreNodo(c.a)), corriente: resultado ? corriente : undefined }
+        : { fila: res });
       if (sinConectar.has(c.id)) g.classList.add("sin-conectar");
       // La palanca se anima: se dibuja en el estado anterior y se cambia en el cuadro siguiente.
       if (c.type === "switch" && ctl.interruptorRecienCambiado === c.id) {
@@ -256,6 +300,15 @@ export function crearEditor(svg, contenedor, ctl, animador) {
       dibujarTierra(p, g);
     }
 
+    // Un cable seleccionado solo muestra sus puntas: se arrastran para estirarlo.
+    if (seleccion.ids.length === 1 && !seleccion.tierra) {
+      const cable = estado.components.find((c) => c.id === seleccion.ids[0] && c.type === "wire");
+      for (const extremo of cable ? ["a", "b"] : []) {
+        const p = px(cable[extremo]);
+        el("rect", { class: "asa", x: p.x - 6, y: p.y - 6, width: 12, height: 12, rx: 3, "data-asa": extremo, "data-cable": cable.id }, capaTierra);
+      }
+    }
+
     renderFantasma();
     animacionesActuales = animaciones;
     animador.actualizar(capa, animaciones);
@@ -290,182 +343,427 @@ export function crearEditor(svg, contenedor, ctl, animador) {
   function dibujarRectangulo(desde, hasta) {
     const a = px({ x: Math.min(desde.x, hasta.x), y: Math.min(desde.y, hasta.y) });
     const b = px({ x: Math.max(desde.x, hasta.x), y: Math.max(desde.y, hasta.y) });
-    if (!rectangulo.nodo) rectangulo.nodo = el("rect", { class: "rectangulo-seleccion" }, svg);
+    if (!gesto.nodo) gesto.nodo = el("rect", { class: "rectangulo-seleccion" }, svg);
     for (const [k, v] of Object.entries({ x: a.x, y: a.y, width: b.x - a.x, height: b.y - a.y })) {
-      rectangulo.nodo.setAttribute(k, v);
+      gesto.nodo.setAttribute(k, v);
     }
   }
 
   function renderFantasma() {
     if (!capaFantasma) return;
     capaFantasma.replaceChildren();
-    if (!puntero || ctl.herramienta === "seleccionar") return;
+    const linea = (desde, hasta, horizontal) => {
+      for (const [p, q] of tramosEnL(desde, hasta, horizontal)) {
+        const a = px(p);
+        const b = px(q);
+        el("line", { class: "cable-pendiente", x1: a.x, y1: a.y, x2: b.x, y2: b.y }, capaFantasma);
+      }
+    };
+    if (previa) linea(previa.desde, previa.hasta, previa.horizontal);
+    const herramienta = piezaArrastrada ?? ctl.herramienta;
+    if (!puntero || (herramienta === "seleccionar" && !previa)) return;
     const p = px(puntero);
-    if (PIEZAS.has(ctl.herramienta)) {
+    if (PIEZAS.has(herramienta)) {
       const { a, b } = terminalesDesdeCentro(puntero, ctl.rotacion);
       capaFantasma.append(dibujarComponente(
-        { type: ctl.herramienta, a: px(a), b: px(b), closed: true }, { vista: ctl.vista, etiquetas: false }));
-    } else if (ctl.herramienta === "ground") {
+        { type: herramienta, a: px(a), b: px(b), closed: true }, { vista: ctl.vista, etiquetas: false }));
+    } else if (herramienta === "ground") {
       dibujarTierra(p, capaFantasma);
     }
-    if (cablePendiente) {
-      const q = px(cablePendiente);
-      el("line", { class: "cable-pendiente", x1: q.x, y1: q.y, x2: p.x, y2: p.y }, capaFantasma);
-    }
+    if (cablePendiente && !previa) linea(cablePendiente, puntero, esHorizontal(cablePendiente, puntero));
     el("circle", { class: "cursor", cx: p.x, cy: p.y, r: 4 }, capaFantasma);
   }
 
-  // --- Puntero ---------------------------------------------------------------------------
+  const esHorizontal = (desde, hasta) => Math.abs(hasta.x - desde.x) >= Math.abs(hasta.y - desde.y);
+
+  // --- Cartel flotante con tensión y corriente ---------------------------------------------
+
+  function ocultarInfo() {
+    info.hidden = true;
+  }
+
+  function mostrarInfo(evento) {
+    const nodo = evento.target.closest?.("[data-id]");
+    const componente = nodo && ctl.estado.components.find((c) => c.id === nodo.dataset.id);
+    if (!componente) return ocultarInfo();
+    const { titulo, detalle } = resumenFlotante(componente, infoPorId.get(componente.id));
+    info.replaceChildren();
+    const t = document.createElement("strong");
+    t.textContent = titulo;
+    info.append(t);
+    if (detalle) {
+      const d = document.createElement("span");
+      d.textContent = detalle;
+      info.append(d);
+    }
+    info.hidden = false;
+    const marco = info.offsetParent?.getBoundingClientRect() ?? { left: 0, top: 0, width: innerWidth };
+    let x = evento.clientX - marco.left + 14;
+    if (x + info.offsetWidth > marco.width - 8) x = evento.clientX - marco.left - info.offsetWidth - 14;
+    info.style.left = `${Math.max(4, x)}px`;
+    info.style.top = `${evento.clientY - marco.top + 16}px`;
+  }
+
+  // --- Gestos -----------------------------------------------------------------------------
+
+  function cancelarPresionLarga() {
+    clearTimeout(presionLarga);
+    presionLarga = null;
+  }
+
+  /** Corta el gesto en curso sin aplicarlo (al apoyar un segundo dedo o abrir el menú). */
+  function cancelarGesto() {
+    cancelarPresionLarga();
+    const g = gesto;
+    gesto = null;
+    if (!g) return;
+    if (g.tipo === "mover") {
+      g.capaSvg?.remove();
+      ctl.arrastrar(0, 0);
+      if (!ctl.terminarArrastre() && g.movio) render();
+    } else if (g.tipo === "rectangulo") {
+      g.nodo?.remove();
+    } else if (g.tipo === "cable" || g.tipo === "borne" || g.tipo === "estirar") {
+      previa = null;
+      renderFantasma();
+    }
+  }
+
+  function empezarMover(evento, punto, sel, tipo) {
+    const yaEstaba = sel.tipo === "tierra" ? ctl.seleccion.tierra : ctl.seleccion.ids.includes(sel.id);
+    const sola = sel.tipo === "tierra" ? { ids: [], tierra: true } : { ids: [sel.id], tierra: false };
+    // Sobre algo ya seleccionado se arrastra todo el grupo; si no, se elige solo esa pieza.
+    if (!yaEstaba) ctl.seleccionar(sola);
+    render();
+    gesto = {
+      tipo: "mover", inicio: punto, dx: 0, dy: 0, sel, tipoPieza: tipo, sola,
+      elementos: elementosDe(ctl.seleccion), movio: false,
+      grupo: ctl.seleccion.ids.length + (ctl.seleccion.tierra ? 1 : 0) > 1,
+    };
+    ctl.empezarArrastre();
+  }
+
+  /** Mover lo seleccionado: el grupo pasa a la capa de arrastre y se desplaza con transform. */
+  function moverA(punto) {
+    const dx = punto.x - gesto.inicio.x;
+    const dy = punto.y - gesto.inicio.y;
+    if ((dx === gesto.dx && dy === gesto.dy) || !ctl.arrastrar(dx, dy)) return;
+    gesto.dx = dx;
+    gesto.dy = dy;
+    cancelarPresionLarga();
+    if (!gesto.movio) {
+      // Sus puntos de corriente quedarían en el lugar viejo: se sacan hasta soltar.
+      gesto.movio = true;
+      const ids = new Set(ctl.seleccion.ids);
+      animador.actualizar(capa, animacionesActuales.filter((e) => !ids.has(e.id)));
+      gesto.capaSvg = crearCapaArrastre(gesto.elementos);
+    }
+    gesto.capaSvg.style.transform = `translate(${dx * PASO * zoom}px, ${dy * PASO * zoom}px)`;
+  }
+
+  /** Mientras se dibuja un cable: la L sigue al puntero, doblando según el primer movimiento. */
+  function dibujarHasta(punto) {
+    if (mismoPunto(punto, gesto.inicio) && gesto.horizontal === null) return;
+    if (gesto.horizontal === null) gesto.horizontal = esHorizontal(gesto.inicio, punto);
+    previa = { desde: gesto.inicio, hasta: punto, horizontal: gesto.horizontal };
+    renderFantasma();
+  }
+
+  function medioYDistancia() {
+    const [p, q] = [...punteros.values()];
+    return { x: (p.x + q.x) / 2, y: (p.y + q.y) / 2, d: Math.hypot(p.x - q.x, p.y - q.y) || 1 };
+  }
 
   svg.addEventListener("pointerdown", (evento) => {
-    if (evento.button !== 0) return;
+    ultimoTipoPuntero = evento.pointerType;
+    punteros.set(evento.pointerId, { x: evento.clientX, y: evento.clientY });
+    ocultarInfo();
+    if (punteros.size === 2) {
+      // Dos dedos: zoom y desplazamiento; lo que se estaba haciendo con uno se cancela.
+      cancelarGesto();
+      const { x, y, d } = medioYDistancia();
+      gesto = { tipo: "pinza", d0: d, z0: zoom, medio: { x, y } };
+      evento.preventDefault();
+      return;
+    }
+    if (punteros.size > 2 || evento.button !== 0) return;
     const punto = puntoDe(evento);
     if (!punto) return;
     puntero = punto;
-    const herramienta = ctl.herramienta;
-    if (herramienta === "seleccionar") {
-      const sel = objetivo(evento);
-      const tipo = sel?.tipo === "componente" ? ctl.estado.components.find((c) => c.id === sel.id)?.type : null;
-      const sumar = evento.ctrlKey || evento.shiftKey || evento.metaKey;
-      // Doble clic (o doble toque) detectado a mano: cada render reemplaza los elementos del SVG,
-      // así que el evento dblclick del navegador no siempre llega al componente.
-      const ahora = evento.timeStamp;
-      const esDoble = !sumar && tipo && tipo !== "switch" && ultimoToque?.id === sel.id && ahora - ultimoToque.tiempo < DOBLE_CLIC_MS;
-      ultimoToque = tipo && !sumar ? { id: sel.id, tiempo: ahora } : null;
-      if (esDoble) {
-        ultimoToque = null;
-        ctl.editarValor(sel.id);
-        evento.preventDefault();
-        return;
-      }
-      if (!sel) {
-        // Fondo: rectángulo de selección.
-        rectangulo = { inicio: puntoExacto(evento), base: sumar ? ctl.seleccion : SELECCION_VACIA, nodo: null };
-        if (!sumar) ctl.seleccionar(SELECCION_VACIA);
-        render();
-        svg.setPointerCapture(evento.pointerId);
-        evento.preventDefault();
-        return;
-      }
-      if (sumar) {
-        ctl.seleccionar(alternarEnSeleccion(ctl.seleccion, sel));
-        render();
-        evento.preventDefault();
-        return;
-      }
-      const yaEstaba = sel.tipo === "tierra" ? ctl.seleccion.tierra : ctl.seleccion.ids.includes(sel.id);
-      const sola = sel.tipo === "tierra" ? { ids: [], tierra: true } : { ids: [sel.id], tierra: false };
-      // Sobre algo ya seleccionado se arrastra todo el grupo; si no, se elige solo esa pieza.
-      if (!yaEstaba) ctl.seleccionar(sola);
-      render();
-      arrastre = {
-        inicio: punto, dx: 0, dy: 0, sel, tipo, sola, elementos: elementosDe(ctl.seleccion), movio: false,
-        grupo: ctl.seleccion.ids.length + (ctl.seleccion.tierra ? 1 : 0) > 1,
-      };
-      ctl.empezarArrastre();
-      svg.setPointerCapture(evento.pointerId);
-    } else if (herramienta === "wire") {
-      if (!cablePendiente) cablePendiente = punto;
-      svg.setPointerCapture(evento.pointerId);
-      renderFantasma();
-    } else if (herramienta === "ground") {
-      ctl.ponerTierra(punto);
-    } else if (PIEZAS.has(herramienta)) {
-      ctl.colocarPieza(herramienta, punto);
-    }
+    svg.setPointerCapture(evento.pointerId);
     evento.preventDefault();
+    const herramienta = ctl.herramienta;
+    if (herramienta === "wire") {
+      gesto = { tipo: "cable", inicio: punto, horizontal: null, herramienta: true };
+      renderFantasma();
+      return;
+    }
+    if (herramienta === "ground") return ctl.ponerTierra(punto);
+    if (PIEZAS.has(herramienta)) return ctl.colocarPieza(herramienta, punto, { mantener: evento.shiftKey });
+
+    // --- Seleccionar (el modo normal) ---
+    const asa = evento.target.closest?.("[data-asa]");
+    if (asa) {
+      gesto = { tipo: "estirar", id: asa.dataset.cable, extremo: asa.dataset.asa, inicio: punto };
+      return;
+    }
+    const sel = objetivo(evento);
+    const tipo = sel?.tipo === "componente" ? ctl.estado.components.find((c) => c.id === sel.id)?.type : null;
+    const sumar = evento.ctrlKey || evento.shiftKey || evento.metaKey;
+    // Doble clic (o doble toque) detectado a mano: cada render reemplaza los elementos del SVG,
+    // así que el evento dblclick del navegador no siempre llega al componente.
+    const ahora = evento.timeStamp;
+    const esDoble = !sumar && tipo && tipo !== "switch" && ultimoToque?.id === sel.id && ahora - ultimoToque.tiempo < DOBLE_CLIC_MS;
+    ultimoToque = tipo && !sumar ? { id: sel.id, tiempo: ahora } : null;
+    if (esDoble) {
+      ultimoToque = null;
+      ctl.editarValor(sel.id);
+      return;
+    }
+    if (sel && sumar) {
+      ctl.seleccionar(alternarEnSeleccion(ctl.seleccion, sel));
+      render();
+      return;
+    }
+    // Mantener presionado (con el dedo) una pieza abre su menú.
+    if (sel && evento.pointerType !== "mouse") {
+      const { clientX, clientY } = evento;
+      presionLarga = setTimeout(() => {
+        presionLarga = null;
+        if (!gesto || gesto.movio) return;
+        cancelarGesto();
+        abrirMenuSobre(sel, clientX, clientY);
+      }, PRESION_LARGA_MS);
+    }
+    const borne = !sumar && borneCercano(evento);
+    if (borne) {
+      // Desde un borne: si se arrastra es un cable nuevo; si no, es un clic sobre lo que hay ahí.
+      gesto = { tipo: "borne", inicio: borne, horizontal: null, sel, tipoPieza: tipo };
+      return;
+    }
+    if (sel) return empezarMover(evento, punto, sel, tipo);
+    if (sumar) {
+      // Shift + arrastrar: rectángulo nuevo; Ctrl + arrastrar: se suma a lo seleccionado.
+      const base = evento.ctrlKey || evento.metaKey ? ctl.seleccion : SELECCION_VACIA;
+      gesto = { tipo: "rectangulo", inicio: puntoExacto(evento), base, nodo: null };
+      return;
+    }
+    gesto = {
+      tipo: "vista", x0: evento.clientX, y0: evento.clientY,
+      sl: contenedor.scrollLeft, st: contenedor.scrollTop, movio: false,
+    };
   });
 
   svg.addEventListener("pointermove", (evento) => {
+    if (punteros.has(evento.pointerId)) punteros.set(evento.pointerId, { x: evento.clientX, y: evento.clientY });
+    if (gesto?.tipo === "pinza") {
+      if (punteros.size < 2) return;
+      const { x, y, d } = medioYDistancia();
+      zoomEn(gesto.z0 * (d / gesto.d0), x, y);
+      contenedor.scrollLeft -= x - gesto.medio.x;
+      contenedor.scrollTop -= y - gesto.medio.y;
+      gesto.medio = { x, y };
+      return;
+    }
+    if (gesto?.tipo === "vista") {
+      const dx = evento.clientX - gesto.x0;
+      const dy = evento.clientY - gesto.y0;
+      if (!gesto.movio && Math.hypot(dx, dy) > 4) {
+        gesto.movio = true;
+        svg.classList.add("moviendo-vista");
+      }
+      if (gesto.movio) {
+        contenedor.scrollLeft = gesto.sl - dx;
+        contenedor.scrollTop = gesto.st - dy;
+      }
+      return;
+    }
     const punto = puntoDe(evento);
     if (!punto) return;
     const cambio = !puntero || !mismoPunto(punto, puntero);
     puntero = punto;
-    if (rectangulo) {
-      dibujarRectangulo(rectangulo.inicio, puntoExacto(evento) ?? punto);
-    } else if (arrastre) {
-      const dx = punto.x - arrastre.inicio.x;
-      const dy = punto.y - arrastre.inicio.y;
-      if ((dx !== arrastre.dx || dy !== arrastre.dy) && ctl.arrastrar(dx, dy)) {
-        arrastre.dx = dx;
-        arrastre.dy = dy;
-        if (!arrastre.movio) {
-          // Sus puntos de corriente quedarían en el lugar viejo: se sacan hasta soltar.
-          arrastre.movio = true;
-          const ids = new Set(ctl.seleccion.ids);
-          animador.actualizar(capa, animacionesActuales.filter((e) => !ids.has(e.id)));
-          arrastre.capaSvg = crearCapaArrastre(arrastre.elementos);
+    if (!gesto) {
+      if (evento.pointerType === "mouse" && evento.buttons === 0) {
+        if (ctl.herramienta === "seleccionar") {
+          svg.classList.toggle("sobre-borne", Boolean(borneCercano(evento)));
+          mostrarInfo(evento);
         }
-        arrastre.capaSvg.style.transform = `translate(${dx * PASO * zoom}px, ${dy * PASO * zoom}px)`;
+        if (cambio && ctl.herramienta !== "seleccionar") renderFantasma();
       }
-    } else if (cambio && ctl.herramienta !== "seleccionar") {
+      return;
+    }
+    if (gesto.tipo === "rectangulo") {
+      dibujarRectangulo(gesto.inicio, puntoExacto(evento) ?? punto);
+    } else if (gesto.tipo === "mover") {
+      moverA(punto);
+    } else if (gesto.tipo === "borne") {
+      if (!mismoPunto(punto, gesto.inicio)) {
+        cancelarPresionLarga();
+        gesto = { tipo: "cable", inicio: gesto.inicio, horizontal: null };
+        dibujarHasta(punto);
+      }
+    } else if (gesto.tipo === "cable") {
+      if (cambio) dibujarHasta(punto);
+    } else if (gesto.tipo === "estirar" && cambio) {
+      const cable = ctl.estado.components.find((c) => c.id === gesto.id);
+      if (!cable) return;
+      const fijo = gesto.extremo === "a" ? cable.b : cable.a;
+      previa = { desde: fijo, hasta: punto, horizontal: cable.a.y === cable.b.y && cable.a.x !== cable.b.x };
       renderFantasma();
     }
   });
 
-  svg.addEventListener("pointerup", (evento) => {
+  function soltar(evento) {
+    punteros.delete(evento.pointerId);
+    cancelarPresionLarga();
+    const g = gesto;
+    if (!g) return;
+    if (g.tipo === "pinza") {
+      if (punteros.size === 0) gesto = null;
+      return;
+    }
+    gesto = null;
     const punto = puntoDe(evento) ?? puntero;
-    if (rectangulo) {
-      const { inicio, base, nodo } = rectangulo;
-      rectangulo = null;
-      nodo?.remove();
-      const fin = puntoExacto(evento) ?? inicio;
-      ctl.seleccionar(unirSelecciones(base, seleccionEnRectangulo(ctl.estado, inicio, fin)));
-      render();
-    } else if (arrastre) {
-      const { dx, dy, sel, tipo, movio, capaSvg, grupo, sola } = arrastre;
-      arrastre = null;
-      capaSvg?.remove();
-      // Si cambió, terminarArrastre simula y redibuja; si volvió al lugar, se redibuja acá.
-      if (!ctl.terminarArrastre() && movio) render();
-      const clic = dx === 0 && dy === 0;
-      if (clic && grupo) {
-        // Clic sin arrastrar sobre una pieza de un grupo: queda solo esa.
-        ctl.seleccionar(sola);
+    if (g.tipo === "vista") {
+      svg.classList.remove("moviendo-vista");
+      // Un clic en el fondo, sin arrastrar, deselecciona.
+      if (!g.movio) {
+        ctl.seleccionar(SELECCION_VACIA);
         render();
-      } else if (clic && tipo === "switch") {
-        // Un clic sin arrastrar sobre un interruptor lo abre o lo cierra.
-        ctl.alternarInterruptor(sel.id);
       }
-    } else if (ctl.herramienta === "wire" && cablePendiente && punto && !mismoPunto(punto, cablePendiente)) {
-      // Arrastrar o hacer clic en dos puntos: las dos formas terminan acá.
+    } else if (g.tipo === "rectangulo") {
+      g.nodo?.remove();
+      const fin = puntoExacto(evento) ?? g.inicio;
+      ctl.seleccionar(unirSelecciones(g.base, seleccionEnRectangulo(ctl.estado, g.inicio, fin)));
+      render();
+    } else if (g.tipo === "mover") {
+      g.capaSvg?.remove();
+      // Si cambió, terminarArrastre simula y redibuja; si volvió al lugar, se redibuja acá.
+      if (!ctl.terminarArrastre() && g.movio) render();
+      const clic = g.dx === 0 && g.dy === 0;
+      if (clic && g.grupo) {
+        // Clic sin arrastrar sobre una pieza de un grupo: queda solo esa.
+        ctl.seleccionar(g.sola);
+        render();
+      } else if (clic && g.tipoPieza === "switch") {
+        // Un clic sin arrastrar sobre un interruptor lo abre o lo cierra.
+        ctl.alternarInterruptor(g.sel.id);
+      }
+    } else if (g.tipo === "borne") {
+      // Clic sobre un borne, sin arrastrar: como un clic sobre lo que hay ahí.
+      if (g.sel) {
+        ctl.seleccionar(g.sel.tipo === "tierra" ? { ids: [], tierra: true } : { ids: [g.sel.id], tierra: false });
+        render();
+        if (g.tipoPieza === "switch") ctl.alternarInterruptor(g.sel.id);
+      } else {
+        ctl.seleccionar(SELECCION_VACIA);
+        render();
+      }
+    } else if (g.tipo === "estirar") {
+      previa = null;
+      if (punto && !mismoPunto(punto, g.inicio)) ctl.estirarCable(g.id, g.extremo, punto);
+      else renderFantasma();
+    } else if (g.tipo === "cable") {
+      previa = null;
+      terminarCable(g, punto);
+    }
+  }
+
+  /**
+   * Fin de un cable. Arrastrando: de donde se apretó a donde se soltó. Con la herramienta Cable
+   * también por clics: cada clic agrega un tramo desde la punta anterior, y un clic en la misma
+   * punta termina. Después de un tramo se sigue dibujando desde su punta.
+   */
+  function terminarCable(g, punto) {
+    if (!punto) return renderFantasma();
+    if (!mismoPunto(punto, g.inicio)) {
+      if (g.herramienta) cablePendiente = punto;
+      ctl.agregarCable(g.inicio, punto, g.horizontal ?? esHorizontal(g.inicio, punto));
+    } else if (g.herramienta && cablePendiente && !mismoPunto(cablePendiente, punto)) {
       const inicio = cablePendiente;
-      cablePendiente = null;
-      ctl.agregarCable(inicio, punto);
+      cablePendiente = punto;
+      ctl.agregarCable(inicio, punto, esHorizontal(inicio, punto));
+    } else if (g.herramienta) {
+      cablePendiente = cablePendiente && mismoPunto(cablePendiente, punto) ? null : punto;
+      renderFantasma();
     } else {
       renderFantasma();
     }
-  });
+  }
 
-  svg.addEventListener("pointercancel", () => {
-    if (rectangulo) {
-      rectangulo.nodo?.remove();
-      rectangulo = null;
-    }
-    if (arrastre) {
-      const { movio, capaSvg } = arrastre;
-      arrastre = null;
-      capaSvg?.remove();
-      if (!ctl.terminarArrastre() && movio) render();
-    }
+  svg.addEventListener("pointerup", soltar);
+  svg.addEventListener("pointercancel", (evento) => {
+    punteros.delete(evento.pointerId);
+    if (gesto?.tipo !== "pinza" || punteros.size === 0) cancelarGesto();
   });
 
   svg.addEventListener("pointerleave", (evento) => {
-    if (evento.pointerType === "mouse" && !arrastre && !rectangulo) {
+    if (evento.pointerType === "mouse" && !gesto) {
       puntero = null;
+      ocultarInfo();
       renderFantasma();
     }
+  });
+
+  // Rueda: zoom alrededor del puntero (también el gesto de pellizcar del touchpad).
+  contenedor.addEventListener("wheel", (evento) => {
+    evento.preventDefault();
+    const escala = evento.deltaMode === 1 ? 0.05 : 0.0015;
+    zoomEn(zoom * Math.exp(-evento.deltaY * escala), evento.clientX, evento.clientY);
+  }, { passive: false });
+
+  /** Selecciona lo tocado (si no estaba) y abre el menú contextual. */
+  function abrirMenuSobre(sel, x, y) {
+    const yaEstaba = sel.tipo === "tierra" ? ctl.seleccion.tierra : ctl.seleccion.ids.includes(sel.id);
+    if (!yaEstaba) ctl.seleccionar(sel.tipo === "tierra" ? { ids: [], tierra: true } : { ids: [sel.id], tierra: false });
+    render();
+    ctl.abrirMenu(x, y);
+  }
+
+  svg.addEventListener("contextmenu", (evento) => {
+    const sel = objetivo(evento);
+    if (!sel) return;
+    evento.preventDefault();
+    // Con el dedo el menú lo abre la presión larga (también en iOS, que no dispara contextmenu).
+    if (ultimoTipoPuntero !== "mouse") return;
+    cancelarGesto();
+    abrirMenuSobre(sel, evento.clientX, evento.clientY);
   });
 
   aplicarZoom(1);
 
+  const sobreLienzo = (x, y) => {
+    const r = contenedor.getBoundingClientRect();
+    return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+  };
+
   return {
     render,
     cancelarCable() {
-      const habia = cablePendiente !== null;
+      const habia = cablePendiente !== null || previa !== null;
+      if (gesto?.tipo === "cable" || gesto?.tipo === "borne" || gesto?.tipo === "estirar") gesto = null;
       cablePendiente = null;
+      previa = null;
       renderFantasma();
       return habia;
+    },
+    /** Fantasma de una pieza que se arrastra desde la barra (o lo saca si está fuera del lienzo). */
+    mostrarPieza(tipo, x, y) {
+      piezaArrastrada = tipo;
+      puntero = sobreLienzo(x, y) ? puntoDe({ clientX: x, clientY: y }) : null;
+      renderFantasma();
+    },
+    /** Suelta una pieza arrastrada desde la barra; devuelve true si cayó en el lienzo. */
+    soltarPieza(tipo, x, y) {
+      piezaArrastrada = null;
+      const adentro = sobreLienzo(x, y);
+      const punto = adentro ? puntoDe({ clientX: x, clientY: y }) : null;
+      puntero = null;
+      renderFantasma();
+      if (!punto) return false;
+      if (tipo === "ground") ctl.ponerTierra(punto);
+      else ctl.colocarPieza(tipo, punto);
+      return true;
     },
     acercar: () => aplicarZoom(zoom * 1.2),
     alejar: () => aplicarZoom(zoom / 1.2),

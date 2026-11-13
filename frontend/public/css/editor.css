@@ -41,7 +41,7 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
   flex-direction: column;
   border-right: var(--borde) solid var(--color-borde-suave);
 }
-.contenedor-editor { flex: 1; overflow: auto; background: var(--color-fondo-hundido); }
+.contenedor-editor { flex: 1; min-height: 0; overflow: auto; background: var(--color-fondo-hundido); }
 
 .editor { display: block; touch-action: none; cursor: crosshair; }
 .editor.herramienta-seleccionar { cursor: default; }
@@ -140,9 +140,15 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 
 /* --- Pantallas chicas --------------------------------------------------------------------------- */
 
+/* En escritorio la página entra justa en la ventana: al acercar, se desplaza el lienzo (con la
+   rueda o arrastrando el fondo), no la página. */
+@media (min-width: 961px) {
+  body { height: 100vh; }
+}
+
 @media (max-width: 960px) {
   .area { grid-template-columns: minmax(0, 1fr); }
-  .lienzo { min-height: 60vh; border-right: 0; border-bottom: var(--borde) solid var(--color-borde-suave); }
+  .lienzo { height: 60vh; border-right: 0; border-bottom: var(--borde) solid var(--color-borde-suave); }
   .panel { overflow: visible; }
 }
 
@@ -228,3 +234,76 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 }
 .tutorial__puntos li.hecho { background: var(--color-ok); }
 .tutorial__puntos li.actual { background: var(--color-mostaza); width: var(--esp-4); }
+
+/* --- Interacción sin modos ------------------------------------------------------------------- */
+.editor.herramienta-seleccionar.sobre-borne { cursor: crosshair; }
+.editor.moviendo-vista { cursor: grabbing; }
+.editor .asa {
+  fill: var(--color-superficie);
+  stroke: var(--color-seleccion);
+  stroke-width: var(--borde);
+  cursor: move;
+}
+/* En la barra, las piezas se arrastran hacia el circuito; deslizar de costado sigue desplazando. */
+.barra--editor .herramienta { touch-action: pan-x; }
+:root.arrastrando-pieza, :root.arrastrando-pieza * { cursor: grabbing; }
+
+/* Cartel con tensión y corriente al pasar el mouse. */
+.info-flotante {
+  position: absolute;
+  z-index: 4;
+  display: grid;
+  gap: var(--esp-1);
+  padding: var(--esp-2) var(--esp-3);
+  border: var(--borde-fino) solid var(--color-tinta);
+  border-radius: var(--radio-md);
+  background: var(--color-superficie);
+  box-shadow: var(--sombra-flotante);
+  font-size: var(--texto-sm);
+  pointer-events: none;
+  white-space: nowrap;
+}
+.info-flotante span { color: var(--color-texto-suave); font-variant-numeric: tabular-nums; }
+
+/* Menú contextual. */
+.menu-contextual {
+  position: fixed;
+  z-index: 20;
+  display: grid;
+  min-width: calc(var(--esp-7) * 4.5);
+  padding: var(--esp-1);
+  border: var(--borde) solid var(--color-tinta);
+  border-radius: var(--radio-md);
+  background: var(--color-superficie);
+  box-shadow: var(--sombra-flotante);
+}
+.menu-contextual button {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-2);
+  min-height: var(--alto-control-chico);
+  padding: 0 var(--esp-3);
+  border: 0;
+  border-radius: var(--radio-sm);
+  background: transparent;
+  color: var(--color-texto);
+  font: inherit;
+  font-weight: var(--peso-fuerte);
+  text-align: left;
+  cursor: pointer;
+}
+.menu-contextual button:hover:not(:disabled), .menu-contextual button:focus-visible { background: var(--color-superficie-2); }
+.menu-contextual button:focus-visible { outline-offset: calc(var(--borde) * -1); }
+.menu-contextual button:disabled { opacity: 0.4; cursor: not-allowed; }
+.menu-contextual kbd {
+  margin-left: auto;
+  padding-left: var(--esp-4);
+  color: var(--color-texto-suave);
+  font: inherit;
+  font-size: var(--texto-xs);
+  font-weight: var(--peso-normal);
+}
+/* Con el dedo no hay teclado: el menú no muestra los atajos. */
+@media (hover: none) {
+  .menu-contextual kbd { display: none; }
+}

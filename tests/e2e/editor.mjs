@@ -43,9 +43,11 @@ async function clic(pagina, x, y, doble = false) {
   if (doble) await pagina.mouse.dblclick(p.x, p.y);
   else await pagina.mouse.click(p.x, p.y);
 }
+/** Un cable por clics: el siguiente clic seguiría desde la punta, así que Esc lo termina. */
 async function cable(pagina, a, b) {
   await clic(pagina, ...a);
   await clic(pagina, ...b);
+  await pagina.keyboard.press("Escape");
 }
 async function canvasCambia(pagina) {
   const foto = () => pagina.evaluate(() => document.querySelector("#contenedor-editor canvas").toDataURL());
@@ -59,14 +61,14 @@ const { contexto, pagina } = await abrir();
 await pagina.click("#pestana-circuitos");
 await pagina.click("#accion-nuevo");
 await pagina.click('[data-herramienta="voltage_source"]');
-await pagina.keyboard.press("r"); // vertical, + arriba
+await pagina.keyboard.press("Space"); // vertical, + arriba
 await clic(pagina, 6, 8);
 // La rotación es una sola para todas las herramientas: tres giros más vuelven a horizontal.
 await pagina.click('[data-herramienta="switch"]');
-for (let i = 0; i < 3; i++) await pagina.keyboard.press("r");
+for (let i = 0; i < 3; i++) await pagina.keyboard.press("Space");
 await clic(pagina, 10, 4);
 await pagina.click('[data-herramienta="lamp"]');
-await pagina.keyboard.press("r");
+await pagina.keyboard.press("Space");
 await clic(pagina, 16, 8);
 await pagina.click('[data-herramienta="wire"]');
 await cable(pagina, [6, 6], [6, 4]);
