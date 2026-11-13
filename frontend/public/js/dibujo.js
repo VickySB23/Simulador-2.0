@@ -115,21 +115,28 @@ const FORMAS = {
     efectos: { ilustrada: { halo: [40, -18, 38] }, esquematica: { halo: [40, 0, 26] } },
   },
   switch: {
-    cuerpo: { ilustrada: [16, 64], esquematica: [24, 56] },
+    cuerpo: { ilustrada: [14, 66], esquematica: [24, 56] },
+    // Interruptor de cuchilla: la palanca gira en el borne de la izquierda y cae en el contacto en U
+    // de la derecha. La luz de la base dice el estado: verde cerrado, roja abierto.
     ilustrada(g) {
       el("path", { class: "pata", d: `M0 0H16M64 0H${LARGO}` }, g);
-      el("rect", { class: "int-base contorno", x: 13, y: 4, width: 54, height: 11, rx: 5.5 }, g);
-      el("circle", { class: "int-borne contorno", cx: 60, cy: 0, r: 4.5 }, g);
+      el("rect", { class: "int-base contorno", x: 11, y: 3, width: 58, height: 12, rx: 6 }, g);
+      el("circle", { class: "int-luz contorno", cx: 40, cy: 9, r: 2.6 }, g);
+      el("path", { class: "int-contacto", d: "M55 -7V2.5H65V-7" }, g);
+      el("circle", { class: "int-borne contorno", cx: 60, cy: 0, r: 3 }, g);
       const palanca = el("g", { class: "int-palanca" }, g);
-      el("rect", { class: "int-barra contorno", x: 20, y: -3.5, width: 40, height: 7, rx: 3.5 }, palanca);
-      el("circle", { class: "int-perilla contorno", cx: 59, cy: 0, r: 5.5 }, palanca);
-      el("circle", { class: "int-borne contorno", cx: 20, cy: 0, r: 4.5 }, g);
+      // Caja simétrica alrededor de y = 0: la palanca gira justo sobre el borne (transform-box).
+      el("rect", { class: "int-eje", x: 20, y: -13, width: 42, height: 26 }, palanca);
+      el("rect", { class: "int-barra contorno", x: 20, y: -2.75, width: 41, height: 5.5, rx: 2.75 }, palanca);
+      el("path", { class: "int-mango contorno", d: "M50 -2.5V-8" }, palanca);
+      el("circle", { class: "int-perilla contorno", cx: 50, cy: -10, r: 4 }, palanca);
+      el("circle", { class: "int-borne contorno", cx: 20, cy: 0, r: 5 }, g);
     },
     esquematica(g) {
       el("path", { class: "esq-linea", d: `M0 0H24M56 0H${LARGO}` }, g);
       el("line", { class: "esq-cuchilla", x1: 24, y1: 0, x2: 58, y2: 0 }, g);
-      el("circle", { class: "esq-contacto", cx: 24, cy: 0, r: 2.6 }, g);
-      el("circle", { class: "esq-contacto", cx: 56, cy: 0, r: 2.6 }, g);
+      el("circle", { class: "esq-contacto", cx: 24, cy: 0, r: 3 }, g);
+      el("circle", { class: "esq-contacto", cx: 56, cy: 0, r: 3 }, g);
     },
   },
 };

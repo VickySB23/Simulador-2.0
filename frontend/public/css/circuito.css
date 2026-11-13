@@ -103,15 +103,21 @@
 
 .int-base { fill: var(--ilus-interruptor-base); }
 .int-borne { fill: var(--ilus-interruptor-borne); }
+.int-contacto { fill: none; stroke: var(--ilus-interruptor-contacto); stroke-width: var(--trazo-cable); stroke-linecap: round; stroke-linejoin: round; }
+.int-eje { fill: none; stroke: none; }
 .int-palanca .int-barra { fill: var(--ilus-interruptor-palanca); }
+.int-palanca .int-mango { fill: none; stroke-width: var(--trazo-cable); }
 .int-palanca .int-perilla { fill: var(--color-primario); }
+/* Luz de estado: verde con el circuito cerrado, roja abierto. */
+.int-luz { fill: var(--color-ok); }
+.comp.abierto .int-luz { fill: var(--color-error); }
 .int-palanca, .esq-cuchilla {
   transform-box: fill-box;
   transform-origin: 0% 50%;
   transition: transform var(--duracion-lenta) var(--curva-rebote);
 }
-.comp.abierto .int-palanca { transform: rotate(-32deg); }
-.comp.abierto .esq-cuchilla { transform: rotate(-26deg); }
+.comp.abierto .int-palanca { transform: rotate(-38deg); }
+.comp.abierto .esq-cuchilla { transform: rotate(-32deg); }
 .comp--switch { cursor: pointer; }
 
 /* --- Tierra ----------------------------------------------------------------------------------------- */
