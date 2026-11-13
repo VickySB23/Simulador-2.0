@@ -12,7 +12,7 @@ import { EJEMPLOS } from "./lib/ejemplos.js";
 import { Historial } from "./lib/historial.js";
 import {
   TIPOS, aLayout, agregarCableEnL, agregarPieza, alternarInterruptor, buscar, cambiarPotencia, cambiarValor,
-  circuitoVacio, desdeLayout, estirarCable, insertarEnCable, ponerTierra, restaurar, rotar, tieneValor,
+  circuitoVacio, desdeLayout, estirarCable, insercionEnCable, ponerTierra, restaurar, rotar, tieneValor,
 } from "./lib/modelo.js";
 import { conTierrasAutomaticas, recordarTierrasBorradas, simularHoja } from "./lib/netlist.js";
 import {
@@ -65,6 +65,10 @@ const ctl = {
   actual: { id: null, name: EJEMPLOS[0].nombre },
   sucio: false,
   vista: leerPreferencia("vista", "ilustrada") === "esquematica" ? "esquematica" : "ilustrada",
+  /** Etiquetas del dibujo: "todo", "valores" (por defecto) o "nada". */
+  etiquetas: ["todo", "nada"].includes(leerPreferencia("etiquetas", "valores")) ? leerPreferencia("etiquetas", "valores") : "valores",
+  /** Resistencia en la vista esquemática: "zigzag" (por defecto) o "iec" (rectángulo). */
+  simboloResistencia: leerPreferencia("simbolo-resistencia", "zigzag") === "iec" ? "iec" : "zigzag",
   interruptorRecienCambiado: null,
   _antesDelArrastre: null,
 
@@ -73,9 +77,15 @@ const ctl = {
   colocarPieza(tipo, centro, { mantener = false } = {}) {
     const { estado, id } = agregarPieza(ctl.estado, tipo, centro, ctl.rotacion);
     if (!id) return;
+    // Sobre un cable, la pieza queda en serie: el cable se corta en sus bornes. Si cae sobre un
+    // cable donde no entra, no se coloca (quedaría suelta encima del cable) y se explica por qué.
+    const insercion = insercionEnCable(estado, id);
+    if (insercion.motivo) {
+      avisar(insercion.motivo);
+      return;
+    }
     if (!mantener) elegirHerramienta("seleccionar");
-    // Sobre un cable, la pieza queda en serie: el cable se corta en sus bornes.
-    aplicar(insertarEnCable(estado, id));
+    aplicar(insercion.estado);
   },
   /** Cable de a hasta b, doblado en L si no están alineados. */
   agregarCable(a, b, horizontalPrimero = true) {
@@ -134,7 +144,15 @@ const ctl = {
     if (antes && antes !== ctl.estado) {
       // Una sola pieza soltada sobre un cable queda en serie.
       const { ids } = ctl.seleccion;
-      let estado = ids.length === 1 ? insertarEnCable(ctl.estado, ids[0]) : ctl.estado;
+      const insercion = ids.length === 1 ? insercionEnCable(ctl.estado, ids[0]) : { estado: ctl.estado };
+      if (insercion.motivo) {
+        // Soltada sobre un cable donde no entra: vuelve a su lugar en lugar de quedar suelta.
+        ctl.estado = antes;
+        avisar(insercion.motivo);
+        editor.render();
+        return true;
+      }
+      let estado = insercion.estado;
       // Una tierra que el usuario movió ya no es la automática.
       const movidas = new Set(ids);
       estado = { ...estado, components: estado.components.map((c) => (c.auto && movidas.has(c.id) ? { ...c, auto: false } : c)) };
@@ -204,6 +222,7 @@ const panelLateral = crearPanel({ alCambiar: () => {} });
 const galeria = crearGaleriaEjemplos({
   ejemplos: EJEMPLOS,
   vista: () => ctl.vista,
+  simbolo: () => ctl.simboloResistencia,
   alAbrir: (ejemplo) => {
     if (confirmarDescarte()) cargar(structuredClone(ejemplo.estado), { id: null, name: ejemplo.nombre });
   },
@@ -663,6 +682,9 @@ async function cargarDesdeHash() {
   try {
     const { nombre, estado } = await decodificar(location.hash);
     cargar(estado, { id: null, name: nombre });
+    // El link ya cumplió: se saca de la dirección, así al recargar se retoma el borrador con los
+    // cambios en lugar de volver a abrir el circuito original del link.
+    history.replaceState(null, "", location.pathname + location.search);
     return true;
   } catch (e) {
     avisar(e.message);
@@ -801,6 +823,20 @@ $("menu-exportar").addEventListener("click", (evento) => {
   if (evento.target.closest("button")) cerrarDesplegables();
 });
 
+function elegirEtiquetas(modo) {
+  ctl.etiquetas = modo;
+  pulsar($("control-etiquetas"), $("control-etiquetas").querySelector(`[data-etiquetas="${modo}"]`));
+  guardarPreferencia("etiquetas", modo === "valores" ? null : modo);
+  editor.render();
+}
+
+function elegirSimbolo(simbolo) {
+  ctl.simboloResistencia = simbolo;
+  pulsar($("control-simbolo"), $("control-simbolo").querySelector(`[data-simbolo="${simbolo}"]`));
+  guardarPreferencia("simbolo-resistencia", simbolo === "zigzag" ? null : simbolo);
+  editor.render();
+}
+
 function elegirSentido(sentido) {
   pulsar($("control-sentido"), $("control-sentido").querySelector(`[data-sentido="${sentido}"]`));
   animador.sentidoElectrones(sentido === "electrones");
@@ -876,6 +912,14 @@ $("zoom-menos").addEventListener("click", () => editor.alejar());
 $("zoom-ajustar").addEventListener("click", () => editor.ajustarCircuito());
 $("accion-ajustar").addEventListener("click", () => editor.ajustarCircuito());
 $("accion-ejemplos").addEventListener("click", () => galeria.abrir());
+$("control-etiquetas").addEventListener("click", (e) => {
+  const b = e.target.closest("button");
+  if (b) elegirEtiquetas(b.dataset.etiquetas);
+});
+$("control-simbolo").addEventListener("click", (e) => {
+  const b = e.target.closest("button");
+  if (b) elegirSimbolo(b.dataset.simbolo);
+});
 $("control-puntos").addEventListener("click", (e) => {
   const b = e.target.closest("button");
   if (b) elegirPuntos(b.dataset.puntos === "si");
@@ -991,6 +1035,8 @@ colocarIconos();
 $("texto-tema").textContent = TEMAS[temaActual()].texto;
 pulsar($("control-vista"), $("control-vista").querySelector(`[data-vista="${ctl.vista}"]`));
 elegirPuntos(leerPreferencia("puntos", "si") !== "no");
+pulsar($("control-etiquetas"), $("control-etiquetas").querySelector(`[data-etiquetas="${ctl.etiquetas}"]`));
+pulsar($("control-simbolo"), $("control-simbolo").querySelector(`[data-simbolo="${ctl.simboloResistencia}"]`));
 avisarMovimiento();
 $("boton-proyector").setAttribute("aria-pressed", String(document.documentElement.dataset.proyector === "1"));
 editor.ajustar();
