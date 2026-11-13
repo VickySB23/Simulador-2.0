@@ -60,17 +60,18 @@ code, .mono { font-family: var(--fuente-mono); font-size: var(--texto-sm); }
     background var(--duracion-rapida) var(--curva);
 }
 .boton:hover:not(:disabled) { background: var(--color-superficie-2); }
+/* Al apretar, solo se achica un poco: sin corrimiento, así el contenido no se descentra. */
 .boton:active:not(:disabled) {
-  transform: translate(var(--esp-1), var(--esp-1)) scale(0.98);
+  transform: scale(0.97);
   box-shadow: var(--sombra-presionada);
 }
 .boton:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
 .boton[aria-pressed="true"] {
   background: var(--color-mostaza);
   color: var(--color-sobre-mostaza);
-  transform: translate(calc(var(--esp-1) / 2), calc(var(--esp-1) / 2));
   box-shadow: var(--sombra-presionada);
 }
+.boton[aria-pressed="true"]:hover:not(:disabled) { background: var(--color-mostaza); }
 .boton--primario { background: var(--color-primario); color: var(--color-texto-invertido); }
 .boton--primario:hover:not(:disabled) { background: var(--color-primario-hover); }
 .boton--peligro:hover:not(:disabled) { background: var(--color-error-suave); color: var(--color-error); }
@@ -152,8 +153,10 @@ code, .mono { font-family: var(--fuente-mono); font-size: var(--texto-sm); }
   border-radius: var(--radio-pildora);
   background: var(--color-superficie);
 }
+/* Dentro de un grupo el botón activo es solo el relleno: el borde ya lo pone el grupo (con un
+   segundo borde adentro se veía doble). El foco del teclado va por dentro, sin salirse del grupo. */
 .barra__grupo .boton { box-shadow: none; border-color: transparent; }
-.barra__grupo .boton[aria-pressed="true"] { border-color: var(--color-tinta); }
+.barra__grupo .boton:focus-visible { outline-offset: calc(var(--borde) * -1); }
 
 /* --- Tarjetas con encabezado de color --------------------------------------------------------- */
 
