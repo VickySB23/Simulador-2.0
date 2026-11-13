@@ -19,8 +19,10 @@ Autora: Victoria Sanchez Bujaldon. Idioma del código, comentarios y documentaci
 ```text
 frontend/public/          lo que se publica (HTML + CSS + JS vanilla con módulos ES, sin build)
   js/lib/                 lógica sin DOM, con tests: mna, modelo, netlist, historial, valores,
-                          ejemplos, almacen (localStorage + .json), compartir (hash), ecuaciones
+                          ejemplos, almacen (localStorage + .json), compartir (hash), ecuaciones,
+                          seleccion (grupo: mover, rotar, borrar, copiar, pegar), ficha, tutorial
   js/app.js, editor.js, paneles.js, exportar.js, tema.js     interfaz (css/editor.css)
+  js/tutorial.js          pestaña del tutorial (progreso en localStorage; botón "?" del encabezado)
   sw.js                   service worker: caché con versión, red primero (4 s) y caché sin conexión
   js/version.js, js/actualizacion.js   versión de la página y aviso "Hay una versión nueva — Actualizar"
   css/tokens.css          sistema de diseño (único lugar con valores literales): claro, oscuro, proyector
@@ -66,6 +68,22 @@ coma decimal. Si se cambia el motor, correr `tests/comparacion/comparar.mjs` con
 `microservicios` (última corrida: 500 circuitos, 0 discrepancias de error, 5,5e-10 de diferencia
 relativa a la escala).
 
+## Interacción (no revertir)
+
+- **Bornes sueltos:** `analizarConexiones` (netlist.js) saca de la simulación, en cascada, los
+  componentes con un borne al aire (punto con una sola conexión; la tierra cuenta como una). Se
+  simula el resto; los sacados vuelven con corriente 0 y `unconnected: true`, y el editor marca
+  "sin conectar" solo los bornes que estaban al aire. Un lazo cerrado sin tierra sigue siendo
+  `floating_nodes` (en rojo). Ecuaciones usa el mismo estado activo.
+- **Insertar en un cable:** al colocar una pieza, o al soltar una sola arrastrada, con el centro
+  sobre un cable, `insertarEnCable` la alinea y corta el cable en sus bornes.
+- **Selección:** `ctl.seleccion = {ids, tierra}` (lib/seleccion.js); operaciones todo o nada.
+- **Tutorial:** no se adelanta solo sobre un circuito ya armado: empieza a contar desde el lienzo
+  vacío o desde que se saltea el primer paso.
+- **Lámpara en su potencia nominal:** no se quema (tolerancia relativa 1e-9 en `mna.js`).
+- **Barra:** el botón activo no usa transform y dentro de `.barra__grupo` no tiene borde propio
+  (lo verifica `tests/e2e/estados.mjs` en claro, oscuro y proyector).
+
 ## Interfaz: bugs de Simulador-2.0 que no deben volver
 
 Rehacer con dos pilas que guardan el estado actual; el historial incluye la tierra; el símbolo GND
@@ -99,12 +117,14 @@ render reemplaza los elementos del SVG.
 ## Comandos
 
 ```bash
-cd frontend && node --test                  # 124 tests
+cd frontend && node --test                  # 151 tests
 node tests/e2e/servir.mjs                   # http://localhost:8000/Simulador-2.0/
-cd tests/e2e && npm install && node verificar.mjs capturas   # 31 comprobaciones en Chrome
+cd tests/e2e && npm install && node verificar.mjs capturas   # 33 comprobaciones en Chrome
 node tests/e2e/actualizacion.mjs            # aviso de versión nueva (publicar mientras espera)
 node tests/e2e/galeria.mjs capturas         # capturas de la galería y cuadros/s con 50 componentes
 node tests/e2e/editor.mjs capturas          # editor: lámpara, interruptor, vista, arrastre y cuadros/s
+node tests/e2e/interaccion.mjs capturas     # insertar en cable, selección múltiple, copiar/pegar, ficha, tutorial
+node tests/e2e/estados.mjs capturas         # estados de la barra en claro, oscuro y proyector
 ```
 
 ## Cómo trabajar

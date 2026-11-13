@@ -20,7 +20,8 @@ nueva — Actualizar"**: con un clic se recarga con la versión nueva (el circui
 1. **Elegí una herramienta** en la barra de arriba: **R** (resistencia), **Batería** (fuente de
    tensión), **I** (fuente de corriente), **Lámpara**, **Interruptor**, **Cable** o **GND** (tierra).
 2. **Hacé clic en la grilla** para poner la pieza. Antes de hacer clic podés girarla con la tecla
-   **R** o la **barra espaciadora**.
+   **R** o la **barra espaciadora**. Si la soltás **sobre un cable, queda en serie**: el cable se
+   corta solo en sus bornes.
 3. **Uní las piezas.** Dos terminales quedan conectados si caen en el mismo punto de la grilla o si
    los une un cable. Para el cable, arrastrá de un punto a otro (o hacé clic en el inicio y en el
    final).
@@ -31,9 +32,20 @@ nueva — Actualizar"**: con un clic se recarga con la versión nueva (el circui
 6. **Abrí o cerrá un interruptor** con un clic (con la herramienta Seleccionar).
 
 Listo: los resultados aparecen solos mientras dibujás. Con **Seleccionar** podés mover piezas
-(arrastrando), borrarlas (**Supr**) o deshacer (**Ctrl+Z**).
+(arrastrando), borrarlas (**Supr**) o deshacer (**Ctrl+Z**). Para trabajar con varias a la vez,
+**arrastrá un rectángulo** sobre el fondo o sumalas con **Ctrl + clic** (o **Shift + clic**):
+el grupo se mueve, gira (**R**) y se borra junto, y se copia con **Ctrl+C** / **Ctrl+V** o se
+duplica con **Ctrl+D**. Con una sola pieza seleccionada, arriba de los resultados aparece su
+**ficha**: valores, tensión, corriente, potencia y avisos.
 
-¿Querés partir de algo hecho? En la pestaña **Circuitos → Ejemplos** hay seis circuitos de Física 2:
+Un componente con un borne al aire se marca **"sin conectar"** y no frena nada: por él no circula
+corriente y el resto del circuito se sigue simulando.
+
+**¿Primera vez?** El botón **?** del encabezado abre un tutorial corto, paso a paso: batería,
+lámpara, cables, GND, encenderla, interruptor y quemarla. Cada paso espera a que lo hagas; se
+puede saltear o cerrar.
+
+¿Querés partir de algo hecho? En la pestaña **Circuitos → Ejemplos** hay trece circuitos de Física 2:
 
 | Ejemplo | Qué muestra |
 | --- | --- |
@@ -43,6 +55,13 @@ Listo: los resultados aparecen solos mientras dibujás. Con **Seleccionar** pod�
 | Mixto (TP4) | (3 Ω ∥ 12 Ω) en serie con (6 Ω ∥ 4 Ω) con 60 V: V2 = 30 V, I = 12,5 A |
 | Puente de Wheatstone | Equilibrado: no circula corriente por el galvanómetro (probá cambiar R4) |
 | Dos mallas con dos fuentes | 12 V y 6 V con una rama común: el nodo del medio queda en 7,5 V y la fuente de 6 V absorbe potencia |
+| Linterna | Pila de 6 V, interruptor y lámpara de 12 Ω / 3 W: 0,5 A, brillo pleno; con S1 abierto se apaga |
+| Lámparas: serie contra paralelo | Dos lámparas iguales con 12 V: al 25 % en serie y al 100 % en paralelo |
+| En serie se quema una y se apagan todas | Tres lámparas de 12 Ω con 18 V reciben 3 W; la de 2 W se quema y abre el circuito |
+| En paralelo las demás siguen | Tres lámparas de 24 Ω con 12 V reciben 6 W; la de 4 W se quema y las otras siguen al 100 % |
+| Dimmer con resistencia | 12 Ω en serie dejan la lámpara al 25 %; cerrando S1 se puentea y sube al 100 % |
+| Lámparas de distintas potencias en serie | 6 W y 48 W con la misma corriente: 79 % y apenas 1 % (la ficha avisa que la corriente es baja) |
+| Una casa con tres lámparas | Tres lámparas en paralelo, cada una con su interruptor: S2 abierto apaga solo la suya |
 
 ## Cómo leer los resultados
 
@@ -54,7 +73,8 @@ Listo: los resultados aparecen solos mientras dibujás. Con **Seleccionar** pod�
 - **Flechas verdes:** el sentido real de la corriente en cada pieza, con su valor.
 - **Lámparas:** brillan según la potencia que reciben respecto de la nominal. Si la superan, **se
   queman y abren el circuito**, como una real: en serie se apagan todas y en paralelo siguen las
-  demás. Las resistencias toman un brillo cálido según la potencia que disipan.
+  demás. Si una lámpara conectada brilla menos del 2 %, su ficha avisa: "La corriente es muy baja
+  para esta lámpara (444 mA de 4.00 A nominales)". Las resistencias toman un brillo cálido según la potencia que disipan.
 - **Fuentes:** la batería muestra **+** y **−** grandes y late cuando entrega energía; la fuente de
   corriente, una flecha con su sentido.
 - **Vista ilustrada o esquemática:** el botón **Ilustrada / Esquemática** (o la tecla **V**) cambia
@@ -77,12 +97,18 @@ rojo el lugar del problema.
 | Mensaje | Qué pasa | Cómo se arregla |
 | --- | --- | --- |
 | Falta la tierra | No hay GND | Poné GND en un nodo |
-| Nodos sin camino a tierra | Una parte del circuito quedó suelta, o un nodo solo tiene una fuente de corriente | Conectala con una resistencia o una fuente de tensión (los nodos quedan marcados en rojo) |
+| Nodos sin camino a tierra | Una parte cerrada del circuito no toca la tierra, o un nodo solo tiene una fuente de corriente | Conectala con una resistencia o una fuente de tensión (los nodos quedan marcados en rojo) |
 | Lazo de fuentes de tensión | Dos fuentes de tensión en paralelo (o un lazo solo de fuentes) | Agregá una resistencia en el lazo |
 | Fuente en cortocircuito | Un cable une los dos bornes de una fuente de tensión | Sacá el cable |
 | La resistencia debe ser mayor que 0 Ω | Se cargó 0 o un valor negativo | Para un corto, usá un cable |
 
-![Una resistencia suelta: sus dos nodos aparecen en rojo](docs/capturas/nodo-suelto.png)
+Una pieza con un borne al aire no es un error: se marca "sin conectar" y el resto sigue.
+
+![Una resistencia suelta marcada "sin conectar"; el TP4 sigue dando 30 V](docs/capturas/nodo-suelto.png)
+
+![Ficha de una lámpara de 48 W que casi no brilla: la corriente es muy baja](docs/capturas/ficha.png)
+
+![Tutorial paso a paso, en la pestaña al costado del lienzo](docs/capturas/tutorial.png)
 
 ![Una batería, un interruptor y una lámpara al 69 %](docs/capturas/lampara-interruptor.png)
 
@@ -119,7 +145,11 @@ al lado.
 | Tecla | Acción |
 | --- | --- |
 | 1 a 8 | Seleccionar, Cable, R, Batería, I, Lámpara, Interruptor, GND |
-| R o espacio | Girar la pieza (la que vas a poner o la seleccionada) |
+| R o espacio | Girar la pieza (la que vas a poner o lo seleccionado) |
+| Ctrl / Shift + clic | Sumar o sacar de la selección |
+| Arrastrar sobre el fondo | Seleccionar con un rectángulo |
+| Ctrl+C / Ctrl+V / Ctrl+D | Copiar / pegar / duplicar lo seleccionado |
+| Ctrl+A | Seleccionar todo |
 | Doble clic | Editar el valor |
 | Clic en un interruptor | Abrirlo o cerrarlo |
 | V | Vista ilustrada / esquemática |
@@ -147,7 +177,8 @@ Página estática: HTML, CSS y JavaScript sin librerías ni paso de compilación
   circuitos aleatorios, dio los mismos errores en los 278 inválidos y una diferencia máxima de
   5,5·10⁻¹⁰ (relativa a la escala de cada circuito) en los 222 válidos
   ([`docs/comparacion/`](docs/comparacion/)).
-- **Resto de la lógica sin DOM** (`js/lib/`): modelo del circuito, historial, valores, ejemplos,
+- **Resto de la lógica sin DOM** (`js/lib/`): modelo del circuito, selección múltiple, ficha,
+  pasos del tutorial, historial, valores, ejemplos,
   almacenamiento local, link para compartir, ecuaciones, corriente en cada cable (por KCL) y los
   cálculos de las animaciones. Tiene sus tests.
 - **Diseño:** `css/tokens.css` (colores, tipografía Nunito incluida, radios y espaciados, en

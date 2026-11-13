@@ -1,12 +1,12 @@
 # Pruebas de la página en el navegador
 
 `verificar.mjs` maneja un Chrome real (headless) y recorre la página como lo haría un usuario
-(31 comprobaciones):
+(33 comprobaciones):
 
-- los seis ejemplos: el TP4 da 30 V y la fuente entrega 12,5 A, el Wheatstone equilibrado no tiene
+- los trece ejemplos simulan; el TP4 da 30 V y la fuente entrega 12,5 A, el Wheatstone equilibrado no tiene
   corriente en el galvanómetro y las dos mallas dan 7,5 V;
 - el panel de ecuaciones (KCL con valores, matriz MNA y solución);
-- un nodo suelto se marca en rojo con el mensaje del motor;
+- una pieza suelta se marca "sin conectar" sin frenar el resto, y un lazo sin tierra se marca en rojo con el mensaje del motor;
 - deshacer y rehacer (con la tierra) e ids que no se repiten;
 - edición de valores con validación;
 - **Compartir:** el link abierto en otro navegador reproduce el circuito exacto (componentes,
@@ -45,6 +45,15 @@ interruptor y lámpara, abre y cierra el interruptor con un clic, quema la lámp
 potencia nominal, alterna la vista ilustrada/esquemática y el sentido de la corriente, arrastra
 una pieza y mide cuadros por segundo con 50 componentes, animando y arrastrando, también con la
 CPU 4× más lenta.
+
+`interaccion.mjs` prueba lo de la etapa de interacción: colocar o arrastrar una pieza sobre un
+cable la inserta en serie; selección con rectángulo y con Ctrl/Shift + clic, mover, rotar y borrar
+en grupo; Ctrl+C, Ctrl+V y Ctrl+D; la ficha de una lámpara que casi no brilla y el tutorial
+completo hecho con el mouse (saltear, cerrar y reabrir con "?").
+
+`estados.mjs` revisa la barra en claro, oscuro y proyector: el botón activo no se corre, queda
+centrado en su grupo, sin doble borde (también "Reanudar"), y el foco con teclado se ve sin
+salirse del grupo. Guarda capturas de cada estado.
 
 `galeria.mjs` saca capturas de `galeria.html` (claro, oscuro, proyector y celular), comprueba que
 los canvas de animación queden sobre su SVG, que las animaciones se pausen y respeten
