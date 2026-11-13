@@ -92,6 +92,33 @@ function dibujarFlecha(capaTextos, c, corriente) {
   }
 }
 
+/** Caja (en px) que ocupa el dibujo de una pieza, con lugar para el bulbo o el cuerpo ancho. */
+function cajaDePieza(c) {
+  const a = px(c.a);
+  const b = px(c.b);
+  const [x1, x2] = [Math.min(a.x, b.x), Math.max(a.x, b.x)];
+  const [y1, y2] = [Math.min(a.y, b.y), Math.max(a.y, b.y)];
+  if (y1 === y2) return { x1: x1 + 12, x2: x2 - 12, y1: y1 - 32, y2: y1 + 24 };
+  return { x1: x1 - 24, x2: x1 + 24, y1: y1 + 12, y2: y2 - 12 };
+}
+
+const seTocan = (u, v) => u.x1 < v.x2 && v.x1 < u.x2 && u.y1 < v.y2 && v.y1 < u.y2;
+
+/** Lugar para una etiqueta de ancho `ancho` junto al punto p: arriba a la izquierda si se puede. */
+function lugarDeEtiqueta(p, ancho, ocupado) {
+  const alto = 11;
+  const candidatos = [
+    { x: p.x - 7, y: p.y - 9, ancla: "end" }, { x: p.x + 7, y: p.y - 9, ancla: "start" },
+    { x: p.x - 7, y: p.y + 18, ancla: "end" }, { x: p.x + 7, y: p.y + 18, ancla: "start" },
+    { x: p.x - 9, y: p.y + 4, ancla: "end" }, { x: p.x + 9, y: p.y + 4, ancla: "start" },
+  ].map((c) => {
+    const x1 = c.ancla === "end" ? c.x - ancho : c.x;
+    return { ...c, caja: { x1, x2: x1 + ancho, y1: c.y - alto + 2, y2: c.y + 2 } };
+  });
+  const elegido = candidatos.find((c) => !ocupado.some((o) => seTocan(c.caja, o))) ?? candidatos[0];
+  return { caja: elegido.caja, atributos: { x: elegido.x, y: elegido.y, "text-anchor": elegido.ancla } };
+}
+
 /**
  * @param {SVGSVGElement} svg
  * @param {HTMLElement} contenedor  elemento con scroll que contiene al SVG
@@ -294,13 +321,17 @@ export function crearEditor(svg, contenedor, ctl, animador, info) {
       el("title", {}, g).textContent = "Borne sin conectar: por este componente no circula corriente.";
     }
 
-    // Una etiqueta de tensión por nodo eléctrico.
+    // Una etiqueta de tensión por nodo eléctrico, en el primer lugar alrededor del nodo que no
+    // tape el dibujo de una pieza (el bulbo de una lámpara, una batería acostada) ni otra etiqueta.
     if (resultado) {
+      const ocupado = estado.components.filter((c) => c.type !== "wire" && c.type !== "ground").map(cajaDePieza);
       for (const punto of puntosDeEtiqueta(estado)) {
         const v = tensiones.get(nombreNodo(punto));
         if (v === undefined) continue;
-        const p = px(punto);
-        texto(formatearSI(v, "V"), { class: "etiqueta etiqueta--tension tension", x: p.x - 7, y: p.y - 9, "text-anchor": "end" }, capaTextos);
+        const contenido = formatearSI(v, "V");
+        const lugar = lugarDeEtiqueta(px(punto), contenido.length * 7.2, ocupado);
+        ocupado.push(lugar.caja);
+        texto(contenido, { class: "etiqueta etiqueta--tension tension", ...lugar.atributos }, capaTextos);
       }
     }
 
@@ -796,6 +827,30 @@ export function crearEditor(svg, contenedor, ctl, animador, info) {
       if (tipo === "ground") ctl.ponerTierra(punto);
       else ctl.colocarPieza(tipo, punto);
       return true;
+    },
+    /** Centra el circuito y hace zoom para que entre todo en la parte visible del lienzo (F). */
+    ajustarCircuito() {
+      const puntos = ctl.estado.components.flatMap((c) => [c.a, c.b]);
+      if (!puntos.length) return this.ajustar();
+      const xs = puntos.map((p) => p.x);
+      const ys = puntos.map((p) => p.y);
+      // Margen para los nombres, las flechas, las etiquetas y el símbolo de GND.
+      const margen = 70;
+      const caja = {
+        x: Math.min(...xs) * PASO + MARGEN - margen, y: Math.min(...ys) * PASO + MARGEN - margen,
+        ancho: (Math.max(...xs) - Math.min(...xs)) * PASO + 2 * margen,
+        alto: (Math.max(...ys) - Math.min(...ys)) * PASO + 2 * margen,
+      };
+      // En pantallas chicas la hoja inferior tapa el pie del lienzo: se descuenta.
+      const marco = contenedor.getBoundingClientRect();
+      const panel = document.getElementById("panel");
+      const tapa = panel && getComputedStyle(panel).position === "fixed"
+        ? Math.max(0, marco.bottom - panel.getBoundingClientRect().top) : 0;
+      const ancho = contenedor.clientWidth;
+      const alto = Math.max(PASO * 4, contenedor.clientHeight - tapa);
+      aplicarZoom(Math.min(2.5, ancho / caja.ancho, alto / caja.alto));
+      contenedor.scrollLeft = (caja.x + caja.ancho / 2) * zoom - ancho / 2;
+      contenedor.scrollTop = (caja.y + caja.alto / 2) * zoom - alto / 2;
     },
     acercar: () => aplicarZoom(zoom * 1.2),
     alejar: () => aplicarZoom(zoom / 1.2),

@@ -34,6 +34,7 @@ export class Animador {
     this.capas = new Set();
     this.pausado = false;
     this.electrones = false;
+    this.conPuntos = true; // los puntos de corriente se pueden ocultar (el resto sigue)
     this.tiempo = 0; // s de animación acumulados (no avanza en pausa)
     this.ultimo = null;
     this.cuadro = null;
@@ -95,6 +96,17 @@ export class Animador {
     this.pausado = pausado;
     this.ultimo = null;
     this._programar();
+  }
+
+  /** Muestra u oculta los puntos de corriente; halo, calor y pulso siguen. */
+  mostrarPuntos(mostrar) {
+    this.conPuntos = mostrar;
+    this._dibujarTodo();
+  }
+
+  /** true si el sistema pide reducir el movimiento (los puntos se dibujan quietos). */
+  get movimientoReducido() {
+    return this.movimiento.matches;
   }
 
   sentidoElectrones(electrones) {
@@ -171,6 +183,7 @@ export class Animador {
       else if (e.tipo === "calor") this._calor(ctx, e, t);
       else if (e.tipo === "pulso") this._pulso(ctx, e, t);
     }
+    if (!this.conPuntos) return;
     // Todos los puntos en un solo trazo: un relleno y un contorno por cuadro, no uno por cable.
     ctx.fillStyle = this.electrones ? this.tokens.electrones : this.tokens.convencional;
     ctx.strokeStyle = this.tokens.tinta;
