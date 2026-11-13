@@ -307,3 +307,79 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 @media (hover: none) {
   .menu-contextual kbd { display: none; }
 }
+
+/* --- Varios circuitos en la hoja ---------------------------------------------------------------- */
+.editor .marco-circuito__caja {
+  fill: none;
+  stroke: var(--color-borde-suave);
+  stroke-width: var(--borde-fino);
+  stroke-dasharray: var(--esp-2) var(--esp-1);
+  pointer-events: none;
+}
+.editor .marco-circuito__nombre {
+  fill: var(--color-texto-suave);
+  font-size: var(--texto-xs);
+  font-weight: var(--peso-fuerte);
+  pointer-events: none;
+}
+.editor .marco-circuito--error .marco-circuito__caja { stroke: var(--color-error); stroke-width: var(--borde); }
+.editor .marco-circuito--error .marco-circuito__nombre { fill: var(--color-error); }
+.editor .marco-circuito--resaltado .marco-circuito__caja {
+  fill: var(--color-seleccion-suave);
+  fill-opacity: 0.25;
+  stroke: var(--color-seleccion);
+  stroke-width: var(--borde);
+  stroke-dasharray: none;
+}
+.editor .marco-circuito--resaltado .marco-circuito__nombre { fill: var(--color-seleccion); }
+
+/* Un grupo por circuito en Resultados y Ecuaciones. */
+.grupos { display: grid; gap: var(--esp-4); }
+.grupo { display: grid; gap: var(--esp-3); }
+.grupo__titulo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--esp-2);
+  min-height: var(--alto-control-chico);
+  padding: 0 var(--esp-3);
+  border: var(--borde) solid var(--color-tinta);
+  border-radius: var(--radio-pildora);
+  background: var(--color-superficie-2);
+  color: var(--color-texto);
+  font: inherit;
+  font-weight: var(--peso-titulo);
+  cursor: pointer;
+}
+.grupo__titulo[aria-pressed="true"] { background: var(--color-seleccion-suave); border-color: var(--color-seleccion); }
+.grupo__estado { color: var(--color-texto-suave); font-size: var(--texto-sm); font-weight: var(--peso-fuerte); }
+.grupo--error .grupo__titulo { border-color: var(--color-error); }
+.grupo--error .grupo__estado { color: var(--color-error); }
+
+/* Aviso de la tierra automática, arriba del lienzo. */
+.aviso-tierra {
+  position: absolute;
+  top: var(--esp-3);
+  left: var(--esp-3);
+  right: calc(var(--esp-7) * 3);
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: var(--esp-2);
+  max-width: calc(var(--esp-7) * 10);
+  padding: var(--esp-2) var(--esp-2) var(--esp-2) var(--esp-3);
+  border: var(--borde) solid var(--color-aviso);
+  border-radius: var(--radio-md);
+  background: var(--color-aviso-suave);
+  color: var(--color-aviso);
+  font-size: var(--texto-sm);
+  font-weight: var(--peso-fuerte);
+  box-shadow: var(--sombra-flotante);
+}
+.aviso-tierra span { flex: 1; }
+
+/* "Seleccionar varios" solo hace falta sin mouse ni teclado. */
+.solo-tactil { display: none; }
+@media (hover: none) {
+  .barra--editor .solo-tactil { display: inline-flex; }
+}

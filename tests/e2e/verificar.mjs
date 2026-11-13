@@ -56,12 +56,12 @@ async function abrirEjemplo(pagina, texto) {
 function huella(pagina) {
   return pagina.evaluate(() => ({
     nombre: document.getElementById("nombre-circuito").textContent,
-    componentes: [...document.querySelectorAll("#editor g[data-id]")].map((g) => {
+    componentes: [...document.querySelectorAll("#editor g[data-id]:not([data-tierra])")].map((g) => {
       const l = g.querySelector("line.comp__seleccion");
       return [g.dataset.id, l.getAttribute("x1"), l.getAttribute("y1"), l.getAttribute("x2"), l.getAttribute("y2")].join(" ");
     }).sort(),
     textos: [...document.querySelectorAll("#editor text")].map((t) => t.textContent).sort(),
-    tierra: document.querySelector("#editor [data-tierra] path")?.getAttribute("d") ?? null,
+    tierra: [...document.querySelectorAll("#editor [data-tierra] path")].map((t) => t.getAttribute("d")).join(" "),
   }));
 }
 
@@ -76,16 +76,16 @@ await abrirEjemplo(pagina, "TP4");
 await pagina.locator("text.tension", { hasText: "30.0 V" }).waitFor();
 ok((await etiquetas(pagina)).includes("30.0 V"), `TP4: V2 = 30 V (${await etiquetas(pagina)})`);
 await pagina.click("#pestana-resultados");
-const filaV1 = await pagina.locator("#tabla-componentes tr").first().innerText();
+const filaV1 = await pagina.locator(".tabla-componentes tr").first().innerText();
 ok(filaV1.includes("-12.5 A"), `TP4: la fuente entrega 12,5 A (${filaV1.replaceAll("\t", " ")})`);
-ok((await pagina.locator("#potencia-absorbida").innerText()) === "750 W", "TP4: 750 W absorbidos");
+ok((await pagina.locator(".potencia-absorbida").innerText()) === "750 W", "TP4: 750 W absorbidos");
 await pagina.screenshot({ path: `${SALIDA}/01-tp4.png` });
 
 await pagina.click("#pestana-ecuaciones");
-const ecuaciones = await pagina.locator("#ecuaciones-nodos").innerText();
+const ecuaciones = await pagina.locator(".ecuaciones-nodos").innerText();
 ok(ecuaciones.includes("V(12,8)/6 Ω") && ecuaciones.includes("I(V1)"), "Ecuaciones: KCL con los valores del circuito");
-ok((await pagina.locator("#solucion-mna").innerText()).includes("V(12,8) = 30 V"), "Ecuaciones: la solución del sistema da 30 V");
-ok(await pagina.locator("#matriz-mna table tbody tr").count() === 3, "Ecuaciones: matriz MNA de 3 × 3");
+ok((await pagina.locator(".solucion-mna").innerText()).includes("V(12,8) = 30 V"), "Ecuaciones: la solución del sistema da 30 V");
+ok(await pagina.locator(".matriz-mna table tbody tr").count() === 3, "Ecuaciones: matriz MNA de 3 × 3");
 await pagina.screenshot({ path: `${SALIDA}/02-ecuaciones.png` });
 
 for (const nombre of ["Serie", "Paralelo", "Wheatstone", "Dos mallas", "Linterna", "serie contra paralelo",
@@ -112,30 +112,57 @@ ok(await pagina.locator("g.borne-suelto").count() === 2 && (await etiquetas(pagi
   "borne suelto: R5 marcada \"sin conectar\" y el resto sigue simulando (30 V)");
 ok((await pagina.locator("#aviso-sueltos").innerText()).includes("R5"), "borne suelto: aviso en Resultados");
 await pagina.screenshot({ path: `${SALIDA}/03-nodo-suelto.png` });
-// Después de colocar una pieza se vuelve solo a Seleccionar: hay que volver a elegir R.
-await pagina.click('[data-herramienta="resistor"]');
-await clicEnGrilla(pagina, 30, 18); // R6 encima: un lazo cerrado sin camino a tierra
+// Segundo circuito: una batería sobre R5. La tierra se pone sola en su borne − y avisa.
+// Después de colocar una pieza se vuelve solo a Seleccionar: hay que volver a elegir la batería.
+await pagina.click('[data-herramienta="voltage_source"]');
+await clicEnGrilla(pagina, 30, 18); // V2 en paralelo con R5
+await pagina.locator("#estado-simulacion", { hasText: "2 circuitos" }).waitFor();
+ok(await pagina.locator("#aviso-tierra").isVisible() && (await pagina.locator("#aviso-tierra").innerText()).includes("V2"),
+  "circuito sin GND: se pone sola en el borne − de su batería, con un aviso");
+ok(await pagina.locator(".marco-circuito__nombre").count() === 2 && await pagina.locator("#grupos-resultados .grupo__titulo:visible").count() === 2,
+  "dos circuitos: se nombran en el dibujo y Resultados agrupa por circuito");
+await pagina.click("#aviso-tierra-cerrar");
+ok(await pagina.locator("#aviso-tierra").isHidden(), "el aviso de la tierra automática se cierra");
+// Una segunda batería en paralelo: lazo de fuentes, en rojo solo en el circuito 2.
+await pagina.click('[data-herramienta="voltage_source"]');
+await clicEnGrilla(pagina, 30, 18);
 await esperarFase(pagina, "error");
-ok(await pagina.locator("circle.anillo-error").count() === 2, "lazo flotante: sus 2 nodos en rojo");
-ok((await pagina.locator("#mensaje-error").innerText()).includes("28_18, 32_18"), "lazo flotante: mensaje con los nodos");
+ok(await pagina.locator(".marco-circuito--error").count() === 1 && await pagina.locator("#grupos-resultados .grupo--error").count() === 1
+  && (await etiquetas(pagina)).includes("30.0 V"),
+  "un lazo de fuentes marca en rojo solo su circuito; el TP4 sigue dando 30 V");
+ok((await pagina.locator("#estado-simulacion").innerText()).includes("Circuito 2"), "el estado nombra el circuito con error");
+await pagina.screenshot({ path: `${SALIDA}/03b-dos-circuitos.png` });
+await pagina.locator("#grupos-resultados .grupo__titulo", { hasText: "Circuito 1" }).click();
+ok(await pagina.locator('.marco-circuito--resaltado[data-circuito="1"]').count() === 1, "tocar un grupo resalta su circuito en el dibujo");
+await pagina.locator("#grupos-resultados .grupo__titulo", { hasText: "Circuito 1" }).click();
 await pagina.click('[data-herramienta="seleccionar"]');
 await pagina.keyboard.press("Control+z");
 await esperarFase(pagina, "ok");
 await pagina.keyboard.press("Control+y");
 await esperarFase(pagina, "error");
-ok(await pagina.locator('[data-id="R6"]').count() === 1, "Ctrl+Z / Ctrl+Y quitan y reponen R6");
-await clicEnGrilla(pagina, 30, 18);
-await pagina.keyboard.press("Delete");
-await esperarFase(pagina, "ok");
-await clicEnGrilla(pagina, 30, 18);
-await pagina.keyboard.press("Delete");
-await pagina.locator("g.borne-suelto").first().waitFor({ state: "detached" });
+ok(await pagina.locator('[data-id="V3"]').count() === 1, "Ctrl+Z / Ctrl+Y quitan y reponen V3");
+for (const id of ["V3", "V2", "R5"]) {
+  await clicEnGrilla(pagina, 30, 18);
+  await pagina.keyboard.press("Delete");
+  await pagina.locator(`[data-id="${id}"]`).waitFor({ state: "detached" });
+}
+ok(await pagina.locator("#editor [data-tierra]").count() === 1, "al borrar el circuito 2, su tierra automática se va con él");
 await pagina.click('[data-herramienta="resistor"]');
 await clicEnGrilla(pagina, 30, 18);
-ok(await pagina.locator('[data-id="R7"]').count() === 1, "los ids no se repiten: después de borrar R5 y R6 viene R7");
+ok(await pagina.locator('[data-id="R6"]').count() === 1, "los ids no se repiten: después de borrar R5 viene R6");
 await pagina.keyboard.press("Control+z");
-await pagina.click('[data-herramienta="ground"]');
-await clicEnGrilla(pagina, 18, 4);
+await esperarFase(pagina, "ok");
+// La tierra se arrastra a otro nodo (se toma del símbolo, debajo del punto).
+const desdeG = await pagina.evaluate(() => {
+  const r = document.querySelector('#editor [data-id="G1"] .golpe').getBoundingClientRect();
+  return { x: r.x + r.width / 2, y: r.y + r.height * 0.6 };
+});
+const paso = await pagina.evaluate(() => document.getElementById("editor").getScreenCTM().a * 20);
+await pagina.mouse.move(desdeG.x, desdeG.y);
+await pagina.mouse.down();
+await pagina.mouse.move(desdeG.x + 6 * paso, desdeG.y - 8 * paso, { steps: 6 });
+await pagina.mouse.move(desdeG.x + 12 * paso, desdeG.y - 8 * paso, { steps: 6 });
+await pagina.mouse.up();
 await esperarFase(pagina, "ok");
 ok((await etiquetas(pagina)).some((t) => t.startsWith("-")), "mover la tierra cambia las tensiones");
 await pagina.keyboard.press("Control+z");

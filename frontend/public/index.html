@@ -56,6 +56,7 @@
       <button class="boton herramienta" data-herramienta="ground" title="Tierra (G) · también se arrastra al circuito"><span data-icono="tierra"></span><span>GND</span></button>
     </div>
     <div class="barra__grupo">
+      <button id="accion-varios" class="boton solo-tactil" type="button" aria-pressed="false" title="Seleccionar varios: tocá piezas para sumarlas o arrastrá un rectángulo con un dedo"><span data-icono="varios"></span><span>Varios</span></button>
       <button id="accion-rotar" class="boton" type="button" title="Rotar (espacio)"><span data-icono="rotar"></span><span>Rotar</span></button>
       <button id="accion-valor" class="boton" type="button" title="Editar valor (doble clic)"><span data-icono="valor"></span><span>Valor</span></button>
       <button id="accion-borrar" class="boton" type="button" title="Borrar (Supr)"><span data-icono="borrar"></span><span>Borrar</span></button>
@@ -92,6 +93,10 @@
         <button id="zoom-mas" class="boton boton--icono boton--chico" type="button" title="Acercar" aria-label="Acercar">+</button>
       </div>
       <div id="info-flotante" class="info-flotante" role="tooltip" hidden></div>
+      <div id="aviso-tierra" class="aviso-tierra" role="status" hidden>
+        <span id="aviso-tierra-texto"></span>
+        <button id="aviso-tierra-cerrar" class="boton boton--plano boton--chico boton--icono" type="button" title="Cerrar" aria-label="Cerrar el aviso"><span data-icono="cerrar"></span></button>
+      </div>
       <aside id="tutorial" class="tutorial" aria-label="Tutorial" hidden>
         <button id="tutorial-pestana" class="tutorial__pestana" type="button" aria-expanded="false" aria-controls="tutorial-cuerpo">? Tutorial</button>
         <div id="tutorial-cuerpo" class="tutorial__cuerpo" hidden>
@@ -124,7 +129,6 @@
       <article id="vista-resultados" class="tarjeta tarjeta--resultados vista" role="tabpanel" aria-labelledby="pestana-resultados">
         <header class="tarjeta__encabezado"><h2>Resultados</h2></header>
         <div class="tarjeta__cuerpo">
-          <div id="mensaje-error" class="mensaje mensaje--error" hidden></div>
           <section id="ficha" class="ficha" aria-live="polite" hidden>
             <h3 id="ficha-titulo" class="ficha__titulo"></h3>
             <dl id="ficha-datos" class="ficha__datos"></dl>
@@ -133,53 +137,24 @@
           <div id="aviso-lamparas" class="mensaje mensaje--aviso" hidden></div>
           <div id="aviso-sueltos" class="mensaje mensaje--aviso" hidden></div>
           <p id="resultados-vacios" class="nota">Los resultados aparecen acá mientras dibujás.</p>
-          <div id="resultados" class="resultados" hidden>
-            <div class="metricas">
-              <div class="metrica"><span class="metrica__titulo">Entregada</span><span id="potencia-entregada" class="metrica__valor"></span></div>
-              <div class="metrica"><span class="metrica__titulo">Absorbida</span><span id="potencia-absorbida" class="metrica__valor"></span></div>
-              <div class="metrica"><span class="metrica__titulo">Balance</span><span id="potencia-balance" class="metrica__valor"></span></div>
-              <div class="metrica"><span class="metrica__titulo">Residuo KCL</span><span id="residuo-kcl" class="metrica__valor"></span></div>
-            </div>
-            <div class="leyenda-tension">
-              <span>Tensión de los cables</span>
-              <div class="leyenda-tension__barra"></div>
-              <div class="leyenda-tension__extremos"><span id="leyenda-minima"></span><span id="leyenda-maxima"></span></div>
-            </div>
-            <h3 class="subtitulo">Componentes</h3>
-            <div class="tabla-scroll">
-              <table class="tabla">
-                <thead><tr><th>Id</th><th class="num">Tensión</th><th class="num">Corriente</th><th class="num">Potencia</th></tr></thead>
-                <tbody id="tabla-componentes"></tbody>
-              </table>
-            </div>
-            <h3 class="subtitulo">Nodos</h3>
-            <div class="tabla-scroll">
-              <table class="tabla">
-                <thead><tr><th>Nodo</th><th class="num">Tensión</th></tr></thead>
-                <tbody id="tabla-nodos"></tbody>
-              </table>
-            </div>
-            <p id="estadisticas" class="nota"></p>
+          <div id="leyenda" class="leyenda-tension" hidden>
+            <span>Tensión de los cables</span>
+            <div class="leyenda-tension__barra"></div>
+            <div class="leyenda-tension__extremos"><span id="leyenda-minima"></span><span id="leyenda-maxima"></span></div>
           </div>
+          <div id="grupos-resultados" class="grupos"></div>
         </div>
       </article>
 
       <article id="vista-ecuaciones" class="tarjeta tarjeta--ecuaciones vista" role="tabpanel" aria-labelledby="pestana-ecuaciones" hidden>
         <header class="tarjeta__encabezado"><h2>Ecuaciones</h2></header>
         <div class="tarjeta__cuerpo">
-          <div id="ecuaciones-error" class="mensaje mensaje--error" hidden></div>
-          <div id="ecuaciones" hidden>
-            <h3 class="subtitulo">Ecuaciones de nodo (KCL)</h3>
-            <p class="nota">Suma de las corrientes que salen de cada nodo. Las fuentes de corriente pasan al lado derecho; I(Vk) es la corriente que entra a la fuente Vk por su borne +.</p>
-            <ol id="ecuaciones-nodos" class="ecuaciones"></ol>
-            <h3 class="subtitulo">Fuentes de tensión</h3>
-            <ol id="ecuaciones-fuentes" class="ecuaciones"></ol>
-            <h3 class="subtitulo">Sistema MNA: A · x = z</h3>
-            <p class="nota">Las filas de los nodos tienen las conductancias (en S) y las de las fuentes, sus restricciones; z es el lado derecho.</p>
-            <div id="matriz-mna" class="tabla-scroll"></div>
-            <h3 class="subtitulo">Solución x</h3>
-            <ol id="solucion-mna" class="ecuaciones"></ol>
+          <div id="ecuaciones-vacias" class="mensaje" hidden></div>
+          <div id="ecuaciones-notas" hidden>
+            <p class="nota">KCL: suma de las corrientes que salen de cada nodo. Las fuentes de corriente pasan al lado derecho; I(Vk) es la corriente que entra a la fuente Vk por su borne +.</p>
+            <p class="nota">Sistema MNA: las filas de los nodos tienen las conductancias (en S) y las de las fuentes, sus restricciones; z es el lado derecho.</p>
           </div>
+          <div id="grupos-ecuaciones" class="grupos"></div>
         </div>
       </article>
 
@@ -227,6 +202,54 @@
     <span>Hay una versión nueva —</span>
     <button id="boton-actualizar" class="boton boton--primario boton--chico" type="button">Actualizar</button>
   </div>
+
+  <!-- Un grupo por circuito en Resultados y en Ecuaciones (paneles.js los clona). -->
+  <template id="plantilla-resultados">
+    <section class="grupo">
+      <button class="grupo__titulo" type="button" aria-pressed="false"><span class="grupo__nombre"></span><span class="grupo__estado"></span></button>
+      <div class="mensaje mensaje--error grupo__error" hidden></div>
+      <p class="nota grupo__nota" hidden></p>
+      <div class="resultados grupo__contenido" hidden>
+        <div class="metricas">
+          <div class="metrica"><span class="metrica__titulo">Entregada</span><span class="metrica__valor potencia-entregada"></span></div>
+          <div class="metrica"><span class="metrica__titulo">Absorbida</span><span class="metrica__valor potencia-absorbida"></span></div>
+          <div class="metrica"><span class="metrica__titulo">Balance</span><span class="metrica__valor potencia-balance"></span></div>
+          <div class="metrica"><span class="metrica__titulo">Residuo KCL</span><span class="metrica__valor residuo-kcl"></span></div>
+        </div>
+        <h3 class="subtitulo">Componentes</h3>
+        <div class="tabla-scroll">
+          <table class="tabla">
+            <thead><tr><th>Id</th><th class="num">Tensión</th><th class="num">Corriente</th><th class="num">Potencia</th></tr></thead>
+            <tbody class="tabla-componentes"></tbody>
+          </table>
+        </div>
+        <h3 class="subtitulo">Nodos</h3>
+        <div class="tabla-scroll">
+          <table class="tabla">
+            <thead><tr><th>Nodo</th><th class="num">Tensión</th></tr></thead>
+            <tbody class="tabla-nodos"></tbody>
+          </table>
+        </div>
+        <p class="nota estadisticas"></p>
+      </div>
+    </section>
+  </template>
+  <template id="plantilla-ecuaciones">
+    <section class="grupo">
+      <button class="grupo__titulo" type="button" aria-pressed="false"><span class="grupo__nombre"></span><span class="grupo__estado"></span></button>
+      <div class="mensaje grupo__error" hidden></div>
+      <div class="grupo__contenido" hidden>
+        <h3 class="subtitulo">Ecuaciones de nodo (KCL)</h3>
+        <ol class="ecuaciones ecuaciones-nodos"></ol>
+        <h3 class="subtitulo">Fuentes de tensión</h3>
+        <ol class="ecuaciones ecuaciones-fuentes"></ol>
+        <h3 class="subtitulo">Sistema MNA: A · x = z</h3>
+        <div class="tabla-scroll matriz-mna"></div>
+        <h3 class="subtitulo">Solución x</h3>
+        <ol class="ecuaciones solucion-mna"></ol>
+      </div>
+    </section>
+  </template>
 
   <div id="menu-contextual" class="menu-contextual" role="menu" aria-label="Acciones" hidden>
     <button type="button" role="menuitem" data-accion="rotar"><span data-icono="rotar"></span><span>Rotar</span><kbd>Espacio</kbd></button>

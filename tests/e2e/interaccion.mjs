@@ -60,7 +60,7 @@ const seleccionados = () => pagina.locator("#editor .comp.seleccionado").evaluat
   (gs) => gs.map((g) => g.dataset.id ?? "GND").sort());
 const posicion = (id) => pagina.locator(`#editor g[data-id="${id}"] line.comp__seleccion`).evaluate(
   (l) => ["x1", "y1", "x2", "y2"].map((k) => Number(l.getAttribute(k))));
-const corriente = async (id) => (await pagina.locator("#tabla-componentes tr", { hasText: id }).first().innerText()).split("\t")[2];
+const corriente = async (id) => (await pagina.locator(".tabla-componentes tr", { hasText: id }).first().innerText()).split("\t")[2];
 
 await pagina.goto(URL_BASE);
 await fase("ok");
@@ -172,11 +172,10 @@ await pagina.click('[data-herramienta="wire"]');
 await arrastrar([4, 4], [12, 4]);
 ok((await progreso()) === "Paso 3 de 7", "tutorial: con un cable solo, espera");
 await arrastrar([4, 8], [12, 8]);
-await pagina.locator("#tutorial-progreso", { hasText: "Paso 4" }).waitFor();
-await pagina.click('[data-herramienta="ground"]');
-await clic(4, 8);
+// La tierra ya se puso sola en el borne − al colocar la batería: al cerrar el circuito se cumplen
+// "tierra" y "encender" juntos.
 await pagina.locator("#tutorial-progreso", { hasText: "Paso 6" }).waitFor();
-ok((await pagina.locator("#tutorial-logro").innerText()).includes("Encendé"), "tutorial: al poner GND la lámpara se enciende y lo festeja");
+ok((await pagina.locator("#tutorial-logro").innerText()).includes("Encendé"), "tutorial: con la tierra automática, al cerrar el circuito la lámpara se enciende y lo festeja");
 await pagina.screenshot({ path: `${SALIDA}/i6-tutorial-interruptor.png` });
 await pagina.click('[data-herramienta="switch"]');
 await clic(8, 4);

@@ -12,7 +12,7 @@ import {
   TIPOS, aLayout, agregarCableEnL, agregarPieza, alternarInterruptor, buscar, cambiarPotencia, cambiarValor,
   circuitoVacio, desdeLayout, estirarCable, insertarEnCable, ponerTierra, restaurar, rotar, tieneValor,
 } from "./lib/modelo.js";
-import { simularEstado } from "./lib/netlist.js";
+import { conTierrasAutomaticas, recordarTierrasBorradas, simularHoja } from "./lib/netlist.js";
 import {
   SELECCION_VACIA, copiarSeleccion, eliminarSeleccion, moverSeleccion, pegar, rotarSeleccion, seleccionVacia,
 } from "./lib/seleccion.js";
@@ -42,12 +42,21 @@ const almacen = new Almacen();
 
 const ctl = {
   estado: structuredClone(EJEMPLOS[0].estado),
-  /** {ids, tierra}: lo seleccionado (ver lib/seleccion.js). */
+  /** {ids}: lo seleccionado (ver lib/seleccion.js); las tierras son componentes G1, G2… */
   seleccion: SELECCION_VACIA,
   herramienta: "seleccionar",
   rotacion: 0,
+  /** Resultados de todos los circuitos que dieron, combinados (para el dibujo). */
   resultado: null,
-  error: null,
+  /** Errores por circuito: [{numero, code, message, details}]. */
+  errores: [],
+  /** Cada circuito de la hoja con su resultado o su error (lib/netlist.js simularHoja). */
+  circuitos: [],
+  vacio: null,
+  /** Circuito resaltado al tocar su grupo en Resultados o Ecuaciones. */
+  circuitoResaltado: null,
+  /** En el celular: tocar suma o saca piezas y un dedo sobre el fondo dibuja el rectángulo. */
+  modoVarios: false,
   /** Puntos de los bornes al aire, que el editor marca "sin conectar". */
   bornesSueltos: [],
   sinConectar: new Set(),
@@ -75,7 +84,14 @@ const ctl = {
   },
   ponerTierra(punto) {
     if (ctl.herramienta === "ground") elegirHerramienta("seleccionar");
-    aplicar(ponerTierra(ctl.estado, punto));
+    aplicar(ponerTierra(ctl.estado, punto).estado);
+  },
+  /** Resalta un circuito en el dibujo (o lo deja de resaltar si ya estaba). */
+  resaltarCircuito(numero) {
+    ctl.circuitoResaltado = ctl.circuitoResaltado === numero ? null : numero;
+    editor.render();
+    renderResultados(ctl);
+    if (!$("vista-ecuaciones").hidden) renderEcuaciones(ctl);
   },
   /** Menú contextual sobre lo seleccionado. */
   abrirMenu(x, y) {
@@ -115,8 +131,12 @@ const ctl = {
     ctl._antesDelArrastre = null;
     if (antes && antes !== ctl.estado) {
       // Una sola pieza soltada sobre un cable queda en serie.
-      const { ids, tierra } = ctl.seleccion;
-      if (ids.length === 1 && !tierra) ctl.estado = insertarEnCable(ctl.estado, ids[0]);
+      const { ids } = ctl.seleccion;
+      let estado = ids.length === 1 ? insertarEnCable(ctl.estado, ids[0]) : ctl.estado;
+      // Una tierra que el usuario movió ya no es la automática.
+      const movidas = new Set(ids);
+      estado = { ...estado, components: estado.components.map((c) => (c.auto && movidas.has(c.id) ? { ...c, auto: false } : c)) };
+      ctl.estado = normalizar(estado);
       historial.registrar(antes);
       circuitoCambiado();
       return true;
@@ -189,29 +209,40 @@ const tutorial = crearTutorial({ lienzoVacio: () => nuevo() });
 // --- Simulación (en el navegador, al instante) -----------------------------------------------
 
 function simular() {
-  const { resultado, error, sinConectar, bornesSueltos } = simularEstado(ctl.estado);
-  ctl.resultado = resultado ?? null;
-  ctl.error = error ?? null;
-  ctl.sinConectar = sinConectar;
-  ctl.bornesSueltos = bornesSueltos;
+  const hoja = simularHoja(ctl.estado);
+  ctl.resultado = hoja.resultado;
+  ctl.errores = hoja.errores;
+  ctl.circuitos = hoja.circuitos;
+  ctl.vacio = hoja.vacio;
+  ctl.sinConectar = hoja.sinConectar;
+  ctl.bornesSueltos = hoja.bornesSueltos;
+  if (ctl.circuitoResaltado && !hoja.circuitos.some((c) => c.numero === ctl.circuitoResaltado)) ctl.circuitoResaltado = null;
   mostrarEstado();
   editor.render();
   renderResultados(ctl);
-  if (!$("vista-ecuaciones").hidden) renderEcuaciones(ctl.estado);
+  if (!$("vista-ecuaciones").hidden) renderEcuaciones(ctl);
   tutorial.actualizar({ estado: ctl.estado, resultado: ctl.resultado });
 }
 
 function mostrarEstado() {
   const caja = $("estado-simulacion");
-  if (ctl.resultado) {
+  const varios = ctl.circuitos.length > 1;
+  if (ctl.errores.length) {
+    // Un error en un circuito no frena a los demás: se nombra el circuito y se avisa si los otros dan.
+    caja.dataset.fase = "error";
+    const sinPunto = (t) => t.replace(/\.$/, "");
+    caja.textContent = ctl.errores.map((e) => sinPunto(varios ? `Circuito ${e.numero}: ${e.message}` : e.message)).join(" · ")
+      + (ctl.resultado ? " · los demás circuitos dan resultados" : "");
+  } else if (ctl.resultado) {
     const s = ctl.resultado.stats;
     caja.dataset.fase = "ok";
     const sueltos = ctl.sinConectar.size;
-    caja.textContent = `Simulación OK · ${s.electrical_nodes} nodos · ${s.unknowns} incógnitas · ${s.total_ms.toFixed(1)} ms`
+    caja.textContent = `Simulación OK · ${varios ? `${ctl.circuitos.length} circuitos · ` : ""}`
+      + `${s.electrical_nodes} nodos · ${s.unknowns} incógnitas · ${s.total_ms.toFixed(1)} ms`
       + (sueltos ? ` · ${sueltos === 1 ? "1 componente sin conectar" : `${sueltos} componentes sin conectar`}` : "");
   } else {
-    caja.dataset.fase = ctl.error?.code === "empty" ? "vacio" : "error";
-    caja.textContent = ctl.error?.message ?? "";
+    caja.dataset.fase = "vacio";
+    caja.textContent = ctl.vacio ?? "";
   }
 }
 
@@ -220,18 +251,33 @@ function mostrarEstado() {
 /** Aplica un estado nuevo guardando el anterior en el historial. */
 function aplicar(nuevo) {
   if (nuevo === ctl.estado) return;
+  // Si se borró una tierra automática, ese circuito queda sin tierra hasta que cambie.
+  const siguiente = normalizar(recordarTierrasBorradas(ctl.estado, nuevo));
   historial.registrar(ctl.estado);
-  ctl.estado = nuevo;
+  ctl.estado = siguiente;
   circuitoCambiado();
+}
+
+/** Pone la tierra automática en los circuitos que no tienen (y avisa), saca las que sobran. */
+function normalizar(estado) {
+  const { estado: conTierras, colocadas } = conTierrasAutomaticas(estado);
+  if (colocadas.length) avisarTierra(colocadas, conTierras);
+  return conTierras;
+}
+
+function avisarTierra(colocadas, estado) {
+  const varios = simularHoja(estado).circuitos.length > 1;
+  const partes = colocadas.map((c) => `${c.fuente}${varios ? ` (circuito ${c.numero})` : ""}`);
+  $("aviso-tierra-texto").textContent = `Se puso GND en el borne − de ${partes.join(", ")}. `
+    + "Podés arrastrarla a cualquier nodo o borrarla.";
+  $("aviso-tierra").hidden = false;
 }
 
 function circuitoCambiado({ sucio = true } = {}) {
   if (sucio) ctl.sucio = true;
-  const { ids, tierra } = ctl.seleccion;
+  const { ids } = ctl.seleccion;
   const quedan = ids.filter((id) => buscar(ctl.estado, id));
-  if (quedan.length !== ids.length || (tierra && !ctl.estado.ground)) {
-    ctl.seleccion = { ids: quedan, tierra: tierra && Boolean(ctl.estado.ground) };
-  }
+  if (quedan.length !== ids.length) ctl.seleccion = { ids: quedan };
   simular();
   actualizarEncabezado();
   actualizarBotones();
@@ -240,7 +286,8 @@ function circuitoCambiado({ sucio = true } = {}) {
 
 function cargar(estado, actual, { sucio = false } = {}) {
   historial.limpiar();
-  ctl.estado = estado;
+  $("aviso-tierra").hidden = true;
+  ctl.estado = normalizar(estado);
   ctl.actual = actual;
   ctl.seleccion = SELECCION_VACIA;
   circuitoCambiado({ sucio });
@@ -266,10 +313,10 @@ function rehacer() {
   }
 }
 
-/** Una sola pieza seleccionada (sin la tierra): su id, o null. */
+/** Un solo componente seleccionado: su id, o null. */
 function unicaSeleccionada() {
-  const { ids, tierra } = ctl.seleccion;
-  return ids.length === 1 && !tierra ? ids[0] : null;
+  const { ids } = ctl.seleccion;
+  return ids.length === 1 ? ids[0] : null;
 }
 
 function rotarAccion() {
@@ -321,7 +368,7 @@ function duplicar() {
 }
 
 function seleccionarTodo() {
-  ctl.seleccion = { ids: ctl.estado.components.map((c) => c.id), tierra: Boolean(ctl.estado.ground) };
+  ctl.seleccion = { ids: ctl.estado.components.map((c) => c.id) };
   elegirHerramienta("seleccionar");
   editor.render();
   renderResultados(ctl);
@@ -794,6 +841,12 @@ $("control-sentido").addEventListener("click", (e) => {
   if (b) elegirSentido(b.dataset.sentido);
 });
 $("accion-pausa").addEventListener("click", alternarPausa);
+$("aviso-tierra-cerrar").addEventListener("click", () => { $("aviso-tierra").hidden = true; });
+$("accion-varios").addEventListener("click", () => {
+  ctl.modoVarios = !ctl.modoVarios;
+  $("accion-varios").setAttribute("aria-pressed", String(ctl.modoVarios));
+  if (ctl.modoVarios) elegirHerramienta("seleccionar");
+});
 $("boton-proyector").addEventListener("click", alternarProyector);
 $("boton-tema").addEventListener("click", () => aplicarTema((temaActual() + 1) % TEMAS.length));
 
@@ -804,7 +857,7 @@ for (const pestana of document.querySelectorAll(".pestana")) {
       otra.setAttribute("aria-selected", String(activa));
       $(otra.getAttribute("aria-controls")).hidden = !activa;
     }
-    if (pestana.id === "pestana-ecuaciones") renderEcuaciones(ctl.estado);
+    if (pestana.id === "pestana-ecuaciones") renderEcuaciones(ctl);
     if (pestana.id === "pestana-circuitos") renderLista();
   });
 }

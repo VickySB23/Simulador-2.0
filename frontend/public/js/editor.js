@@ -168,16 +168,17 @@ export function crearEditor(svg, contenedor, ctl, animador, info) {
     return ctl.estado.components.some((c) => mismoPunto(c.a, g) || mismoPunto(c.b, g)) ? g : null;
   }
 
+  /** Componente bajo el puntero (las tierras también son componentes): {id} o null. */
   function objetivo(evento) {
-    const nodo = evento.target.closest?.("[data-id],[data-tierra]");
-    if (!nodo) return null;
-    return nodo.dataset.id ? { tipo: "componente", id: nodo.dataset.id } : { tipo: "tierra" };
+    const nodo = evento.target.closest?.("[data-id]");
+    return nodo ? { id: nodo.dataset.id } : null;
   }
 
   // --- Dibujo ---------------------------------------------------------------------------
 
   function render() {
-    const { estado, seleccion, resultado, error } = ctl;
+    const { estado, seleccion, resultado } = ctl;
+    const errores = ctl.errores ?? [];
     svg.replaceChildren();
     svg.classList.toggle("herramienta-seleccionar", ctl.herramienta === "seleccionar");
 
@@ -198,11 +199,13 @@ export function crearEditor(svg, contenedor, ctl, animador, info) {
     const porId = new Map((resultado?.components ?? []).map((c) => [c.id, c]));
     const tramos = corrientesDeTramos(estado, resultado);
     const potenciaMaxima = Math.max(0, ...[...porId.values()].filter((c) => c.type === "resistor").map((c) => c.power));
-    const nodosConError = new Set(error?.details?.nodes ?? []);
-    const componentesConError = new Set(error?.details?.components ?? []);
+    // Cada circuito con error marca en rojo solo lo suyo.
+    const nodosConError = new Set(errores.flatMap((e) => e.details?.nodes ?? []));
+    const componentesConError = new Set(errores.flatMap((e) => e.details?.components ?? []));
     const seleccionados = new Set(seleccion.ids);
     const sinConectar = ctl.sinConectar ?? new Set();
 
+    const capaMarcos = el("g", {}, svg);
     const capaCables = el("g", {}, svg);
     const capaPiezas = el("g", {}, svg);
     const capaNodos = el("g", {}, svg);
@@ -213,6 +216,16 @@ export function crearEditor(svg, contenedor, ctl, animador, info) {
     const animaciones = [];
 
     for (const c of estado.components) {
+      if (c.type === "ground") {
+        const p = px(c.a);
+        const g = el("g", {
+          class: seleccionados.has(c.id) ? "comp seleccionado" : "comp", "data-id": c.id, "data-tierra": "1",
+        }, capaTierra);
+        el("rect", { class: "golpe", x: p.x - 14, y: p.y - 2, width: 28, height: 28 }, g);
+        dibujarTierra(p, g);
+        infoPorId.set(c.id, {});
+        continue;
+      }
       const res = porId.get(c.id);
       const esTramo = c.type === "wire" || c.type === "switch";
       let corriente = res?.current ?? 0;
@@ -291,17 +304,10 @@ export function crearEditor(svg, contenedor, ctl, animador, info) {
       }
     }
 
-    if (estado.ground) {
-      const p = px(estado.ground);
-      const g = el("g", {
-        class: seleccion.tierra ? "comp seleccionado" : "comp", "data-tierra": "1",
-      }, capaTierra);
-      el("rect", { class: "golpe", x: p.x - 14, y: p.y - 2, width: 28, height: 28 }, g);
-      dibujarTierra(p, g);
-    }
+    dibujarMarcos(capaMarcos);
 
     // Un cable seleccionado solo muestra sus puntas: se arrastran para estirarlo.
-    if (seleccion.ids.length === 1 && !seleccion.tierra) {
+    if (seleccion.ids.length === 1) {
       const cable = estado.components.find((c) => c.id === seleccion.ids[0] && c.type === "wire");
       for (const extremo of cable ? ["a", "b"] : []) {
         const p = px(cable[extremo]);
@@ -335,8 +341,33 @@ export function crearEditor(svg, contenedor, ctl, animador, info) {
   /** Elementos del SVG que se mueven con lo seleccionado (piezas, flechas y etiquetas). */
   function elementosDe(sel) {
     const selectores = sel.ids.map((id) => `[data-id="${CSS.escape(id)}"], [data-de="${CSS.escape(id)}"]`);
-    if (sel.tierra) selectores.push("[data-tierra]");
     return selectores.length ? [...svg.querySelectorAll(selectores.join(", "))] : [];
+  }
+
+  /**
+   * Marco de cada circuito: con varios en la hoja, su nombre ("Circuito 2") abajo a la izquierda;
+   * en rojo el que tiene un error; resaltado el que se tocó en Resultados o Ecuaciones.
+   */
+  function dibujarMarcos(capaMarcos) {
+    const circuitos = ctl.circuitos ?? [];
+    const varios = circuitos.length > 1;
+    const conError = new Set((ctl.errores ?? []).map((e) => e.numero));
+    for (const c of circuitos) {
+      const error = conError.has(c.numero);
+      const resaltado = ctl.circuitoResaltado === c.numero;
+      if (!varios && !error && !resaltado) continue;
+      const a = px({ x: c.caja.x1, y: c.caja.y1 });
+      const b = px({ x: c.caja.x2, y: c.caja.y2 });
+      const margen = 26;
+      const clases = ["marco-circuito", error ? "marco-circuito--error" : "", resaltado ? "marco-circuito--resaltado" : ""];
+      const g = el("g", { class: clases.filter(Boolean).join(" "), "data-circuito": c.numero }, capaMarcos);
+      el("rect", {
+        class: "marco-circuito__caja", x: a.x - margen, y: a.y - margen,
+        width: b.x - a.x + 2 * margen, height: b.y - a.y + 2 * margen, rx: 10,
+      }, g);
+      // El nombre va debajo del marco: arriba están los nombres de las piezas.
+      if (varios) texto(`Circuito ${c.numero}`, { class: "marco-circuito__nombre", x: a.x - margen + 6, y: b.y + margen + 14 }, g);
+    }
   }
 
   /** Rectángulo de selección: un solo elemento que se actualiza (no redibuja el circuito). */
@@ -387,9 +418,10 @@ export function crearEditor(svg, contenedor, ctl, animador, info) {
     const componente = nodo && ctl.estado.components.find((c) => c.id === nodo.dataset.id);
     if (!componente) return ocultarInfo();
     const { titulo, detalle } = resumenFlotante(componente, infoPorId.get(componente.id));
+    const circuito = (ctl.circuitos ?? []).length > 1 && ctl.circuitos.find((c) => c.ids.includes(componente.id));
     info.replaceChildren();
     const t = document.createElement("strong");
-    t.textContent = titulo;
+    t.textContent = circuito ? `${titulo} · Circuito ${circuito.numero}` : titulo;
     info.append(t);
     if (detalle) {
       const d = document.createElement("span");
@@ -430,15 +462,15 @@ export function crearEditor(svg, contenedor, ctl, animador, info) {
   }
 
   function empezarMover(punto, sel, tipo) {
-    const yaEstaba = sel.tipo === "tierra" ? ctl.seleccion.tierra : ctl.seleccion.ids.includes(sel.id);
-    const sola = sel.tipo === "tierra" ? { ids: [], tierra: true } : { ids: [sel.id], tierra: false };
+    const yaEstaba = ctl.seleccion.ids.includes(sel.id);
+    const sola = { ids: [sel.id] };
     // Sobre algo ya seleccionado se arrastra todo el grupo; si no, se elige solo esa pieza.
     if (!yaEstaba) ctl.seleccionar(sola);
     render();
     gesto = {
       tipo: "mover", inicio: punto, dx: 0, dy: 0, sel, tipoPieza: tipo, sola,
       elementos: elementosDe(ctl.seleccion), movio: false,
-      grupo: ctl.seleccion.ids.length + (ctl.seleccion.tierra ? 1 : 0) > 1,
+      grupo: ctl.seleccion.ids.length > 1,
     };
     ctl.empezarArrastre();
   }
@@ -508,8 +540,9 @@ export function crearEditor(svg, contenedor, ctl, animador, info) {
       return;
     }
     const sel = objetivo(evento);
-    const tipo = sel?.tipo === "componente" ? ctl.estado.components.find((c) => c.id === sel.id)?.type : null;
-    const sumar = evento.ctrlKey || evento.shiftKey || evento.metaKey;
+    const tipo = sel ? ctl.estado.components.find((c) => c.id === sel.id)?.type : null;
+    // "Seleccionar varios" (celular) se comporta como Ctrl: tocar suma o saca, el fondo es rectángulo.
+    const sumar = evento.ctrlKey || evento.shiftKey || evento.metaKey || ctl.modoVarios;
     // Doble clic (o doble toque) detectado a mano: cada render reemplaza los elementos del SVG,
     // así que el evento dblclick del navegador no siempre llega al componente.
     const ahora = evento.timeStamp;
@@ -521,7 +554,7 @@ export function crearEditor(svg, contenedor, ctl, animador, info) {
       return;
     }
     if (sel && sumar) {
-      ctl.seleccionar(alternarEnSeleccion(ctl.seleccion, sel));
+      ctl.seleccionar(alternarEnSeleccion(ctl.seleccion, sel.id));
       render();
       return;
     }
@@ -544,7 +577,7 @@ export function crearEditor(svg, contenedor, ctl, animador, info) {
     if (sel) return empezarMover(punto, sel, tipo);
     if (sumar) {
       // Shift + arrastrar: rectángulo nuevo; Ctrl + arrastrar: se suma a lo seleccionado.
-      const base = evento.ctrlKey || evento.metaKey ? ctl.seleccion : SELECCION_VACIA;
+      const base = evento.ctrlKey || evento.metaKey || ctl.modoVarios ? ctl.seleccion : SELECCION_VACIA;
       gesto = { tipo: "rectangulo", inicio: puntoExacto(evento), base, nodo: null };
       return;
     }
@@ -652,7 +685,7 @@ export function crearEditor(svg, contenedor, ctl, animador, info) {
     } else if (g.tipo === "borne") {
       // Clic sobre un borne, sin arrastrar: como un clic sobre lo que hay ahí.
       if (g.sel) {
-        ctl.seleccionar(g.sel.tipo === "tierra" ? { ids: [], tierra: true } : { ids: [g.sel.id], tierra: false });
+        ctl.seleccionar({ ids: [g.sel.id] });
         render();
         if (g.tipoPieza === "switch") ctl.alternarInterruptor(g.sel.id);
       } else {
@@ -714,8 +747,7 @@ export function crearEditor(svg, contenedor, ctl, animador, info) {
 
   /** Selecciona lo tocado (si no estaba) y abre el menú contextual. */
   function abrirMenuSobre(sel, x, y) {
-    const yaEstaba = sel.tipo === "tierra" ? ctl.seleccion.tierra : ctl.seleccion.ids.includes(sel.id);
-    if (!yaEstaba) ctl.seleccionar(sel.tipo === "tierra" ? { ids: [], tierra: true } : { ids: [sel.id], tierra: false });
+    if (!ctl.seleccion.ids.includes(sel.id)) ctl.seleccionar({ ids: [sel.id] });
     render();
     ctl.abrirMenu(x, y);
   }

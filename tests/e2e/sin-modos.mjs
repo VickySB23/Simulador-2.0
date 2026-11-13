@@ -50,7 +50,7 @@ async function arrastrarPor(...puntos) {
 const herramienta = () => pagina.locator("[data-herramienta][aria-pressed='true']").getAttribute("data-herramienta");
 const cables = () => pagina.locator("#editor g[data-id^='W'] line.comp__seleccion").evaluateAll((ls) => ls.map((l) =>
   ["x1", "y1", "x2", "y2"].map((k) => (Number(l.getAttribute(k)) - 10) / 20).join(",")));
-const corriente = async (id) => (await pagina.locator("#tabla-componentes tr", { hasText: id }).first().innerText()).split("\t")[2];
+const corriente = async (id) => (await pagina.locator(".tabla-componentes tr", { hasText: id }).first().innerText()).split("\t")[2];
 
 // --- Tooltips con los atajos -------------------------------------------------------------------
 const titulos = await pagina.locator("[data-herramienta]").evaluateAll((bs) => Object.fromEntries(bs.map((b) => [b.dataset.herramienta, b.title])));
@@ -80,6 +80,9 @@ await pagina.mouse.move(destino.x, destino.y, { steps: 4 });
 const fantasma = await pagina.locator("#editor .fantasma .comp").count();
 await pagina.mouse.up();
 await pagina.locator('#editor g[data-id="V1"]').waitFor({ state: "attached" });
+ok(await pagina.locator('#editor g[data-id="G1"]').count() === 1 && await pagina.locator("#aviso-tierra").isVisible(),
+  "la batería sola ya recibe su tierra en el borne −, con un aviso");
+await pagina.click("#aviso-tierra-cerrar");
 ok(fantasma === 1 && (await herramienta()) === "seleccionar",
   "arrastrar la batería desde la barra la coloca (con fantasma mientras se arrastra) y la herramienta sigue en Seleccionar");
 
@@ -96,11 +99,15 @@ await arrastrarPor([4, 12], [10, 12], [18, 8]); // desde la punta del anterior, 
 const lista = await cables();
 ok(lista.includes("4,12,18,12") && lista.includes("18,12,18,8"),
   `desde la punta de un cable se sigue dibujando, y se dobla solo en L (${lista})`);
+await fase("ok");
+ok((await corriente("L1")) !== "0 A", `con la tierra automática la lámpara ya se enciende (${await corriente("L1")})`);
+// Otra tierra en el mismo nodo (G): todas valen 0 V, así que nada cambia.
 await pagina.keyboard.press("g");
-await clic(4, 8);
+await clic(14, 8);
+await pagina.locator('#editor g[data-id="G2"]').waitFor({ state: "attached" });
 await fase("ok");
 ok((await herramienta()) === "seleccionar" && (await corriente("L1")) !== "0 A",
-  `con G se pone la tierra, se vuelve a Seleccionar y la lámpara se enciende (${await corriente("L1")})`);
+  "con G se pone otra tierra (en el mismo nodo no cambia nada) y se vuelve a Seleccionar");
 await pagina.screenshot({ path: `${SALIDA}/b1-cables-desde-borne.png` });
 
 // Con la herramienta Cable, cada clic agrega un tramo desde la punta anterior; Esc termina.
@@ -197,6 +204,17 @@ await pm.locator("#menu-contextual").waitFor({ timeout: 3000 });
 ok(true, "mantener presionada la lámpara abre su menú en el celular");
 await pm.screenshot({ path: `${SALIDA}/b5-menu-celular.png` });
 await pm.keyboard.press("Escape");
+// "Seleccionar varios": con un dedo sobre el fondo se dibuja el rectángulo.
+ok(await pm.locator("#accion-varios").isVisible(), "en el celular aparece el botón Seleccionar varios");
+await pm.click("#accion-varios");
+const r0 = await enPantalla(7, 2, pm);
+const r1 = await enPantalla(20, 5, pm);
+await toque("touchStart", [r0]);
+for (let i = 1; i <= 6; i++) await toque("touchMove", [{ x: r0.x + (r1.x - r0.x) * i / 6, y: r0.y + (r1.y - r0.y) * i / 6 }]);
+await toque("touchEnd", []);
+const elegidos = await pm.locator("#editor .comp.seleccionado").evaluateAll((gs) => gs.map((g) => g.dataset.id).sort());
+ok(elegidos.includes("S1") && elegidos.includes("L1"), `Seleccionar varios: un dedo dibuja el rectángulo (${elegidos})`);
+await pm.click("#accion-varios");
 const anchoMovil = async () => Number(await pm.locator("#editor").getAttribute("width"));
 const am0 = await anchoMovil();
 const m = await enPantalla(12, 7, pm);
