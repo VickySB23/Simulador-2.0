@@ -24,6 +24,9 @@
 // Salida: {node_voltages, components, power, kcl_max_residual, stats} o un ErrorCircuito con
 // `code`, `message` y `details`, con los mismos códigos que el backend.
 
+/** Margen relativo sobre la potencia nominal antes de considerar quemada una lámpara. */
+const TOLERANCIA_QUEMADO = 1e-9;
+
 export const TIPOS_COMPONENTE = ["resistor", "voltage_source", "current_source", "wire", "lamp", "switch"];
 const RESISTIVOS = new Set(["resistor", "lamp"]);
 export const TIERRA = "0";
@@ -511,7 +514,10 @@ function simularUnaVez(entrada, quemadas) {
     const power = voltage * current;
     const resultado = { id: c.id, type: c.type, voltage, current, power };
     if (c.type === "lamp") {
-      Object.assign(resultado, { brightness: power / c.ratedPower, burned: power > c.ratedPower });
+      // Justo en la nominal no se quema: la tolerancia absorbe el redondeo de punto flotante.
+      Object.assign(resultado, {
+        brightness: power / c.ratedPower, burned: power > c.ratedPower * (1 + TOLERANCIA_QUEMADO),
+      });
     }
     components.push(resultado);
   }
