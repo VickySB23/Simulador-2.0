@@ -1,12 +1,13 @@
 // Galería de ejemplos: un diálogo con una tarjeta por circuito (miniatura, nombre y descripción),
 // en lugar de una lista larga dentro del panel.
 import { dibujarComponente, dibujarTierra, el } from "./dibujo.js";
+import { interpretarValor } from "./lib/valores.js";
 
 const $ = (id) => document.getElementById(id);
 const PASO = 20;
 
 /** Miniatura SVG del circuito, encuadrada en sus piezas. */
-function miniatura(estado, vista) {
+function miniatura(estado, vista, simbolo) {
   const puntos = estado.components.flatMap((c) => [c.a, c.b]);
   const xs = puntos.map((p) => p.x);
   const ys = puntos.map((p) => p.y);
@@ -24,16 +25,22 @@ function miniatura(estado, vista) {
       dibujarTierra(px(c.a), piezas);
       continue;
     }
-    const g = dibujarComponente({ type: c.type, a: px(c.a), b: px(c.b), closed: c.closed }, { vista, etiquetas: false });
+    let ohmios;
+    try {
+      ohmios = c.type === "resistor" ? interpretarValor(c.value) : undefined;
+    } catch {
+      ohmios = undefined;
+    }
+    const g = dibujarComponente({ type: c.type, a: px(c.a), b: px(c.b), closed: c.closed, ohmios }, { vista, simbolo, etiquetas: false });
     (c.type === "wire" ? cables : piezas).append(g);
   }
   return svg;
 }
 
 /**
- * @param {{ejemplos: object[], vista: () => string, alAbrir: (ejemplo) => void}} opciones
+ * @param {{ejemplos: object[], vista: () => string, simbolo: () => string, alAbrir: (ejemplo) => void}} opciones
  */
-export function crearGaleriaEjemplos({ ejemplos, vista, alAbrir }) {
+export function crearGaleriaEjemplos({ ejemplos, vista, simbolo = () => "zigzag", alAbrir }) {
   const dialogo = $("galeria-ejemplos");
   const lista = $("lista-ejemplos");
 
@@ -50,7 +57,7 @@ export function crearGaleriaEjemplos({ ejemplos, vista, alAbrir }) {
       const descripcion = document.createElement("span");
       descripcion.className = "tarjeta-ejemplo__descripcion";
       descripcion.textContent = ejemplo.descripcion;
-      tarjeta.append(miniatura(ejemplo.estado, vista()), nombre, descripcion);
+      tarjeta.append(miniatura(ejemplo.estado, vista(), simbolo()), nombre, descripcion);
       tarjeta.addEventListener("click", () => {
         dialogo.close();
         alAbrir(ejemplo);

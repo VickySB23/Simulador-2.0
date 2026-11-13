@@ -1,5 +1,6 @@
 // Ficha de un componente seleccionado: sus datos, lo que dio la simulación y avisos. Sin DOM.
 import { TIPOS } from "./modelo.js";
+import { codigoDeColores } from "./codigo-colores.js";
 import { formatearSI, interpretarValor } from "./valores.js";
 
 /** Debajo de este brillo (2 % de la potencia nominal) la lámpara casi no se ve encendida. */
@@ -54,6 +55,12 @@ export function fichaDe(c, fila) {
     filas.push(["Estado", c.closed === false ? "abierto" : "cerrado"]);
   } else if (c.type !== "wire") {
     filas.push([c.type === "resistor" ? "Resistencia" : "Valor", formatearSI(numero(c.value) ?? 0, tipo.unidad)]);
+  }
+  // Código de colores: la lectura de las bandas, como se aprende en clase.
+  const codigo = c.type === "resistor" ? codigoDeColores(numero(c.value)) : null;
+  if (codigo) {
+    filas.push(["Código de colores", codigo.lectura]);
+    filas.push(["Tolerancia", `${codigo.tolerancia} (±${codigo.porcentaje} %)`]);
   }
   if (fila && c.type !== "wire" && c.type !== "switch") {
     filas.push(["Tensión", fila.voltage === null ? "—" : formatearSI(fila.voltage, "V")]);

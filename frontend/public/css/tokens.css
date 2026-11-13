@@ -86,6 +86,19 @@
   --ilus-banda-1: #8a4b2a;
   --ilus-banda-2: #2e2420;
   --ilus-banda-3: #e4572e;
+  /* Colores del código de resistencias (los mismos en los dos temas: son los de la pieza real). */
+  --banda-negro: #1f1a17;
+  --banda-marron: #7b4a28;
+  --banda-rojo: #d2342c;
+  --banda-naranja: #f07f1f;
+  --banda-amarillo: #f5c518;
+  --banda-verde: #2f9e57;
+  --banda-azul: #2f6fd0;
+  --banda-violeta: #8a4fbf;
+  --banda-gris: #8d8a86;
+  --banda-blanco: #f8f5ef;
+  --banda-dorado: #c9a227;
+  --banda-plata: #c0c5ca;
   --ilus-calor: #ff7a2f;                  /* brillo cálido según la potencia */
   --ilus-bateria-cuerpo: #f4b63f;         /* batería tipo auto: cuerpo mostaza */
   --ilus-bateria-tapa: #3b3a3f;

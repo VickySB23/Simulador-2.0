@@ -6,6 +6,10 @@
 // Lo que se mueve (puntos de corriente, halo, calor, pulso) no va en el SVG: se describe en la
 // lista `animaciones` y lo dibuja js/animador.js en un canvas encima (ver por qué ahí).
 import { brilloLampara, entregaEnergia, velocidadCorriente } from "./lib/animacion.js";
+import { codigoDeColores } from "./lib/codigo-colores.js";
+
+/** Clase CSS de cada color de banda (sin tildes). */
+const claseDeBanda = (color) => `banda--${color.normalize("NFD").replace(/[̀-ͯ]/g, "")}`;
 
 export const LARGO = 80;
 const NS = "http://www.w3.org/2000/svg";
@@ -31,18 +35,35 @@ function texto(contenido, atributos, padre) {
 const FORMAS = {
   resistor: {
     cuerpo: { ilustrada: [18, 62], esquematica: [22, 58] },
-    ilustrada(g) {
+    // Las bandas muestran el valor real (código de colores): 4 o 5 según las cifras significativas;
+    // la de tolerancia, separada a la derecha. Sin valor (la galería), tres bandas decorativas.
+    ilustrada(g, { bandas }) {
       el("rect", { class: "res-calor", x: 12, y: -16, width: 56, height: 32, rx: 14 }, g);
       el("path", { class: "pata", d: `M0 0H18M62 0H${LARGO}` }, g);
       el("rect", { class: "res-cuerpo contorno", x: 18, y: -10, width: 44, height: 20, rx: 9 }, g);
-      for (const [i, x] of [[1, 27], [2, 35], [3, 47]]) {
-        el("rect", { class: `res-banda-${i}`, x, y: -9, width: 4.5, height: 18 }, g);
+      if (!bandas) {
+        for (const [i, x] of [[1, 27], [2, 35], [3, 47]]) {
+          el("rect", { class: `res-banda-${i}`, x, y: -9, width: 4.5, height: 18 }, g);
+        }
+        return;
       }
+      const posiciones = bandas.length === 4 ? [24, 30.5, 37, 51] : [23, 28.5, 34, 39.5, 51];
+      bandas.forEach((color, i) => {
+        el("rect", { class: `res-banda ${claseDeBanda(color)}`, x: posiciones[i], y: -9, width: 4, height: 18 }, g);
+      });
     },
-    esquematica(g) {
+    // Zigzag (como en los libros de Física) o el rectángulo de la norma IEC, según el menú Vista.
+    esquematica(g, { simbolo }) {
       el("rect", { class: "res-calor", x: 16, y: -14, width: 48, height: 28, rx: 8 }, g);
-      el("path", { class: "esq-linea", d: `M0 0H22M58 0H${LARGO}` }, g);
-      el("rect", { class: "esq-cuerpo", x: 22, y: -8, width: 36, height: 16 }, g);
+      if (simbolo === "iec") {
+        el("path", { class: "esq-linea", d: `M0 0H22M58 0H${LARGO}` }, g);
+        el("rect", { class: "esq-cuerpo", x: 22, y: -8, width: 36, height: 16 }, g);
+        return;
+      }
+      el("path", {
+        class: "esq-linea esq-zigzag",
+        d: `M0 0H20L23.3 -7L30 7L36.7 -7L43.3 7L50 -7L56.7 7L60 0H${LARGO}`,
+      }, g);
     },
     efectos: { ilustrada: { calor: [40, 0, 56, 32] }, esquematica: { calor: [40, 0, 48, 28] } },
   },
@@ -201,7 +222,9 @@ function efectosDeForma(animaciones, c, vista, { brillo, calor, entrega }) {
  * color, seleccionado, error} con los resultados de la simulación ya calculados. Si se pasa la lista
  * `animaciones`, se le agregan los efectos animados del componente para el animador.
  */
-export function dibujarComponente(c, { vista = "ilustrada", estado = {}, etiquetas = true, animaciones = null } = {}) {
+export function dibujarComponente(c, {
+  vista = "ilustrada", estado = {}, etiquetas = true, animaciones = null, simbolo = "zigzag",
+} = {}) {
   const clases = ["comp", `comp--${c.type}`];
   if (estado.seleccionado) clases.push("seleccionado");
   if (estado.error) clases.push("con-error");
@@ -240,7 +263,8 @@ export function dibujarComponente(c, { vista = "ilustrada", estado = {}, etiquet
     class: "comp__forma",
     transform: `translate(${c.a.x} ${c.a.y}) rotate(${rotacionEnGrados(c.a, c.b)})`,
   }, g);
-  FORMAS[c.type][vista](forma, { quemada: lampara?.quemada });
+  const bandas = c.type === "resistor" && c.ohmios > 0 ? codigoDeColores(c.ohmios)?.bandas : null;
+  FORMAS[c.type][vista](forma, { quemada: lampara?.quemada, bandas, simbolo });
 
   const textos = el("g", { class: "comp__textos" }, g);
   const definicion = FORMAS[c.type];

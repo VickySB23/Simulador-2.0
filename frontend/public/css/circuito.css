@@ -16,6 +16,7 @@
 .comp .pata,
 .comp .esq-linea,
 .comp .esq-placa,
+.comp .esq-zigzag { fill: none; stroke-linejoin: round; }
 .comp .esq-cuchilla { fill: none; stroke: var(--color-tinta); stroke-linecap: round; stroke-linejoin: round; }
 .comp .pata { stroke-width: var(--trazo-componente); }
 .comp .esq-linea, .comp .esq-placa, .comp .esq-cuchilla { stroke-width: var(--trazo-esquema); }
@@ -50,6 +51,20 @@
 .res-banda-1 { fill: var(--ilus-banda-1); }
 .res-banda-2 { fill: var(--ilus-banda-2); }
 .res-banda-3 { fill: var(--ilus-banda-3); }
+/* Código de colores: una clase por color, con un contorno fino para que se vean sobre el cuerpo. */
+.res-banda { stroke: var(--color-tinta); stroke-width: calc(var(--trazo-componente) * 0.3); }
+.banda--negro { fill: var(--banda-negro); }
+.banda--marron { fill: var(--banda-marron); }
+.banda--rojo { fill: var(--banda-rojo); }
+.banda--naranja { fill: var(--banda-naranja); }
+.banda--amarillo { fill: var(--banda-amarillo); }
+.banda--verde { fill: var(--banda-verde); }
+.banda--azul { fill: var(--banda-azul); }
+.banda--violeta { fill: var(--banda-violeta); }
+.banda--gris { fill: var(--banda-gris); }
+.banda--blanco { fill: var(--banda-blanco); }
+.banda--dorado { fill: var(--banda-dorado); }
+.banda--plata { fill: var(--banda-plata); }
 .res-calor { fill: var(--ilus-calor); opacity: calc(var(--calor) * 0.25); }
 
 /* --- Batería (fuente de tensión) ---------------------------------------------------------------- */

@@ -41,6 +41,7 @@ const ARCHIVOS = [
   "js/lib/almacen.js",
   "js/lib/compartir.js",
   "js/lib/corrientes.js",
+  "js/lib/codigo-colores.js",
   "js/lib/ecuaciones.js",
   "js/lib/ejemplos.js",
   "js/lib/ficha.js",

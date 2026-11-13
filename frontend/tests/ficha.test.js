@@ -53,3 +53,11 @@ test("resumen al pasar el mouse: tensión y corriente de piezas y cables", () =>
   assert.equal(resumenFlotante(r, { fila: { unconnected: true } }).detalle, "Sin conectar: no circula corriente");
   assert.equal(resumenFlotante(r, {}).detalle, null);
 });
+
+test("la ficha de una resistencia muestra la lectura del código de colores", () => {
+  const ficha = fichaDe({ id: "R1", type: "resistor", value: "4.7k" }, undefined);
+  assert.ok(ficha.filas.some(([k, v]) => k === "Código de colores" && v === "amarillo-violeta-rojo = 47 × 100 = 4,7 kΩ"));
+  assert.ok(ficha.filas.some(([k, v]) => k === "Tolerancia" && v === "dorado (±5 %)"));
+  const precision = fichaDe({ id: "R2", type: "resistor", value: "4,75k" }, undefined);
+  assert.ok(precision.filas.some(([k, v]) => k === "Tolerancia" && v === "marrón (±1 %)"));
+});
