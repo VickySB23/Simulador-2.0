@@ -106,17 +106,19 @@
   --ilus-interruptor-base: #a9b4d6;       /* placa gris lila */
   --ilus-interruptor-palanca: #fffaf0;
   --ilus-interruptor-borne: #6f7a99;
+  --ilus-interruptor-contacto: #c9932f;   /* contacto de bronce donde cae la palanca */
   --ilus-tierra: var(--color-tinta);
 
   /* --- Tipografía ------------------------------------------------------------------------- */
   --fuente: "Nunito", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --fuente-mono: ui-monospace, "Cascadia Code", "SF Mono", Consolas, monospace;
-  --texto-xs: 0.75rem;
-  --texto-sm: 0.8125rem;
-  --texto-base: 0.9375rem;
-  --texto-lg: 1.125rem;
-  --texto-xl: 1.375rem;
-  --texto-xxl: 1.75rem;
+  /* Escala compacta (la de antes al 80 %): es el tamaño normal con el navegador al 100 %. */
+  --texto-xs: 0.6875rem;
+  --texto-sm: 0.71875rem;
+  --texto-base: 0.78125rem;
+  --texto-lg: 0.9375rem;
+  --texto-xl: 1.125rem;
+  --texto-xxl: 1.4rem;
   --peso-normal: 500;
   --peso-medio: 650;
   --peso-fuerte: 800;
@@ -125,9 +127,9 @@
   --tracking-titulo: -0.01em;
 
   /* --- Forma ------------------------------------------------------------------------------ */
-  --radio-sm: 8px;
-  --radio-md: 14px;
-  --radio-lg: 16px;
+  --radio-sm: 6px;
+  --radio-md: 11px;
+  --radio-lg: 13px;
   --radio-pildora: 999px;
   --borde-fino: 1.5px;
   --borde: 2px;
@@ -141,17 +143,20 @@
   --velo: rgb(46 36 32 / 0.45);
 
   /* --- Espaciado -------------------------------------------------------------------------- */
-  --esp-1: 4px;
-  --esp-2: 8px;
-  --esp-3: 12px;
-  --esp-4: 16px;
-  --esp-5: 24px;
-  --esp-6: 32px;
-  --esp-7: 48px;
-  --alto-control: 38px;
-  --alto-control-chico: 30px;
-  --icono: 20px;
-  --ancho-panel: 400px;
+  --esp-1: 3px;
+  --esp-2: 6px;
+  --esp-3: 10px;
+  --esp-4: 13px;
+  --esp-5: 19px;
+  --esp-6: 26px;
+  --esp-7: 38px;
+  --alto-control: 30px;
+  --alto-control-chico: 24px;
+  --icono: 16px;
+  --ancho-panel: 340px;
+  --ancho-panel-usuario: var(--ancho-panel); /* lo cambia el usuario arrastrando el borde */
+  --alto-hoja: initial; /* sin valor: lo pone js/panel.js mientras se arrastra la hoja inferior */
+  --alto-hoja-plegada: calc(var(--alto-control) + var(--esp-6) + var(--esp-5)); /* hoja inferior: pestañas a la vista */
 
   /* --- Dibujo del circuito (unidades del SVG) --------------------------------------------- */
   --trazo-cable: 3px;
@@ -255,8 +260,28 @@
   --velo: rgb(0 0 0 / 0.6);
 }
 
+/* Con el dedo, todo lo que se toca mide al menos 40 px de alto. */
+@media (pointer: coarse) {
+  :root {
+    --alto-control: 40px;
+    --alto-control-chico: 40px;
+    --icono: 20px;
+  }
+}
+
 /* --- Variante proyector: todo más grande y más grueso --------------------------------------- */
+/* Conserva la escala grande: no achica con la interfaz compacta. */
 :root[data-proyector="1"] {
+  --esp-1: 4px;
+  --esp-2: 8px;
+  --esp-3: 12px;
+  --esp-4: 16px;
+  --esp-5: 24px;
+  --esp-6: 32px;
+  --esp-7: 48px;
+  --radio-sm: 8px;
+  --radio-md: 14px;
+  --radio-lg: 16px;
   --texto-xs: 0.9375rem;
   --texto-sm: 1rem;
   --texto-base: 1.125rem;

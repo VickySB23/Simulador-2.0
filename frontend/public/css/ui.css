@@ -346,7 +346,10 @@ code, .mono { font-family: var(--fuente-mono); font-size: var(--texto-sm); }
 .dialogo {
   --tarjeta-color: var(--color-encabezado-dialogo);
   padding: 0;
-  width: min(calc(var(--ancho-panel) + var(--esp-4)), calc(100vw - var(--esp-6)));
+  /* Ajustado a lo que contiene, con un mínimo para los campos y un máximo razonable. */
+  width: fit-content;
+  min-width: min(calc(var(--esp-7) * 7), calc(100vw - var(--esp-6)));
+  max-width: min(calc(var(--esp-7) * 12), calc(100vw - var(--esp-6)));
   border: var(--borde-grueso) solid var(--tarjeta-color);
   border-radius: var(--radio-lg);
   background: var(--color-superficie);
@@ -368,8 +371,11 @@ code, .mono { font-family: var(--fuente-mono); font-size: var(--texto-sm); }
   font-size: var(--texto-base);
 }
 .campo input[aria-invalid="true"] { border-color: var(--color-error); background: var(--color-error-suave); }
-.campo__ayuda { font-weight: var(--peso-normal); color: var(--color-texto-suave); font-size: var(--texto-xs); }
-.campo__error { color: var(--color-error); font-size: var(--texto-xs); min-height: var(--texto-base); }
+.campo__ayuda { margin: 0; font-weight: var(--peso-normal); color: var(--color-texto-suave); font-size: var(--texto-xs); }
+.campo__ayuda:empty { display: none; }
+/* El error solo ocupa lugar cuando hay uno: así el diálogo no queda con un hueco abajo. */
+.campo__error { margin: 0; color: var(--color-error); font-size: var(--texto-xs); }
+.campo__error:empty { display: none; }
 .acciones { display: flex; flex-wrap: wrap; gap: var(--esp-2); }
 .acciones--fin { justify-content: flex-end; }
 
