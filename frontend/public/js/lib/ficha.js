@@ -36,6 +36,13 @@ export function avisoCorrienteBaja(lampara, fila) {
  */
 export function fichaDe(c, fila) {
   const tipo = TIPOS[c.type];
+  if (c.type === "ground") {
+    return {
+      titulo: `${c.id} · ${tipo.nombre}`,
+      filas: [["Tensión", "0 V (referencia)"], ["Ubicación", `(${c.a.x}, ${c.a.y})`]],
+      avisos: c.auto ? [{ tipo: "aviso", texto: "Se colocó sola en el borne − de la batería. Podés moverla a cualquier nodo." }] : [],
+    };
+  }
   const filas = [];
   const avisos = [];
   if (c.type === "lamp") {
@@ -76,6 +83,7 @@ export function fichaDe(c, fila) {
 export function resumenFlotante(c, { fila, tension, corriente } = {}) {
   const tipo = TIPOS[c.type];
   const titulo = c.type === "wire" ? `Cable ${c.id}` : `${c.id} · ${tipo.nombre}`;
+  if (c.type === "ground") return { titulo, detalle: "0 V: la referencia del circuito" };
   if (fila?.unconnected) return { titulo, detalle: "Sin conectar: no circula corriente" };
   if (c.type === "wire" || c.type === "switch") {
     if (corriente === undefined && (tension === undefined || tension === null)) return { titulo, detalle: null };

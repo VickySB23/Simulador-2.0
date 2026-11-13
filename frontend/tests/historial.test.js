@@ -26,14 +26,15 @@ test("deshacer y rehacer recorren los estados en orden", () => {
 test("deshacer restaura la tierra", () => {
   const h = new Historial();
   const sinTierra = agregarPieza(circuitoVacio(), "resistor", p(5, 5), 0).estado;
-  const conTierra = ponerTierra(sinTierra, p(3, 5));
+  const conTierra = ponerTierra(sinTierra, p(3, 5)).estado;
   h.registrar(sinTierra);
-  const movida = ponerTierra(conTierra, p(7, 5));
+  const otra = ponerTierra(conTierra, p(7, 5)).estado;
   h.registrar(conTierra);
+  const tierras = (e) => e.components.filter((c) => c.type === "ground").map((c) => c.a);
 
-  assert.deepEqual(h.deshacer(movida).ground, p(3, 5));
-  assert.equal(h.deshacer(conTierra).ground, null);
-  assert.deepEqual(h.rehacer(sinTierra).ground, p(3, 5));
+  assert.deepEqual(tierras(h.deshacer(otra)), [p(3, 5)]);
+  assert.deepEqual(tierras(h.deshacer(conTierra)), []);
+  assert.deepEqual(tierras(h.rehacer(sinTierra)), [p(3, 5)]);
 });
 
 test("un cambio nuevo descarta lo que se podía rehacer", () => {

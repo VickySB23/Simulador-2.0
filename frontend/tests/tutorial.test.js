@@ -36,7 +36,7 @@ test("cada paso espera a que se haga y el tutorial avanza solo", () => {
   assert.equal(PASOS[paso].id, "tierra");
 
   // Al poner la tierra la lámpara ya brilla: "encender" se cumple en el mismo cambio.
-  e = ponerTierra(e, p(4, 8));
+  e = ponerTierra(e, p(4, 8)).estado;
   paso = avanzar(paso, contexto(e));
   assert.equal(PASOS[paso].id, "interruptor");
 
@@ -60,7 +60,7 @@ test("un interruptor abierto que no apaga la lámpara no cumple el paso", () => 
   ({ estado: e } = agregarPieza(e, "lamp", p(12, 6), 1));
   ({ estado: e } = agregarCable(e, p(4, 4), p(12, 4)));
   ({ estado: e } = agregarCable(e, p(4, 8), p(12, 8)));
-  e = ponerTierra(e, p(4, 8));
+  e = ponerTierra(e, p(4, 8)).estado;
   let s;
   ({ estado: e, id: s } = agregarPieza(e, "switch", p(20, 20), 0)); // suelto, lejos
   e = alternarInterruptor(e, s);

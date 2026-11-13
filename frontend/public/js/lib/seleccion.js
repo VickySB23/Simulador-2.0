@@ -1,20 +1,18 @@
 // Selección múltiple: mover, rotar, borrar, copiar, pegar y duplicar en grupo. Sin DOM.
-// Una selección es {ids: [...], tierra: boolean}. Las operaciones son todo o nada: si algo
-// quedaría fuera del mundo, el estado no cambia.
+// Una selección es {ids: [...]} (las tierras son componentes, con ids G1, G2…). Las operaciones
+// son todo o nada: si algo quedaría fuera del mundo, el estado no cambia.
 import { ALTO_MUNDO, ANCHO_MUNDO, dentroDelMundo, reservarId } from "./modelo.js";
 
-export const SELECCION_VACIA = Object.freeze({ ids: [], tierra: false });
+export const SELECCION_VACIA = Object.freeze({ ids: [] });
 
 export function seleccionVacia(seleccion) {
-  return !seleccion || (!seleccion.ids.length && !seleccion.tierra);
+  return !seleccion || !seleccion.ids.length;
 }
 
 /** Agrega o saca un elemento (Ctrl/Shift + clic). */
-export function alternarEnSeleccion(seleccion, elemento) {
-  const base = seleccion ?? SELECCION_VACIA;
-  if (elemento.tipo === "tierra") return { ...base, tierra: !base.tierra };
-  const ids = base.ids.includes(elemento.id) ? base.ids.filter((i) => i !== elemento.id) : [...base.ids, elemento.id];
-  return { ...base, ids };
+export function alternarEnSeleccion(seleccion, id) {
+  const ids = seleccion?.ids ?? [];
+  return { ids: ids.includes(id) ? ids.filter((i) => i !== id) : [...ids, id] };
 }
 
 /** Lo que cae entero dentro del rectángulo (en unidades de grilla). */
@@ -22,15 +20,12 @@ export function seleccionEnRectangulo(estado, desde, hasta) {
   const [x1, x2] = [Math.min(desde.x, hasta.x), Math.max(desde.x, hasta.x)];
   const [y1, y2] = [Math.min(desde.y, hasta.y), Math.max(desde.y, hasta.y)];
   const adentro = (p) => p.x >= x1 && p.x <= x2 && p.y >= y1 && p.y <= y2;
-  return {
-    ids: estado.components.filter((c) => adentro(c.a) && adentro(c.b)).map((c) => c.id),
-    tierra: Boolean(estado.ground && adentro(estado.ground)),
-  };
+  return { ids: estado.components.filter((c) => adentro(c.a) && adentro(c.b)).map((c) => c.id) };
 }
 
 /** Une dos selecciones (rectángulo con Ctrl/Shift). */
 export function unirSelecciones(a, b) {
-  return { ids: [...new Set([...(a?.ids ?? []), ...b.ids])], tierra: Boolean(a?.tierra || b.tierra) };
+  return { ids: [...new Set([...(a?.ids ?? []), ...b.ids])] };
 }
 
 function transformar(estado, seleccion, f) {
@@ -42,8 +37,7 @@ function transformar(estado, seleccion, f) {
     return q;
   };
   const components = estado.components.map((c) => (ids.has(c.id) ? { ...c, a: mover(c.a), b: mover(c.b) } : c));
-  const ground = seleccion.tierra && estado.ground ? mover(estado.ground) : estado.ground;
-  return valido ? { ...estado, components, ground } : estado;
+  return valido ? { ...estado, components } : estado;
 }
 
 export function moverSeleccion(estado, seleccion, dx, dy) {
@@ -54,9 +48,7 @@ export function moverSeleccion(estado, seleccion, dx, dy) {
 /** Puntos de la selección, para calcular su caja. */
 function puntos(estado, seleccion) {
   const ids = new Set(seleccion.ids);
-  const lista = estado.components.filter((c) => ids.has(c.id)).flatMap((c) => [c.a, c.b]);
-  if (seleccion.tierra && estado.ground) lista.push(estado.ground);
-  return lista;
+  return estado.components.filter((c) => ids.has(c.id)).flatMap((c) => [c.a, c.b]);
 }
 
 /**
@@ -76,14 +68,10 @@ export function rotarSeleccion(estado, seleccion) {
 export function eliminarSeleccion(estado, seleccion) {
   if (seleccionVacia(seleccion)) return estado;
   const ids = new Set(seleccion.ids);
-  return {
-    ...estado,
-    components: estado.components.filter((c) => !ids.has(c.id)),
-    ground: seleccion.tierra ? null : estado.ground,
-  };
+  return { ...estado, components: estado.components.filter((c) => !ids.has(c.id)) };
 }
 
-/** Copia de los componentes seleccionados (la tierra no se copia: hay una sola). */
+/** Copia de los componentes seleccionados (las tierras también). */
 export function copiarSeleccion(estado, seleccion) {
   const ids = new Set(seleccion?.ids ?? []);
   return structuredClone(estado.components.filter((c) => ids.has(c.id)));
@@ -108,12 +96,14 @@ export function pegar(estado, copiados, desplazamiento = { x: 2, y: 2 }) {
   const nuevos = [];
   for (const c of copiados) {
     const { id, counters } = reservarId(actual, c.type);
-    nuevos.push({ ...structuredClone(c), id, a: { x: c.a.x + dx, y: c.a.y + dy }, b: { x: c.b.x + dx, y: c.b.y + dy } });
+    const copia = { ...structuredClone(c), id, a: { x: c.a.x + dx, y: c.a.y + dy }, b: { x: c.b.x + dx, y: c.b.y + dy } };
+    delete copia.auto; // una tierra copiada ya no es la automática
+    nuevos.push(copia);
     actual = { ...actual, counters };
   }
   if (!nuevos.every((c) => dentroDelMundo(c.a) && dentroDelMundo(c.b))) return { estado, seleccion: SELECCION_VACIA };
   return {
     estado: { ...actual, components: [...actual.components, ...nuevos] },
-    seleccion: { ids: nuevos.map((c) => c.id), tierra: false },
+    seleccion: { ids: nuevos.map((c) => c.id) },
   };
 }

@@ -50,10 +50,10 @@ export const PASOS = [
   },
   {
     id: "tierra",
-    titulo: "Poné la tierra (GND)",
-    texto: "Arrastrá GND (tecla G) hasta el borne − de la batería. Es la referencia de 0 V: "
-      + "sin ella no se puede simular.",
-    cumplido: ({ estado, resultado }) => Boolean(estado.ground && resultado),
+    titulo: "La tierra (GND)",
+    texto: "La tierra se pone sola en el borne − de la batería: es la referencia de 0 V y sin ella no "
+      + "se puede simular. Podés arrastrarla a cualquier nodo, o poner otra con G.",
+    cumplido: ({ estado, resultado }) => Boolean(estado.components.some((c) => c.type === "ground") && resultado),
   },
   {
     id: "encender",

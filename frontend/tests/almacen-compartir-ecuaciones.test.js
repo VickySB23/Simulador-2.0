@@ -72,7 +72,7 @@ test("sin almacenamiento (modo privado) el error lo explica", () => {
 });
 
 test("exportar e importar un archivo .json conserva el circuito exacto", () => {
-  const estado = ponerTierra(eliminar(ejemplo("tp4"), "R2"), p(18, 12));
+  const estado = ponerTierra(eliminar(ejemplo("tp4"), "R2"), p(18, 12)).estado;
   const texto = JSON.stringify(aArchivo("Mi circuito", estado));
   assert.deepEqual(desdeArchivo(texto), { name: "Mi circuito", estado });
   assert.throws(() => desdeArchivo("hola"), /JSON/);
@@ -132,7 +132,7 @@ test("la fuente de corriente pasa al lado derecho con su signo", () => {
   ({ estado } = agregarPieza(estado, "current_source", p(4, 6), 3, "1m")); // a 4_8, b 4_4: entra al 4_4
   ({ estado } = agregarPieza(estado, "resistor", p(6, 4), 0, "1k")); // 4_4 a 8_4
   ({ estado } = agregarPieza(estado, "resistor", p(8, 6), 1, "1k")); // 8_4 a 8_8
-  estado = ponerTierra(estado, p(4, 8));
+  estado = ponerTierra(estado, p(4, 8)).estado;
   // Falta unir 4_8 con 8_8: la R2 queda flotando de un lado. Se cierra con otra R a tierra.
   ({ estado } = agregarPieza(estado, "resistor", p(6, 8), 0, "1k")); // 4_8 a 8_8
   const e = ecuacionesDe(estado);

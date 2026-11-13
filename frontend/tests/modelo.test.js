@@ -3,8 +3,8 @@ import { test } from "node:test";
 
 import {
   ANCHO_MUNDO, LARGO, agregarCable, agregarPieza, aLayout, cambiarValor, circuitoVacio,
-  agregarCableEnL, conectados, desdeLayout, eliminar, estirarCable, insertarEnCable, partirCablesEn, tramosEnL, mover, moverTierra, nodosElectricos, ponerTierra,
-  quitarTierra, restaurar, rotar,
+  agregarCableEnL, buscar, conectados, desdeLayout, eliminar, estirarCable, insertarEnCable, partirCablesEn, tramosEnL, mover, nodosElectricos, ponerTierra,
+  restaurar, rotar,
 } from "../public/js/lib/modelo.js";
 
 const p = (x, y) => ({ x, y });
@@ -106,11 +106,15 @@ test("cambiar valor, tierra y operaciones sin efecto devuelven el mismo objeto",
   assert.equal(e.components[0].value, "4.7k");
   assert.equal(cambiarValor(e, "R1", "4.7k"), e);
   assert.equal(eliminar(e, "R9"), e);
-  e = ponerTierra(e, p(3, 5));
-  assert.deepEqual(e.ground, p(3, 5));
-  assert.equal(ponerTierra(e, p(3, 5)), e);
-  assert.deepEqual(moverTierra(e, 1, 2).ground, p(4, 7));
-  assert.equal(quitarTierra(e).ground, null);
+  let g;
+  ({ estado: e, id: g } = ponerTierra(e, p(3, 5)));
+  assert.equal(g, "G1");
+  assert.deepEqual(buscar(e, "G1"), { id: "G1", type: "ground", a: p(3, 5), b: p(3, 5) });
+  assert.equal(ponerTierra(e, p(3, 5)).estado, e, "dos tierras en el mismo punto no");
+  ({ estado: e, id: g } = ponerTierra(e, p(9, 5), { auto: true }));
+  assert.equal(buscar(e, g).auto, true);
+  assert.equal(mover(e, "G1", 1, 2).components.find((c) => c.id === "G1").b.y, 7);
+  assert.equal(eliminar(e, "G1").components.filter((c) => c.type === "ground").length, 1);
 });
 
 test("el layout ida y vuelta conserva todo, incluidos tierra y contadores", () => {
@@ -118,9 +122,19 @@ test("el layout ida y vuelta conserva todo, incluidos tierra y contadores", () =
   ({ estado: e } = agregarPieza(e, "resistor", p(5, 5), 0));
   ({ estado: e } = agregarPieza(e, "resistor", p(5, 9), 0));
   e = eliminar(e, "R1");
-  e = ponerTierra(e, p(3, 9));
+  e = ponerTierra(e, p(3, 9)).estado;
   const layout = JSON.parse(JSON.stringify(aLayout(e)));
   assert.deepEqual(desdeLayout(layout), e);
+});
+
+test("un layout viejo con una sola tierra la convierte en el componente G1", () => {
+  const e = desdeLayout({
+    version: 1, ground: p(3, 9), counters: { R: 1 },
+    components: [{ id: "R1", type: "resistor", a: p(3, 9), b: p(7, 9), value: "1k" }],
+  });
+  assert.deepEqual(e.components.map((c) => c.id), ["R1", "G1"]);
+  assert.deepEqual(buscar(e, "G1").a, p(3, 9));
+  assert.equal(e.counters.G, 1);
 });
 
 test("desdeLayout corrige contadores menores que los ids y rechaza formatos desconocidos", () => {

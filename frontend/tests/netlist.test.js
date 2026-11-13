@@ -15,7 +15,7 @@ function divisorChico() {
   ({ estado: e } = agregarPieza(e, "resistor", p(6, 3), 0)); // 4_3 a 8_3
   ({ estado: e } = agregarPieza(e, "resistor", p(8, 5), 1)); // 8_3 a 8_7
   ({ estado: e } = agregarCable(e, p(4, 7), p(8, 7)));
-  return ponerTierra(e, p(4, 7));
+  return ponerTierra(e, p(4, 7)).estado;
 }
 
 test("el netlist usa x_y como nombre de nodo y la tierra marcada", () => {
@@ -38,6 +38,15 @@ test("sin tierra se manda '0' para que el simulador responda no_ground", () => {
   assert.equal(armarNetlist(e).ground, "0");
 });
 
+test("varias tierras: la primera es la referencia y las demás se unen con cables ideales", () => {
+  let e = divisorChico();
+  e = ponerTierra(e, p(8, 7)).estado;
+  const netlist = armarNetlist(e);
+  assert.equal(netlist.ground, "4_7");
+  assert.ok(!netlist.components.some((c) => c.type === "ground"));
+  assert.deepEqual(netlist.components.at(-1), { id: "~G2", type: "wire", a: "8_7", b: "4_7" });
+});
+
 test("problemas locales antes de llamar al simulador", () => {
   assert.equal(problemaLocal(circuitoVacio()).code, "empty");
   let e = circuitoVacio();
@@ -45,7 +54,7 @@ test("problemas locales antes de llamar al simulador", () => {
   assert.equal(problemaLocal(e).code, "empty");
   ({ estado: e } = agregarPieza(e, "resistor", p(5, 5), 0));
   assert.equal(problemaLocal(e).code, "no_ground");
-  e = ponerTierra(e, p(20, 20));
+  e = ponerTierra(e, p(20, 20)).estado;
   assert.match(problemaLocal(e).message, /no toca/);
   assert.equal(problemaLocal(divisorChico()), null);
 });

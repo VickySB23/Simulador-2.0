@@ -15,10 +15,14 @@ export const TIPOS = {
   lamp: { prefijo: "L", unidad: "Ω", porDefecto: "24", potenciaPorDefecto: "6", nombre: "Lámpara" },
   switch: { prefijo: "S", unidad: "", porDefecto: null, nombre: "Interruptor" },
   wire: { prefijo: "W", unidad: "", porDefecto: null, nombre: "Cable" },
+  // La tierra es un componente de un solo punto (a = b). Puede haber varias: todas valen 0 V.
+  ground: { prefijo: "G", unidad: "", porDefecto: null, nombre: "Tierra (GND)" },
 };
 
 /** Tipos con un valor numérico editable (los cables e interruptores no tienen). */
-export const tieneValor = (tipo) => tipo !== "wire" && tipo !== "switch";
+export const tieneValor = (tipo) => tipo !== "wire" && tipo !== "switch" && tipo !== "ground";
+
+export const esTierra = (c) => c.type === "ground";
 
 // Rotación 0..3: dirección de a hacia b.
 const DIRECCIONES = [
@@ -26,8 +30,10 @@ const DIRECCIONES = [
 ];
 
 export function circuitoVacio() {
-  return { components: [], ground: null, counters: { R: 0, V: 0, I: 0, W: 0, L: 0, S: 0 } };
+  return { components: [], counters: { ...CONTADORES }, sinTierraAuto: [] };
 }
+
+const CONTADORES = Object.freeze({ R: 0, V: 0, I: 0, W: 0, L: 0, S: 0, G: 0 });
 
 export function nombreNodo(punto) {
   return `${punto.x}_${punto.y}`;
@@ -139,7 +145,7 @@ const enTramo = (v, p, q) => v >= Math.min(p, q) && v <= Math.max(p, q);
  */
 export function insertarEnCable(estado, id) {
   const pieza = buscar(estado, id);
-  if (!pieza || pieza.type === "wire") return estado;
+  if (!pieza || pieza.type === "wire" || esTierra(pieza)) return estado;
   const m = centro(pieza);
   for (const cable of estado.components) {
     if (cable.type !== "wire") continue;
@@ -256,19 +262,20 @@ export function eliminar(estado, id) {
   return components.length === estado.components.length ? estado : { ...estado, components };
 }
 
-export function ponerTierra(estado, punto) {
-  if (!dentroDelMundo(punto) || (estado.ground && mismoPunto(estado.ground, punto))) return estado;
-  return { ...estado, ground: { x: punto.x, y: punto.y } };
+/**
+ * Agrega una tierra en `punto` (si ya hay una ahí, no hace nada). `auto` marca la que se colocó
+ * sola en el borne − de una batería. Devuelve {estado, id}.
+ */
+export function ponerTierra(estado, punto, { auto = false } = {}) {
+  if (!dentroDelMundo(punto) || estado.components.some((c) => esTierra(c) && mismoPunto(c.a, punto))) {
+    return { estado, id: null };
+  }
+  const { estado: nuevo, id } = conComponente(estado, "ground", punto, punto);
+  if (!auto) return { estado: nuevo, id };
+  return { estado: reemplazar(nuevo, id, (c) => ({ ...c, auto: true })), id };
 }
 
-export function quitarTierra(estado) {
-  return estado.ground ? { ...estado, ground: null } : estado;
-}
-
-export function moverTierra(estado, dx, dy) {
-  if (!estado.ground) return estado;
-  return ponerTierra(estado, { x: estado.ground.x + dx, y: estado.ground.y + dy });
-}
+export const tierrasDe = (estado) => estado.components.filter(esTierra);
 
 export function buscar(estado, id) {
   return estado.components.find((c) => c.id === id) ?? null;
@@ -334,8 +341,8 @@ export function aLayout(estado) {
   return {
     version: VERSION_LAYOUT,
     components: estado.components.map((c) => ({ ...c, a: { ...c.a }, b: { ...c.b } })),
-    ground: estado.ground ? { ...estado.ground } : null,
     counters: { ...estado.counters },
+    sinTierraAuto: [...(estado.sinTierraAuto ?? [])],
   };
 }
 
@@ -345,7 +352,7 @@ export function desdeLayout(layout) {
     throw new Error("El circuito no tiene posiciones del editor (layout) en un formato conocido.");
   }
   const esPunto = (p) => p && Number.isInteger(p.x) && Number.isInteger(p.y);
-  const counters = { R: 0, V: 0, I: 0, W: 0, L: 0, S: 0, ...(layout.counters ?? {}) };
+  const counters = { ...CONTADORES, ...(layout.counters ?? {}) };
   const components = layout.components.map((c) => {
     if (!TIPOS[c.type] || !esPunto(c.a) || !esPunto(c.b) || typeof c.id !== "string") {
       throw new Error("El layout tiene un componente inválido.");
@@ -360,8 +367,15 @@ export function desdeLayout(layout) {
     if (tieneValor(c.type)) copia.value = c.value ?? TIPOS[c.type].porDefecto;
     if (c.type === "lamp") copia.potencia = c.potencia ?? TIPOS.lamp.potenciaPorDefecto;
     if (c.type === "switch") copia.closed = c.closed !== false;
+    if (c.type === "ground") {
+      copia.b = { ...c.a };
+      if (c.auto) copia.auto = true;
+    }
     return copia;
   });
-  const ground = esPunto(layout.ground) ? { x: layout.ground.x, y: layout.ground.y } : null;
-  return { components, ground, counters };
+  const sinTierraAuto = Array.isArray(layout.sinTierraAuto) ? layout.sinTierraAuto.filter((f) => typeof f === "string") : [];
+  let estado = { components, counters, sinTierraAuto };
+  // Formato anterior: una sola tierra en layout.ground.
+  if (esPunto(layout.ground)) estado = ponerTierra(estado, layout.ground).estado;
+  return estado;
 }

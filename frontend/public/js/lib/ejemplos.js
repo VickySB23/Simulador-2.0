@@ -8,7 +8,7 @@ const lampara = (id, a, b, value, potencia) => ({ id, type: "lamp", a, b, value,
 const interruptor = (id, a, b, closed) => ({ id, type: "switch", a, b, closed });
 
 function contadores(components) {
-  const counters = { R: 0, V: 0, I: 0, W: 0, L: 0, S: 0 };
+  const counters = { R: 0, V: 0, I: 0, W: 0, L: 0, S: 0, G: 0 };
   for (const c of components) {
     const prefijo = c.id[0];
     counters[prefijo] = Math.max(counters[prefijo], Number(c.id.slice(1)));
@@ -16,8 +16,10 @@ function contadores(components) {
   return counters;
 }
 
-function ejemplo(id, nombre, descripcion, components, ground) {
-  return { id, nombre, descripcion, estado: { components, ground, counters: contadores(components) } };
+/** La tierra va como el componente G1 (un solo punto). */
+function ejemplo(id, nombre, descripcion, piezas, tierra) {
+  const components = [...piezas, { id: "G1", type: "ground", a: { ...tierra }, b: { ...tierra } }];
+  return { id, nombre, descripcion, estado: { components, counters: contadores(components), sinTierraAuto: [] } };
 }
 
 /** Numera los cables W1, W2... en el orden dado. */

@@ -71,7 +71,7 @@ test("lazo de cables: se reparte en proporción inversa al largo", () => {
   ({ estado: e } = agregarCable(e, p(10, 0), p(14, 0))); // W4
   ({ estado: e } = agregarCable(e, p(14, 0), p(14, 2))); // W5 (camino largo: 2 + 4 + 2 = 8)
   ({ estado: e } = agregarCable(e, p(2, 6), p(14, 6))); // W6
-  e = ponerTierra(e, p(2, 6));
+  e = ponerTierra(e, p(2, 6)).estado;
   const { resultado } = simularEstado(e);
   const c = corrientesDeTramos(e, resultado);
   cerca(c.get("W1"), 1, "total");
@@ -89,7 +89,7 @@ test("interruptor cerrado lleva corriente; abierto, no", () => {
   ({ estado: e } = agregarCable(e, p(4, 2), p(6, 2)));
   ({ estado: e } = agregarCable(e, p(10, 2), p(12, 2)));
   ({ estado: e } = agregarCable(e, p(4, 6), p(12, 6)));
-  e = ponerTierra(e, p(4, 6));
+  e = ponerTierra(e, p(4, 6)).estado;
   let { resultado } = simularEstado(e);
   let c = corrientesDeTramos(e, resultado);
   cerca(c.get("S1"), 0.5, "S1 cerrado");
@@ -122,5 +122,5 @@ test("lámpara e interruptor en el modelo: ids, netlist, layout y link", async (
 test("un link viejo (sin lámparas ni interruptores) se sigue abriendo", async () => {
   const viejo = { components: [], ground: null, counters: { R: 3, V: 1, I: 0, W: 2 } };
   const { estado } = await decodificar(await codificar(viejo, "viejo"));
-  assert.deepEqual(estado.counters, { R: 3, V: 1, I: 0, W: 2, L: 0, S: 0 });
+  assert.deepEqual(estado.counters, { R: 3, V: 1, I: 0, W: 2, L: 0, S: 0, G: 0 });
 });
