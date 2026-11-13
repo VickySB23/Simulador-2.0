@@ -6,7 +6,7 @@ import { EJEMPLOS } from "../public/js/lib/ejemplos.js";
 import { TP4 } from "./circuitos-de-prueba.js";
 import { alternarInterruptor, nombreNodo } from "../public/js/lib/modelo.js";
 import { avisoCorrienteBaja } from "../public/js/lib/ficha.js";
-import { analizarConexiones, simularEstado } from "../public/js/lib/netlist.js";
+import { analizarConexiones, simularEstado, simularHoja } from "../public/js/lib/netlist.js";
 
 function simular(id, cambiar = (e) => e) {
   const ejemplo = [...EJEMPLOS, TP4].find((e) => e.id === id);
@@ -161,4 +161,29 @@ test("una lámpara justo en su potencia nominal no se quema", () => {
       if (c.type === "lamp" && Math.abs(c.brightness - 1) < 1e-6) assert.equal(c.burned, false, `${id} ${c.id}`);
     }
   }
+});
+
+// --- Medir y proteger ---------------------------------------------------------------------------
+
+test("multímetro: el voltímetro sobre R2 marca +8 V y el amperímetro en serie +4 mA", () => {
+  const { estado } = EJEMPLOS.find((e) => e.id === "multimetro");
+  const hoja = simularHoja(estado);
+  assert.equal(hoja.errores.length, 0);
+  assert.equal(hoja.lecturas.get("M1").texto, "+8.00 V");
+  assert.equal(hoja.lecturas.get("M2").texto, "+4.00 mA");
+  assert.equal(hoja.lecturas.get("M1").aviso, null);
+  assert.equal(hoja.lecturas.get("M2").aviso, null);
+});
+
+test("fusible: con S1 abierto conduce 1 A; al cerrarlo pasan 4 A y se quema", () => {
+  const { estado } = EJEMPLOS.find((e) => e.id === "fusible");
+  const abierto = simularHoja(estado).resultado;
+  const fila = (r, id) => r.components.find((c) => c.id === id);
+  cerca(Math.abs(fila(abierto, "F1").current), 1, "1 A por el fusible");
+  cerca(fila(abierto, "L1").brightness, 0.8, "la lámpara al 80 %");
+  assert.equal(fila(abierto, "F1").blown, false);
+  const cerrado = simularHoja(alternarInterruptor(estado, "S1")).resultado;
+  assert.equal(fila(cerrado, "F1").blown, true);
+  assert.equal(fila(cerrado, "L1").current, 0);
+  assert.deepEqual(cerrado.stats.blown_fuses, ["F1"]);
 });

@@ -8,7 +8,7 @@ const lampara = (id, a, b, value, potencia) => ({ id, type: "lamp", a, b, value,
 const interruptor = (id, a, b, closed) => ({ id, type: "switch", a, b, closed });
 
 function contadores(components) {
-  const counters = { R: 0, V: 0, I: 0, W: 0, L: 0, S: 0, G: 0 };
+  const counters = { R: 0, V: 0, I: 0, W: 0, L: 0, S: 0, G: 0, F: 0, P: 0, M: 0 };
   for (const c of components) {
     const prefijo = c.id[0];
     counters[prefijo] = Math.max(counters[prefijo], Number(c.id.slice(1)));
@@ -243,7 +243,52 @@ const CASA = ejemplo(
   p(4, 12),
 );
 
+// --- Medir y proteger ----------------------------------------------------------------------
+
+/** Multímetro: en V con sus puntas, en A intercalado en la rama. */
+const multimetro = (id, a, b, modo, puntas) => ({ id, type: "multimeter", a, b, modo, puntas });
+
+// Divisor de 12 V con 1 kΩ y 2 kΩ: el voltímetro M1 sobre R2 marca 8 V y el amperímetro M2, en
+// la rama de abajo, 12 V / 3 kΩ = 4 mA (entra por su borne rojo, a la derecha).
+const MULTIMETRO = ejemplo(
+  "multimetro",
+  "Medir con el multímetro",
+  "Un voltímetro (M1) sobre R2 marca 8 V y un amperímetro (M2) en serie marca 4 mA. Probá mover las puntas o pasar el selector a Ω.",
+  [
+    pieza("V1", "voltage_source", p(6, 6), p(6, 10), "12"),
+    pieza("R1", "resistor", p(10, 4), p(14, 4), "1k"),
+    pieza("R2", "resistor", p(18, 6), p(18, 10), "2k"),
+    multimetro("M2", p(14, 10), p(10, 10), "A", { roja: p(14, 13), negra: p(10, 13) }),
+    multimetro("M1", p(26, 7), p(30, 7), "V", { roja: p(18, 4), negra: p(18, 10) }),
+    ...cables([p(6, 6), p(6, 4)], [p(6, 4), p(10, 4)], [p(14, 4), p(18, 4)], [p(18, 4), p(18, 6)],
+      [p(6, 10), p(10, 10)], [p(14, 10), p(18, 10)]),
+  ],
+  p(6, 10),
+);
+
+/** Fusible con su corriente nominal (value, en A). */
+const fusible = (id, a, b, amperes) => ({ id, type: "fuse", a, b, value: amperes });
+
+// Fusible de 2 A con una lámpara de 12 Ω (1 A, 12 W de 15 W: 80 %). Al cerrar S1, R1 (4 Ω) suma
+// 3 A: pasan 4 A, el fusible se quema y abre el circuito. Queda quemado hasta reemplazarlo.
+const FUSIBLE = ejemplo(
+  "fusible",
+  "Fusible que protege el circuito",
+  "Fusible de 2 A con una lámpara (1 A). Cerrá S1: R1 suma 3 A, el fusible se quema y corta todo. Abrí S1 y tocá el fusible para reemplazarlo.",
+  [
+    pieza("V1", "voltage_source", p(4, 8), p(4, 12), "12"),
+    fusible("F1", p(6, 4), p(10, 4), "2"),
+    lampara("L1", p(16, 6), p(16, 10), "12", "15"),
+    interruptor("S1", p(24, 4), p(24, 8), false),
+    pieza("R1", "resistor", p(24, 8), p(24, 12), "4"),
+    ...cables([p(4, 8), p(4, 4)], [p(4, 4), p(6, 4)], [p(10, 4), p(16, 4)], [p(16, 4), p(24, 4)],
+      [p(16, 4), p(16, 6)], [p(16, 10), p(16, 12)], [p(4, 12), p(16, 12)], [p(16, 12), p(24, 12)]),
+  ],
+  p(4, 12),
+);
+
 export const EJEMPLOS = [
   DIVISOR, SERIE, PARALELO, WHEATSTONE, DOS_MALLAS,
   LINTERNA, SERIE_PARALELO, SERIE_SE_QUEMA, PARALELO_SIGUEN, DIMMER, DISTINTAS_POTENCIAS, CASA,
+  MULTIMETRO, FUSIBLE,
 ];
