@@ -104,3 +104,13 @@ test("un circuito sin fuente ni tierra no es un error; una tierra sola queda sin
   assert.match(hoja.vacio, /no tiene fuente/);
   assert.deepEqual(hoja.bornesSueltos, [p(40, 25)]);
 });
+
+test("dos GND en los bornes de una batería: un mensaje claro en lugar del error técnico", () => {
+  let e = malla(circuitoVacio(), 2, 2);
+  e = ponerTierra(e, p(2, 6)).estado; // borne −
+  e = ponerTierra(e, p(2, 2)).estado; // borne +
+  const hoja = simularHoja(e);
+  assert.equal(hoja.errores.length, 1);
+  assert.match(hoja.errores[0].message, /^Los dos GND ponen en corto a V1/);
+  assert.deepEqual(hoja.errores[0].details.components, ["V1", "G2", "G1"]);
+});

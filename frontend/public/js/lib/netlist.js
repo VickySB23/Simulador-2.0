@@ -181,9 +181,36 @@ export function simularEstado(estado) {
     resultado.stats.unconnected = [...sinConectar];
     return { resultado, ...conexiones };
   } catch (e) {
-    if (e instanceof ErrorCircuito) return { error: { code: e.code, message: e.message, details: e.details }, ...conexiones };
+    if (e instanceof ErrorCircuito) return { error: explicarError(activo, e), ...conexiones };
     throw e;
   }
+}
+
+/**
+ * Traduce los errores que causa el propio editor: si una batería queda en corto porque hay una
+ * tierra en cada uno de sus bornes (todas valen 0 V), lo dice así en lugar del error técnico.
+ */
+function explicarError(estado, e) {
+  const error = { code: e.code, message: e.message, details: e.details };
+  const tierras = tierrasDe(estado);
+  const id = e.details?.components?.[0];
+  const fuente = id && buscar(estado, id);
+  if (e.code !== "shorted_voltage_source" || tierras.length < 2 || fuente?.type !== "voltage_source") return error;
+  // Nodos contando los interruptores cerrados como cables (igual que el motor), sin las tierras.
+  const nodos = nodosElectricos({
+    components: estado.components.filter((c) => !esTierra(c))
+      .map((c) => (c.type === "switch" && c.closed !== false ? { ...c, type: "wire" } : c)),
+  });
+  const nodo = (p) => nodos.get(nombreNodo(p)) ?? nombreNodo(p);
+  const enA = tierras.filter((t) => nodo(t.a) === nodo(fuente.a));
+  const enB = tierras.filter((t) => nodo(t.a) === nodo(fuente.b));
+  if (!enA.length || !enB.length) return error;
+  const cuantos = tierras.length === 2 ? "Los dos GND" : "Los GND";
+  return {
+    ...error,
+    message: `${cuantos} ponen en corto a ${id}: hay uno en cada borne y todos valen 0 V. Dejá uno solo o movelo a otro nodo.`,
+    details: { ...e.details, components: [id, ...enA.map((t) => t.id), ...enB.map((t) => t.id)] },
+  };
 }
 
 // --- Varios circuitos en la misma hoja ---------------------------------------------------------
