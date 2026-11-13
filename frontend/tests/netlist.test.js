@@ -6,6 +6,7 @@ import {
   armarNetlist, colorTension, problemaLocal, puntosDeEtiqueta, sentidoCorriente, simularEstado,
 } from "../public/js/lib/netlist.js";
 import { EJEMPLOS } from "../public/js/lib/ejemplos.js";
+import { TP4 } from "./circuitos-de-prueba.js";
 
 const p = (x, y) => ({ x, y });
 
@@ -104,8 +105,8 @@ test("los ejemplos precargados no tienen problemas locales", () => {
   }
 });
 
-test("el ejemplo del TP4 arma el circuito del ejercicio", () => {
-  const tp4 = EJEMPLOS.find((e) => e.id === "tp4");
+test("el TP4 arma el circuito del ejercicio", () => {
+  const tp4 = TP4;
   const netlist = armarNetlist(tp4.estado);
   const piezas = netlist.components.filter((c) => c.type !== "wire");
   assert.deepEqual(piezas.map((c) => [c.id, c.value]),

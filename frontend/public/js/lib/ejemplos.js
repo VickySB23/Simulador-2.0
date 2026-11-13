@@ -74,24 +74,6 @@ const PARALELO = ejemplo(
   p(6, 8),
 );
 
-// TP4: (3 Ω ∥ 12 Ω) en serie con (6 Ω ∥ 4 Ω) con 60 V. Cada paralelo vale 2,4 Ω,
-// así que el nodo del medio (V2) queda en 30 V y la fuente entrega 12,5 A.
-const TP4 = ejemplo(
-  "tp4",
-  "Mixto (TP4)",
-  "60 V sobre (3 Ω ∥ 12 Ω) en serie con (6 Ω ∥ 4 Ω): V2 = 30 V, I = 12,5 A.",
-  [
-    pieza("V1", "voltage_source", p(6, 4), p(6, 8), "60"),
-    pieza("R1", "resistor", p(12, 4), p(12, 8), "3"),
-    pieza("R2", "resistor", p(18, 4), p(18, 8), "12"),
-    pieza("R3", "resistor", p(12, 8), p(12, 12), "6"),
-    pieza("R4", "resistor", p(18, 8), p(18, 12), "4"),
-    ...cables([p(6, 4), p(12, 4)], [p(12, 4), p(18, 4)], [p(12, 8), p(18, 8)], [p(6, 8), p(6, 12)],
-      [p(6, 12), p(12, 12)], [p(12, 12), p(18, 12)]),
-  ],
-  p(6, 12),
-);
-
 // Puente de Wheatstone equilibrado: R1/R2 = R3/R4 = 1/2, así que por R5 (el galvanómetro)
 // no circula corriente y los dos nodos del medio quedan en 10 · 2/3 = 6,67 V.
 const WHEATSTONE = ejemplo(
@@ -262,6 +244,6 @@ const CASA = ejemplo(
 );
 
 export const EJEMPLOS = [
-  DIVISOR, SERIE, PARALELO, TP4, WHEATSTONE, DOS_MALLAS,
+  DIVISOR, SERIE, PARALELO, WHEATSTONE, DOS_MALLAS,
   LINTERNA, SERIE_PARALELO, SERIE_SE_QUEMA, PARALELO_SIGUEN, DIMMER, DISTINTAS_POTENCIAS, CASA,
 ];

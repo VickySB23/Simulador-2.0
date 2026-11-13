@@ -5,10 +5,11 @@ import { Almacen, CLAVE, aArchivo, desdeArchivo } from "../public/js/lib/almacen
 import { PREFIJO_HASH, codificar, decodificar } from "../public/js/lib/compartir.js";
 import { ecuacionesDe, numeroCorto } from "../public/js/lib/ecuaciones.js";
 import { EJEMPLOS } from "../public/js/lib/ejemplos.js";
+import { TP4 } from "./circuitos-de-prueba.js";
 import { agregarPieza, circuitoVacio, eliminar, ponerTierra } from "../public/js/lib/modelo.js";
 
 const p = (x, y) => ({ x, y });
-const ejemplo = (id) => structuredClone(EJEMPLOS.find((e) => e.id === id).estado);
+const ejemplo = (id) => structuredClone([...EJEMPLOS, TP4].find((e) => e.id === id).estado);
 
 function memoria() {
   const datos = new Map();

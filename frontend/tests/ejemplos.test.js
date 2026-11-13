@@ -3,12 +3,13 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { EJEMPLOS } from "../public/js/lib/ejemplos.js";
+import { TP4 } from "./circuitos-de-prueba.js";
 import { alternarInterruptor, nombreNodo } from "../public/js/lib/modelo.js";
 import { avisoCorrienteBaja } from "../public/js/lib/ficha.js";
 import { analizarConexiones, simularEstado } from "../public/js/lib/netlist.js";
 
 function simular(id, cambiar = (e) => e) {
-  const ejemplo = EJEMPLOS.find((e) => e.id === id);
+  const ejemplo = [...EJEMPLOS, TP4].find((e) => e.id === id);
   const { resultado, error } = simularEstado(cambiar(ejemplo.estado));
   assert.equal(error, undefined, `${id}: ${error?.message}`);
   const comp = Object.fromEntries(resultado.components.map((c) => [c.id, c]));
@@ -24,7 +25,7 @@ test("todos los ejemplos simulan con balance de potencias y KCL", () => {
     const { resultado } = simular(id);
     assert.ok(resultado.power.ok, id);
     assert.ok(resultado.kcl_max_residual < 1e-12, id);
-    const { estado } = EJEMPLOS.find((e) => e.id === id);
+    const { estado } = [...EJEMPLOS, TP4].find((e) => e.id === id);
     assert.equal(analizarConexiones(estado).sinConectar.size, 0, `${id}: tiene un borne suelto`);
   }
 });

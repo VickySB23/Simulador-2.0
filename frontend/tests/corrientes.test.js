@@ -5,6 +5,7 @@ import { test } from "node:test";
 import { PREFIJO_HASH, codificar, decodificar } from "../public/js/lib/compartir.js";
 import { corrientesDeTramos } from "../public/js/lib/corrientes.js";
 import { EJEMPLOS } from "../public/js/lib/ejemplos.js";
+import { TP4 } from "./circuitos-de-prueba.js";
 import {
   aLayout, agregarCable, agregarPieza, alternarInterruptor, cambiarPotencia, circuitoVacio, desdeLayout,
   nombreNodo, ponerTierra,
@@ -12,7 +13,7 @@ import {
 import { armarNetlist, simularEstado } from "../public/js/lib/netlist.js";
 
 const p = (x, y) => ({ x, y });
-const ejemplo = (id) => structuredClone(EJEMPLOS.find((e) => e.id === id).estado);
+const ejemplo = (id) => structuredClone([...EJEMPLOS, TP4].find((e) => e.id === id).estado);
 const cerca = (a, b, msg) => assert.ok(Math.abs(a - b) <= 1e-9 * Math.max(1, Math.abs(b)), `${msg}: ${a} ≠ ${b}`);
 
 /** KCL en cada punto: lo que entra por los bornes sale por los tramos (cables e interruptores). */
