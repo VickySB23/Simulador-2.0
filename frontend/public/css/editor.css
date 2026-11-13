@@ -29,7 +29,7 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 .area {
   flex: 1;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) var(--ancho-panel);
+  grid-template-columns: minmax(0, 1fr) var(--ancho-panel-usuario);
   min-height: 0;
 }
 
@@ -135,8 +135,10 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 /* --- Modo proyector: la barra ocupa menos lugar ------------------------------------------------- */
 /* Los botones secundarios quedan solo con su ícono (el nombre está en el tooltip); las herramientas
    conservan el texto. */
-:root[data-proyector="1"] .barra--editor .barra__grupo:not([role="radiogroup"]) .boton span:not(.icono) { display: none; }
-:root[data-proyector="1"] .barra--editor .barra__grupo:not([role="radiogroup"]) .boton { padding: 0 var(--esp-3); }
+:root[data-proyector="1"] .barra--editor .barra__grupo:not([role="radiogroup"]) > .boton span:not(.icono),
+:root[data-proyector="1"] .barra--editor .desplegable > .boton span:not(.icono) { display: none; }
+:root[data-proyector="1"] .barra--editor .barra__grupo:not([role="radiogroup"]) > .boton,
+:root[data-proyector="1"] .barra--editor .desplegable > .boton { padding: 0 var(--esp-3); }
 
 /* --- Pantallas chicas --------------------------------------------------------------------------- */
 
@@ -148,8 +150,6 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 
 @media (max-width: 960px) {
   .area { grid-template-columns: minmax(0, 1fr); }
-  .lienzo { height: 60vh; border-right: 0; border-bottom: var(--borde) solid var(--color-borde-suave); }
-  .panel { overflow: visible; }
 }
 
 @media (max-width: 760px) {
@@ -158,8 +158,9 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 
 @media (max-width: 640px) {
   .barra--editor { flex-wrap: nowrap; }
-  .barra--editor .barra__grupo .boton span:not(.icono) { display: none; }
-  .barra--editor .barra__grupo .boton { padding: 0 var(--esp-2); }
+  .barra--editor .barra__grupo > .boton span:not(.icono),
+  .barra--editor .desplegable > .boton span:not(.icono) { display: none; }
+  .barra--editor .barra__grupo > .boton, .barra--editor .desplegable > .boton { padding: 0 var(--esp-2); }
   .encabezado { padding: var(--esp-2) var(--esp-3); gap: var(--esp-2); }
   .marca h1 { font-size: var(--texto-lg); }
   .aviso-version--flotante { left: var(--esp-4); justify-content: space-between; }
@@ -383,3 +384,154 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 @media (hover: none) {
   .barra--editor .solo-tactil { display: inline-flex; }
 }
+
+/* --- Menús desplegables de la barra (Vista, Exportar) ----------------------------------------- */
+.desplegable { position: relative; display: inline-flex; }
+.desplegable__panel {
+  position: fixed;
+  z-index: 12;
+  display: grid;
+  gap: var(--esp-2);
+  min-width: max-content;
+  padding: var(--esp-3);
+  border: var(--borde) solid var(--color-tinta);
+  border-radius: var(--radio-md);
+  background: var(--color-superficie);
+  box-shadow: var(--sombra-flotante);
+}
+.desplegable__titulo {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--esp-3);
+  margin: 0;
+  color: var(--color-texto-suave);
+  font-size: var(--texto-xs);
+  font-weight: var(--peso-titulo);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.desplegable__titulo kbd { font: inherit; }
+.desplegable__panel .boton { justify-content: flex-start; }
+.desplegable__panel .nota { max-width: calc(var(--esp-7) * 6); }
+.boton[aria-expanded="true"] { background: var(--color-superficie-2); }
+
+/* --- Panel: borde para el ancho, cabecera, ocultar y mostrar ----------------------------------- */
+.panel { position: relative; }
+.panel__cabecera { display: flex; align-items: center; gap: var(--esp-2); }
+.panel__cabecera .pestanas { flex: 1; }
+.panel__borde {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--esp-1) * -1);
+  width: var(--esp-2);
+  z-index: 2;
+  cursor: col-resize;
+}
+.panel__borde:hover, .panel__borde:focus-visible, :root.cambiando-ancho .panel__borde { background: var(--color-seleccion-suave); }
+:root.cambiando-ancho, :root.cambiando-ancho * { cursor: col-resize; user-select: none; }
+:root.panel-oculto .area { grid-template-columns: minmax(0, 1fr) 0; }
+:root.panel-oculto .panel { display: none; }
+.mostrar-panel { position: absolute; top: var(--esp-3); right: calc(var(--esp-7) * 3); z-index: 3; }
+/* Asa de la hoja inferior (solo en pantallas chicas). */
+.panel__asa {
+  display: none;
+  justify-content: center;
+  align-items: center;
+  flex-shrink: 0;
+  min-height: var(--esp-5);
+  margin: 0 calc(var(--esp-3) * -1);
+  border: 0;
+  background: transparent;
+  cursor: grab;
+  touch-action: none;
+}
+.panel__asa span { width: var(--esp-7); height: var(--esp-1); border-radius: var(--radio-pildora); background: var(--color-borde-suave); }
+
+/* --- Secciones plegables y métricas compactas ---------------------------------------------------- */
+.seccion > summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: var(--esp-1); }
+.seccion > summary::-webkit-details-marker { display: none; }
+.seccion > summary::before { content: "▸"; transition: transform var(--duracion-rapida) var(--curva); }
+.seccion[open] > summary::before { transform: rotate(90deg); }
+.seccion[open] > summary { margin-bottom: var(--esp-2); }
+.grupo .metricas { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--esp-1); }
+.grupo .metrica { padding: var(--esp-1) var(--esp-2); }
+.tabla td, .tabla th { padding-top: var(--esp-1); padding-bottom: var(--esp-1); }
+
+/* --- Galería de ejemplos -------------------------------------------------------------------------- */
+.dialogo--galeria { max-width: min(calc(var(--esp-7) * 22), calc(100vw - var(--esp-4))); width: min(calc(var(--esp-7) * 22), calc(100vw - var(--esp-4))); }
+.dialogo--galeria .tarjeta__encabezado { justify-content: space-between; }
+.dialogo--galeria .tarjeta__cuerpo { max-height: 78vh; overflow-y: auto; }
+.boton--sobre-color { color: var(--color-encabezado-texto); }
+.galeria-ejemplos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(calc(var(--esp-7) * 4.6), 1fr));
+  gap: var(--esp-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.tarjeta-ejemplo {
+  display: grid;
+  gap: var(--esp-1);
+  width: 100%;
+  height: 100%;
+  padding: var(--esp-2);
+  border: var(--borde) solid var(--color-tinta);
+  border-radius: var(--radio-md);
+  background: var(--color-superficie);
+  color: var(--color-texto);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  align-content: start;
+}
+.tarjeta-ejemplo:hover { background: var(--color-superficie-2); }
+.tarjeta-ejemplo .miniatura {
+  width: 100%;
+  height: calc(var(--esp-7) * 2.4);
+  border-radius: var(--radio-sm);
+  background: var(--color-fondo-hundido);
+  pointer-events: none;
+}
+.tarjeta-ejemplo__nombre { font-weight: var(--peso-titulo); }
+.tarjeta-ejemplo__descripcion { color: var(--color-texto-suave); font-size: var(--texto-xs); }
+.boton--ejemplos { align-self: flex-start; }
+
+/* --- Pantallas chicas: el panel es una hoja inferior que se desliza (js/panel.js) ---------------- */
+/* Al final del archivo para ganarles a las reglas generales del panel. */
+@media (max-width: 960px) {
+  /* El lienzo ocupa todo; el panel pasa a ser una hoja inferior que se desliza (js/panel.js). */
+  body { height: 100vh; height: 100dvh; }
+  .lienzo { border-right: 0; padding-bottom: var(--alto-hoja-plegada); }
+  .panel {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 6;
+    height: var(--alto-hoja, var(--alto-hoja-plegada));
+    max-height: 92vh;
+    padding-top: 0;
+    border-top: var(--borde) solid var(--color-tinta);
+    border-radius: var(--radio-lg) var(--radio-lg) 0 0;
+    box-shadow: var(--sombra-flotante);
+    transition: height var(--duracion-media) var(--curva);
+  }
+  .panel[data-altura="media"] { height: var(--alto-hoja, 50vh); }
+  .panel[data-altura="completa"] { height: var(--alto-hoja, 88vh); }
+  .panel__asa { display: flex; }
+  .panel__borde, #boton-ocultar-panel, .mostrar-panel { display: none; }
+  :root.panel-oculto .panel { display: flex; }
+}
+
+/* La edición va solo con íconos (el nombre está en el tooltip y en aria-label): deja lugar al dibujo. */
+.barra--editor [aria-label="Edición"] > .boton span:not(.icono) { display: none; }
+.barra--editor [aria-label="Edición"] > .boton { padding: 0 var(--esp-3); }
+/* Métricas compactas: cuatro en fila si entran, si no dos. */
+.grupo .metricas { grid-template-columns: repeat(auto-fit, minmax(calc(var(--esp-7) * 1.55), 1fr)); }
+/* Barra en una sola fila en escritorio: botones más justos. */
+.barra--editor .barra__grupo > .boton, .barra--editor .desplegable > .boton { padding: 0 var(--esp-3); gap: var(--esp-1); }
+.barra--editor { gap: var(--esp-2); }
+.grupo .metrica__valor { font-size: var(--texto-sm); white-space: nowrap; }
+.grupo .metrica__titulo { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

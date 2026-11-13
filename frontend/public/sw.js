@@ -26,6 +26,8 @@ const ARCHIVOS = [
   "js/dibujo.js",
   "js/iconos.js",
   "js/menu.js",
+  "js/panel.js",
+  "js/galeria-ejemplos.js",
   "js/galeria.js",
   "js/lib/animacion.js",
   "js/tema.js",

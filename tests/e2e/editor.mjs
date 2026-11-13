@@ -107,12 +107,14 @@ await pagina.keyboard.press("Control+z");
 await pagina.locator('#editor [data-id="L1"].encendida').waitFor({ state: "attached" });
 
 // --- Vista esquemática y sentido de la corriente -----------------------------------------
+await pagina.click("#boton-menu-vista"); // vista, sentido y puntos están en el menú Vista
 await pagina.click('#control-vista [data-vista="esquematica"]');
 ok(await pagina.locator("#editor .esq-cuchilla").count() === 1 && await pagina.locator("#editor .lam-vidrio").count() === 0,
   "vista esquemática: símbolos IEC");
 await pagina.screenshot({ path: `${SALIDA}/e3-esquematica.png` });
 await pagina.keyboard.press("v");
 ok(await pagina.locator("#editor .lam-vidrio").count() === 1, "la tecla V vuelve a la vista ilustrada");
+if (await pagina.locator("#menu-vista").isHidden()) await pagina.click("#boton-menu-vista");
 await pagina.click('#control-sentido [data-sentido="electrones"]');
 ok(await pagina.locator('#control-sentido [data-sentido="electrones"][aria-pressed="true"]').count() === 1, "sentido: flujo de electrones");
 await pagina.click("#accion-pausa");
@@ -150,8 +152,8 @@ await arr.contexto.close();
 // --- Ejemplos con el diseño nuevo ---------------------------------------------------------------
 const ejemplos = await abrir();
 await ejemplos.pagina.click("#pestana-circuitos");
-await ejemplos.pagina.locator("#lista-ejemplos li").filter({ has: ejemplos.pagina.locator(".elemento__nombre", { hasText: "TP4" }) })
-  .getByRole("button", { name: "Abrir" }).click();
+await ejemplos.pagina.click("#accion-ejemplos");
+await ejemplos.pagina.locator(".tarjeta-ejemplo", { hasText: "TP4" }).click();
 await ejemplos.pagina.click("#pestana-resultados");
 await ejemplos.pagina.locator("text.tension", { hasText: "30.0 V" }).waitFor();
 await ejemplos.pagina.screenshot({ path: `${SALIDA}/e4-tp4.png` });

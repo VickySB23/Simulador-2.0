@@ -45,11 +45,12 @@ async function clicEnGrilla(pagina, x, y, doble = false) {
   else await pagina.mouse.click(punto.x, punto.y);
 }
 
+/** Los ejemplos se abren desde la galería (Circuitos → Ejemplos…), con una tarjeta por circuito. */
 async function abrirEjemplo(pagina, texto) {
   await pagina.click("#pestana-circuitos");
-  await pagina.locator("#lista-ejemplos li")
-    .filter({ has: pagina.locator(".elemento__nombre", { hasText: texto }) })
-    .first().getByRole("button", { name: "Abrir" }).click();
+  await pagina.click("#accion-ejemplos");
+  await pagina.locator(".tarjeta-ejemplo").filter({ has: pagina.locator(".tarjeta-ejemplo__nombre", { hasText: texto }) })
+    .first().click();
 }
 
 /** Lo que se ve del circuito: componentes con su posición, valores, tierra, tensiones y nombre. */
@@ -233,10 +234,12 @@ ok(true, "renombrar y borrar en la lista");
 // --- Exportar PNG y SVG ----------------------------------------------------------------
 await abrirEjemplo(pagina, "TP4");
 await esperarFase(pagina, "ok");
+await pagina.click("#boton-menu-exportar"); // PNG y SVG están en el menú Exportar
 const [png] = await Promise.all([pagina.waitForEvent("download"), pagina.click("#accion-png")]);
 await png.saveAs(`${SALIDA}/04-export-tp4.png`);
 const bytes = readFileSync(`${SALIDA}/04-export-tp4.png`);
 ok(bytes.subarray(1, 4).toString() === "PNG" && bytes.length > 5000, `PNG exportado (${bytes.length} bytes)`);
+await pagina.click("#boton-menu-exportar");
 const [svg] = await Promise.all([pagina.waitForEvent("download"), pagina.click("#accion-svg")]);
 await svg.saveAs(`${SALIDA}/04-export-tp4.svg`);
 const textoSvg = readFileSync(`${SALIDA}/04-export-tp4.svg`, "utf-8");

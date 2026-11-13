@@ -2,7 +2,9 @@
 import { Animador } from "./animador.js";
 import { crearEditor } from "./editor.js";
 import { colocarIconos, icono } from "./iconos.js";
+import { crearGaleriaEjemplos } from "./galeria-ejemplos.js";
 import { crearMenu } from "./menu.js";
+import { crearPanel } from "./panel.js";
 import { descargar, nombreDeArchivo, pngDelCircuito, svgDelCircuito } from "./exportar.js";
 import { Almacen, aArchivo, desdeArchivo } from "./lib/almacen.js";
 import { PREFIJO_HASH, codificar, decodificar } from "./lib/compartir.js";
@@ -198,6 +200,14 @@ async function editarLampara(lampara) {
 
 const animador = new Animador();
 const editor = crearEditor($("editor"), $("contenedor-editor"), ctl, animador, $("info-flotante"));
+const panelLateral = crearPanel({ alCambiar: () => {} });
+const galeria = crearGaleriaEjemplos({
+  ejemplos: EJEMPLOS,
+  vista: () => ctl.vista,
+  alAbrir: (ejemplo) => {
+    if (confirmarDescarte()) cargar(structuredClone(ejemplo.estado), { id: null, name: ejemplo.nombre });
+  },
+});
 const menu = crearMenu({
   rotar: () => rotarAccion(),
   valor: () => { const unica = unicaSeleccionada(); if (unica) ctl.editarValor(unica); },
@@ -629,12 +639,6 @@ function renderLista() {
       item.id === ctl.actual.id,
     )));
   }
-  $("lista-ejemplos").replaceChildren(...EJEMPLOS.map((ejemplo) => elemento(
-    ejemplo.nombre, ejemplo.descripcion,
-    [boton("Abrir", () => {
-      if (confirmarDescarte()) cargar(structuredClone(ejemplo.estado), { id: null, name: ejemplo.nombre });
-    })],
-  )));
 }
 
 // --- Compartir por link ----------------------------------------------------------------------
@@ -748,6 +752,55 @@ function elegirVista(vista) {
   editor.render();
 }
 
+/** Muestra u oculta los puntos de corriente (con movimiento reducido se ven quietos). */
+function elegirPuntos(mostrar) {
+  pulsar($("control-puntos"), $("control-puntos").querySelector(`[data-puntos="${mostrar ? "si" : "no"}"]`));
+  animador.mostrarPuntos(mostrar);
+  guardarPreferencia("puntos", mostrar ? null : "no");
+}
+
+/** Si el sistema pide reducir el movimiento, se avisa por qué los puntos están quietos. */
+function avisarMovimiento() {
+  const reducido = animador.movimientoReducido;
+  $("aviso-movimiento").hidden = !reducido;
+  $("accion-pausa").title = reducido
+    ? "Tu sistema pide reducir el movimiento: los puntos ya se muestran quietos"
+    : "Pausar o reanudar las animaciones";
+}
+
+// --- Menús desplegables de la barra ----------------------------------------------------------------
+
+function cerrarDesplegables(excepto = null) {
+  for (const b of document.querySelectorAll(".desplegable > [aria-expanded]")) {
+    if (b === excepto) continue;
+    b.setAttribute("aria-expanded", "false");
+    $(b.getAttribute("aria-controls")).hidden = true;
+  }
+}
+
+for (const boton of document.querySelectorAll(".desplegable > [aria-expanded]")) {
+  boton.addEventListener("click", () => {
+    const abrir = boton.getAttribute("aria-expanded") !== "true";
+    cerrarDesplegables(boton);
+    boton.setAttribute("aria-expanded", String(abrir));
+    const lista = $(boton.getAttribute("aria-controls"));
+    lista.hidden = !abrir;
+    if (!abrir) return;
+    // Fijo en la pantalla (la barra se desplaza de costado en el celular y lo recortaría).
+    const caja = boton.getBoundingClientRect();
+    lista.style.top = `${caja.bottom + 6}px`;
+    lista.style.left = `${Math.max(8, Math.min(caja.right - lista.offsetWidth, innerWidth - lista.offsetWidth - 8))}px`;
+  });
+}
+// Un clic fuera o Esc los cierran; elegir una exportación también.
+document.addEventListener("pointerdown", (evento) => {
+  if (!evento.target.closest?.(".desplegable")) cerrarDesplegables();
+});
+addEventListener("resize", () => cerrarDesplegables());
+$("menu-exportar").addEventListener("click", (evento) => {
+  if (evento.target.closest("button")) cerrarDesplegables();
+});
+
 function elegirSentido(sentido) {
   pulsar($("control-sentido"), $("control-sentido").querySelector(`[data-sentido="${sentido}"]`));
   animador.sentidoElectrones(sentido === "electrones");
@@ -820,7 +873,14 @@ $("accion-png").addEventListener("click", exportarPng);
 $("accion-svg").addEventListener("click", exportarSvg);
 $("zoom-mas").addEventListener("click", () => editor.acercar());
 $("zoom-menos").addEventListener("click", () => editor.alejar());
-$("zoom-ajustar").addEventListener("click", () => editor.ajustar());
+$("zoom-ajustar").addEventListener("click", () => editor.ajustarCircuito());
+$("accion-ajustar").addEventListener("click", () => editor.ajustarCircuito());
+$("accion-ejemplos").addEventListener("click", () => galeria.abrir());
+$("control-puntos").addEventListener("click", (e) => {
+  const b = e.target.closest("button");
+  if (b) elegirPuntos(b.dataset.puntos === "si");
+});
+matchMedia("(prefers-reduced-motion: reduce)").addEventListener("change", avisarMovimiento);
 $("accion-guardar").addEventListener("click", guardar);
 $("accion-guardar-como").addEventListener("click", guardarComo);
 $("accion-nuevo").addEventListener("click", nuevo);
@@ -859,11 +919,12 @@ for (const pestana of document.querySelectorAll(".pestana")) {
     }
     if (pestana.id === "pestana-ecuaciones") renderEcuaciones(ctl);
     if (pestana.id === "pestana-circuitos") renderLista();
+    panelLateral.alElegirPestana();
   });
 }
 
 document.addEventListener("keydown", (evento) => {
-  if ($("dialogo").open || evento.target.closest?.("input, textarea, select")) return;
+  if ($("dialogo").open || $("galeria-ejemplos").open || evento.target.closest?.("input, textarea, select")) return;
   const tecla = evento.key;
   const control = evento.ctrlKey || evento.metaKey;
   if (control && tecla.toLowerCase() === "z") {
@@ -897,8 +958,9 @@ document.addEventListener("keydown", (evento) => {
     evento.preventDefault();
     borrarSeleccion();
   } else if (tecla === "Escape") {
-    // Esc deshace lo último en curso: el menú, el cable a medio dibujar, la herramienta elegida
+    // Esc deshace lo último en curso: un menú, el cable a medio dibujar, la herramienta elegida
     // (vuelve a Seleccionar) y por último la selección.
+    if (document.querySelector('.desplegable > [aria-expanded="true"]')) return cerrarDesplegables();
     if (menu.cerrar() || editor.cancelarCable()) return;
     if (ctl.herramienta !== "seleccionar") {
       elegirHerramienta("seleccionar");
@@ -908,6 +970,8 @@ document.addEventListener("keydown", (evento) => {
       actualizarBotones();
       renderResultados(ctl);
     }
+  } else if (tecla === "f" || tecla === "F") {
+    editor.ajustarCircuito();
   } else if (tecla === "p" || tecla === "P") {
     alternarProyector();
   } else if (tecla === "v" || tecla === "V") {
@@ -926,6 +990,8 @@ window.addEventListener("hashchange", () => {
 colocarIconos();
 $("texto-tema").textContent = TEMAS[temaActual()].texto;
 pulsar($("control-vista"), $("control-vista").querySelector(`[data-vista="${ctl.vista}"]`));
+elegirPuntos(leerPreferencia("puntos", "si") !== "no");
+avisarMovimiento();
 $("boton-proyector").setAttribute("aria-pressed", String(document.documentElement.dataset.proyector === "1"));
 editor.ajustar();
 renderLista();

@@ -49,9 +49,9 @@ async function arrastrar(desde, hasta, modificador = null) {
 }
 async function abrirEjemplo(texto) {
   await pagina.click("#pestana-circuitos");
-  await pagina.locator("#lista-ejemplos li")
-    .filter({ has: pagina.locator(".elemento__nombre", { hasText: texto }) })
-    .first().getByRole("button", { name: "Abrir" }).click();
+  await pagina.click("#accion-ejemplos");
+  await pagina.locator(".tarjeta-ejemplo").filter({ has: pagina.locator(".tarjeta-ejemplo__nombre", { hasText: texto }) })
+    .first().click();
   await fase("ok");
   await pagina.click("#pestana-resultados");
 }

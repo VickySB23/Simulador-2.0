@@ -45,7 +45,7 @@
   </header>
 
   <nav class="barra barra--editor" role="toolbar" aria-label="Herramientas">
-    <div class="barra__grupo" role="radiogroup" aria-label="Herramienta">
+    <div class="barra__grupo" role="radiogroup" aria-label="Componentes">
       <button class="boton herramienta" data-herramienta="seleccionar" title="Seleccionar (Esc): mover piezas, dibujar cables desde un borne, abrir o cerrar un interruptor con un clic" aria-pressed="true"><span data-icono="seleccionar"></span><span>Seleccionar</span></button>
       <button class="boton herramienta" data-herramienta="wire" title="Cable (C)"><span data-icono="cable"></span><span>Cable</span></button>
       <button class="boton herramienta" data-herramienta="resistor" title="Resistencia (R) · también se arrastra al circuito"><span data-icono="resistencia"></span><span>R</span></button>
@@ -55,30 +55,45 @@
       <button class="boton herramienta" data-herramienta="switch" title="Interruptor (S) · también se arrastra al circuito"><span data-icono="interruptor"></span><span>Interruptor</span></button>
       <button class="boton herramienta" data-herramienta="ground" title="Tierra (G) · también se arrastra al circuito"><span data-icono="tierra"></span><span>GND</span></button>
     </div>
-    <div class="barra__grupo">
-      <button id="accion-varios" class="boton solo-tactil" type="button" aria-pressed="false" title="Seleccionar varios: tocá piezas para sumarlas o arrastrá un rectángulo con un dedo"><span data-icono="varios"></span><span>Varios</span></button>
-      <button id="accion-rotar" class="boton" type="button" title="Rotar (espacio)"><span data-icono="rotar"></span><span>Rotar</span></button>
-      <button id="accion-valor" class="boton" type="button" title="Editar valor (doble clic)"><span data-icono="valor"></span><span>Valor</span></button>
-      <button id="accion-borrar" class="boton" type="button" title="Borrar (Supr)"><span data-icono="borrar"></span><span>Borrar</span></button>
+    <div class="barra__grupo" role="group" aria-label="Edición">
+      <button id="accion-varios" aria-label="Seleccionar varios" class="boton solo-tactil" type="button" aria-pressed="false" title="Seleccionar varios: tocá piezas para sumarlas o arrastrá un rectángulo con un dedo"><span data-icono="varios"></span><span>Varios</span></button>
+      <button id="accion-rotar" aria-label="Rotar" class="boton" type="button" title="Rotar (espacio)"><span data-icono="rotar"></span><span>Rotar</span></button>
+      <button id="accion-valor" aria-label="Editar valor" class="boton" type="button" title="Editar valor (doble clic)"><span data-icono="valor"></span><span>Valor</span></button>
+      <button id="accion-borrar" aria-label="Borrar" class="boton" type="button" title="Borrar (Supr)"><span data-icono="borrar"></span><span>Borrar</span></button>
+      <button id="accion-deshacer" aria-label="Deshacer" class="boton" type="button" title="Deshacer (Ctrl+Z)"><span data-icono="deshacer"></span><span>Deshacer</span></button>
+      <button id="accion-rehacer" aria-label="Rehacer" class="boton" type="button" title="Rehacer (Ctrl+Y)"><span data-icono="rehacer"></span><span>Rehacer</span></button>
     </div>
-    <div class="barra__grupo">
-      <button id="accion-deshacer" class="boton" type="button" title="Deshacer (Ctrl+Z)"><span data-icono="deshacer"></span><span>Deshacer</span></button>
-      <button id="accion-rehacer" class="boton" type="button" title="Rehacer (Ctrl+Y)"><span data-icono="rehacer"></span><span>Rehacer</span></button>
-    </div>
-    <div class="conmutador" role="group" aria-label="Vista del circuito (V)" id="control-vista">
-      <button type="button" data-vista="ilustrada" aria-pressed="true" title="Vista ilustrada (V)">Ilustrada</button>
-      <button type="button" data-vista="esquematica" aria-pressed="false" title="Vista esquemática con símbolos IEC (V)">Esquemática</button>
-    </div>
-    <div class="barra__grupo">
+    <div class="barra__grupo" role="group" aria-label="Vista">
+      <button id="accion-ajustar" class="boton" type="button" title="Ajustar el circuito a la pantalla (F)"><span data-icono="ajustar"></span><span>Ajustar</span></button>
       <button id="accion-pausa" class="boton" type="button" title="Pausar o reanudar las animaciones" aria-pressed="false"><span data-icono="pausa"></span><span>Pausa</span></button>
-    </div>
-    <div class="conmutador" role="group" aria-label="Sentido de la corriente" id="control-sentido">
-      <button type="button" data-sentido="convencional" aria-pressed="true" title="Corriente convencional: de + a −">Convencional</button>
-      <button type="button" data-sentido="electrones" aria-pressed="false" title="Flujo de electrones: de − a +">Electrones</button>
-    </div>
-    <div class="barra__grupo">
-      <button id="accion-png" class="boton" type="button" title="Descargar el circuito como imagen PNG"><span data-icono="imagen"></span><span>PNG</span></button>
-      <button id="accion-svg" class="boton" type="button" title="Descargar el circuito como dibujo vectorial SVG"><span data-icono="descargar"></span><span>SVG</span></button>
+      <div class="desplegable">
+        <button id="boton-menu-vista" class="boton" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="menu-vista" title="Vista del dibujo y de la corriente"><span data-icono="ilustrada"></span><span>Vista</span><span data-icono="abajo"></span></button>
+        <div id="menu-vista" class="desplegable__panel" hidden>
+          <p class="desplegable__titulo">Dibujo <kbd>V</kbd></p>
+          <div class="conmutador" role="group" aria-label="Vista del circuito (V)" id="control-vista">
+            <button type="button" data-vista="ilustrada" aria-pressed="true" title="Vista ilustrada (V)">Ilustrada</button>
+            <button type="button" data-vista="esquematica" aria-pressed="false" title="Vista esquemática con símbolos IEC (V)">Esquemática</button>
+          </div>
+          <p class="desplegable__titulo">Sentido de la corriente</p>
+          <div class="conmutador" role="group" aria-label="Sentido de la corriente" id="control-sentido">
+            <button type="button" data-sentido="convencional" aria-pressed="true" title="Corriente convencional: de + a −">Convencional</button>
+            <button type="button" data-sentido="electrones" aria-pressed="false" title="Flujo de electrones: de − a +">Electrones</button>
+          </div>
+          <p class="desplegable__titulo">Puntos de corriente</p>
+          <div class="conmutador" role="group" aria-label="Puntos de corriente" id="control-puntos">
+            <button type="button" data-puntos="si" aria-pressed="true" title="Mostrar los puntos que avanzan con la corriente">Mostrar</button>
+            <button type="button" data-puntos="no" aria-pressed="false" title="Ocultar los puntos de corriente">Ocultar</button>
+          </div>
+          <p id="aviso-movimiento" class="nota" hidden>Tu sistema pide reducir el movimiento: los puntos se muestran quietos (y Pausa no hace falta).</p>
+        </div>
+      </div>
+      <div class="desplegable">
+        <button id="boton-menu-exportar" class="boton" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="menu-exportar" title="Descargar el dibujo"><span data-icono="descargar"></span><span>Exportar</span><span data-icono="abajo"></span></button>
+        <div id="menu-exportar" class="desplegable__panel" hidden>
+          <button id="accion-png" class="boton boton--plano" type="button" title="Descargar el circuito como imagen PNG"><span data-icono="imagen"></span><span>Imagen PNG</span></button>
+          <button id="accion-svg" class="boton boton--plano" type="button" title="Descargar el circuito como dibujo vectorial SVG"><span data-icono="descargar"></span><span>Dibujo SVG</span></button>
+        </div>
+      </div>
     </div>
   </nav>
 
@@ -116,14 +131,20 @@
           </div>
         </div>
       </aside>
+      <button id="boton-mostrar-panel" class="boton boton--chico mostrar-panel" type="button" title="Mostrar el panel de resultados" hidden><span data-icono="panel"></span><span>Panel</span></button>
       <div id="estado-simulacion" class="estado-simulacion" role="status" aria-live="polite"></div>
     </section>
 
-    <aside class="panel">
+    <aside class="panel" id="panel" aria-label="Resultados, ecuaciones y circuitos">
+      <div id="panel-borde" class="panel__borde" role="separator" aria-orientation="vertical" aria-label="Ancho del panel (arrastrá o usá las flechas)" tabindex="0"></div>
+      <button id="panel-asa" class="panel__asa" type="button" aria-label="Agrandar o achicar el panel"><span></span></button>
+      <div class="panel__cabecera">
       <div class="pestanas tarjeta" role="tablist">
         <button class="pestana" role="tab" id="pestana-resultados" aria-controls="vista-resultados" aria-selected="true" type="button">Resultados</button>
         <button class="pestana" role="tab" id="pestana-ecuaciones" aria-controls="vista-ecuaciones" aria-selected="false" type="button">Ecuaciones</button>
         <button class="pestana" role="tab" id="pestana-circuitos" aria-controls="vista-circuitos" aria-selected="false" type="button">Circuitos</button>
+      </div>
+      <button id="boton-ocultar-panel" class="boton boton--plano boton--chico boton--icono" type="button" title="Ocultar el panel" aria-label="Ocultar el panel"><span data-icono="panel"></span></button>
       </div>
 
       <article id="vista-resultados" class="tarjeta tarjeta--resultados vista" role="tabpanel" aria-labelledby="pestana-resultados">
@@ -161,6 +182,7 @@
       <article id="vista-circuitos" class="tarjeta tarjeta--circuitos vista" role="tabpanel" aria-labelledby="pestana-circuitos" hidden>
         <header class="tarjeta__encabezado"><h2>Circuitos</h2></header>
         <div class="tarjeta__cuerpo">
+          <button id="accion-ejemplos" class="boton boton--chico boton--ejemplos" type="button"><span data-icono="ejemplos"></span>Ejemplos de Física 2…</button>
           <div class="acciones">
             <button id="accion-guardar" class="boton boton--primario boton--chico" type="button"><span data-icono="guardar"></span>Guardar</button>
             <button id="accion-guardar-como" class="boton boton--chico" type="button">Guardar como…</button>
@@ -174,23 +196,23 @@
           <div id="mensaje-circuitos" class="mensaje" hidden></div>
           <h3 class="subtitulo">Guardados en este navegador</h3>
           <ul id="lista-circuitos" class="lista"></ul>
-          <h3 class="subtitulo">Ejemplos</h3>
-          <ul id="lista-ejemplos" class="lista"></ul>
+
         </div>
       </article>
 
       <details class="atajos">
         <summary>Atajos de teclado</summary>
         <dl>
-          <dt>1 – 8</dt><dd>Herramientas</dd>
-          <dt>R / espacio</dt><dd>Rotar</dd>
+          <dt>C R B I L S G</dt><dd>Cable, resistencia, batería, fuente de corriente, lámpara, interruptor, tierra</dd>
+          <dt>Esc</dt><dd>Volver a Seleccionar</dd>
+          <dt>Espacio</dt><dd>Rotar</dd>
+          <dt>F</dt><dd>Ajustar el circuito a la pantalla</dd>
           <dt>Supr</dt><dd>Borrar la selección</dd>
           <dt>Ctrl+Z / Ctrl+Y</dt><dd>Deshacer / rehacer</dd>
+          <dt>Ctrl+C / V / D</dt><dd>Copiar / pegar / duplicar</dd>
           <dt>Doble clic</dt><dd>Editar el valor (10k, 4.7k, 5m)</dd>
-          <dt>Clic</dt><dd>Abrir o cerrar un interruptor</dd>
           <dt>V</dt><dd>Vista ilustrada / esquemática</dd>
           <dt>P</dt><dd>Modo proyector</dd>
-          <dt>Esc</dt><dd>Cancelar el cable o deseleccionar</dd>
         </dl>
         <p class="nota">Versión: <span id="version"></span></p>
       </details>
@@ -214,22 +236,26 @@
           <div class="metrica"><span class="metrica__titulo">Entregada</span><span class="metrica__valor potencia-entregada"></span></div>
           <div class="metrica"><span class="metrica__titulo">Absorbida</span><span class="metrica__valor potencia-absorbida"></span></div>
           <div class="metrica"><span class="metrica__titulo">Balance</span><span class="metrica__valor potencia-balance"></span></div>
-          <div class="metrica"><span class="metrica__titulo">Residuo KCL</span><span class="metrica__valor residuo-kcl"></span></div>
+          <div class="metrica" title="Residuo de la ley de Kirchhoff de corrientes: debería ser casi cero"><span class="metrica__titulo">KCL</span><span class="metrica__valor residuo-kcl"></span></div>
         </div>
-        <h3 class="subtitulo">Componentes</h3>
-        <div class="tabla-scroll">
-          <table class="tabla">
-            <thead><tr><th>Id</th><th class="num">Tensión</th><th class="num">Corriente</th><th class="num">Potencia</th></tr></thead>
-            <tbody class="tabla-componentes"></tbody>
-          </table>
-        </div>
-        <h3 class="subtitulo">Nodos</h3>
-        <div class="tabla-scroll">
-          <table class="tabla">
-            <thead><tr><th>Nodo</th><th class="num">Tensión</th></tr></thead>
-            <tbody class="tabla-nodos"></tbody>
-          </table>
-        </div>
+        <details class="seccion" data-seccion="componentes" open>
+          <summary class="subtitulo">Componentes</summary>
+          <div class="tabla-scroll">
+            <table class="tabla">
+              <thead><tr><th>Id</th><th class="num">Tensión</th><th class="num">Corriente</th><th class="num">Potencia</th></tr></thead>
+              <tbody class="tabla-componentes"></tbody>
+            </table>
+          </div>
+        </details>
+        <details class="seccion" data-seccion="nodos">
+          <summary class="subtitulo">Nodos</summary>
+          <div class="tabla-scroll">
+            <table class="tabla">
+              <thead><tr><th>Nodo</th><th class="num">Tensión</th></tr></thead>
+              <tbody class="tabla-nodos"></tbody>
+            </table>
+          </div>
+        </details>
         <p class="nota estadisticas"></p>
       </div>
     </section>
@@ -239,17 +265,34 @@
       <button class="grupo__titulo" type="button" aria-pressed="false"><span class="grupo__nombre"></span><span class="grupo__estado"></span></button>
       <div class="mensaje grupo__error" hidden></div>
       <div class="grupo__contenido" hidden>
-        <h3 class="subtitulo">Ecuaciones de nodo (KCL)</h3>
-        <ol class="ecuaciones ecuaciones-nodos"></ol>
-        <h3 class="subtitulo">Fuentes de tensión</h3>
-        <ol class="ecuaciones ecuaciones-fuentes"></ol>
-        <h3 class="subtitulo">Sistema MNA: A · x = z</h3>
-        <div class="tabla-scroll matriz-mna"></div>
-        <h3 class="subtitulo">Solución x</h3>
-        <ol class="ecuaciones solucion-mna"></ol>
+        <details class="seccion" data-seccion="kcl" open>
+          <summary class="subtitulo">Ecuaciones de nodo (KCL)</summary>
+          <ol class="ecuaciones ecuaciones-nodos"></ol>
+        </details>
+        <details class="seccion" data-seccion="fuentes" open>
+          <summary class="subtitulo">Fuentes de tensión</summary>
+          <ol class="ecuaciones ecuaciones-fuentes"></ol>
+        </details>
+        <details class="seccion" data-seccion="matriz" open>
+          <summary class="subtitulo">Sistema MNA: A · x = z</summary>
+          <div class="tabla-scroll matriz-mna"></div>
+        </details>
+        <details class="seccion" data-seccion="solucion" open>
+          <summary class="subtitulo">Solución x</summary>
+          <ol class="ecuaciones solucion-mna"></ol>
+        </details>
       </div>
     </section>
   </template>
+
+  <dialog id="galeria-ejemplos" class="dialogo dialogo--galeria" aria-labelledby="galeria-titulo">
+    <header class="tarjeta__encabezado"><h2 id="galeria-titulo">Ejemplos</h2>
+      <button id="galeria-cerrar" class="boton boton--plano boton--chico boton--icono boton--sobre-color" type="button" aria-label="Cerrar"><span data-icono="cerrar"></span></button>
+    </header>
+    <div class="tarjeta__cuerpo">
+      <ul id="lista-ejemplos" class="galeria-ejemplos"></ul>
+    </div>
+  </dialog>
 
   <div id="menu-contextual" class="menu-contextual" role="menu" aria-label="Acciones" hidden>
     <button type="button" role="menuitem" data-accion="rotar"><span data-icono="rotar"></span><span>Rotar</span><kbd>Espacio</kbd></button>
