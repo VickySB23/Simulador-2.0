@@ -7,6 +7,7 @@ import { chromium } from "playwright-core";
 
 import { codificar } from "../../frontend/public/js/lib/compartir.js";
 import { EJEMPLOS } from "../../frontend/public/js/lib/ejemplos.js";
+import { TP4 } from "../../frontend/tests/circuitos-de-prueba.js";
 
 const URL_BASE = process.env.BASE_URL ?? "http://localhost:8000/Simulador-2.0/";
 const SALIDA = process.argv[2] ?? "capturas-diseno";
@@ -15,8 +16,18 @@ const CHROME = process.env.CHROME_PATH ?? (process.platform === "win32"
 mkdirSync(SALIDA, { recursive: true });
 
 const link = async (id) => {
-  const ejemplo = EJEMPLOS.find((e) => e.id === id);
+  const ejemplo = id === "tp4" ? TP4 : EJEMPLOS.find((e) => e.id === id);
   return `${URL_BASE}#c=${await codificar(ejemplo.estado, ejemplo.nombre)}`;
+};
+// Divisor con una resistencia suelta (bornes sin conectar).
+const conSuelta = async () => {
+  const divisor = EJEMPLOS.find((e) => e.id === "divisor").estado;
+  const estado = {
+    ...divisor,
+    components: [...divisor.components, { id: "R9", type: "resistor", a: { x: 26, y: 8 }, b: { x: 30, y: 8 }, value: "470" }],
+    counters: { ...divisor.counters, R: 9 },
+  };
+  return `${URL_BASE}#c=${await codificar(estado, "Con una suelta")}`;
 };
 const navegador = await chromium.launch({ executablePath: CHROME, headless: true });
 async function abrir(url, opciones = {}, preferencias = {}) {
@@ -64,6 +75,23 @@ for (const vista of ["ilustrada", "esquematica"]) {
 {
   const { contexto, pagina } = await abrir(await link("serie-contra-paralelo"));
   await recorte(pagina, '#editor [data-id="L1"]', "6-etiqueta-lampara", 60);
+  await contexto.close();
+}
+// Wheatstone entero (¿cuánto texto tiene el dibujo?), resistencias en las dos vistas y una suelta.
+{
+  const { contexto, pagina } = await abrir(await link("wheatstone"));
+  await pagina.screenshot({ path: `${SALIDA}/9-wheatstone.png` });
+  await recorte(pagina, '#editor [data-id="R1"]', "10-resistencia-ilustrada", 30);
+  await contexto.close();
+}
+{
+  const { contexto, pagina } = await abrir(await link("paralelo"), {}, { vista: "esquematica" });
+  await recorte(pagina, "#editor", "11-paralelo-esquematica", 0);
+  await contexto.close();
+}
+{
+  const { contexto, pagina } = await abrir(await conSuelta());
+  await recorte(pagina, '#editor [data-id="R9"]', "12-borne-suelto", 50);
   await contexto.close();
 }
 // Celular y proyector.

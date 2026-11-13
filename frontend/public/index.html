@@ -74,6 +74,17 @@
             <button type="button" data-vista="ilustrada" aria-pressed="true" title="Vista ilustrada (V)">Ilustrada</button>
             <button type="button" data-vista="esquematica" aria-pressed="false" title="Vista esquemática con símbolos IEC (V)">Esquemática</button>
           </div>
+          <p class="desplegable__titulo">Etiquetas</p>
+          <div class="conmutador" role="group" aria-label="Etiquetas del dibujo" id="control-etiquetas">
+            <button type="button" data-etiquetas="todo" aria-pressed="false" title="Todos los números a la vista (para proyectar en clase)">Todo</button>
+            <button type="button" data-etiquetas="valores" aria-pressed="true" title="Nombre y valor de cada pieza; los números aparecen al pasar el mouse o seleccionar">Valores</button>
+            <button type="button" data-etiquetas="nada" aria-pressed="false" title="Solo el dibujo; los números aparecen al pasar el mouse o seleccionar">Nada</button>
+          </div>
+          <p class="desplegable__titulo">Símbolo de la resistencia</p>
+          <div class="conmutador" role="group" aria-label="Símbolo de la resistencia en la vista esquemática" id="control-simbolo">
+            <button type="button" data-simbolo="zigzag" aria-pressed="true" title="Zigzag, como en los libros de Física">Zigzag</button>
+            <button type="button" data-simbolo="iec" aria-pressed="false" title="Rectángulo de la norma IEC">Rectángulo (IEC)</button>
+          </div>
           <p class="desplegable__titulo">Sentido de la corriente</p>
           <div class="conmutador" role="group" aria-label="Sentido de la corriente" id="control-sentido">
             <button type="button" data-sentido="convencional" aria-pressed="true" title="Corriente convencional: de + a −">Convencional</button>

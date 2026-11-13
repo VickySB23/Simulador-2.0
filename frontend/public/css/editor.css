@@ -63,13 +63,13 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 
 /* Bornes al aire: no frenan la simulación, solo se marcan. */
 .editor .borne-suelto { pointer-events: none; }
+/* Borne al aire: círculo hueco con borde punteado; el texto aparece solo en el cartel. */
 .editor .borne-suelto__anillo {
-  fill: none;
+  fill: var(--color-fondo-hundido);
   stroke: var(--color-aviso);
-  stroke-width: var(--borde);
-  stroke-dasharray: var(--esp-1) calc(var(--esp-1) * 0.75);
+  stroke-width: var(--borde-fino);
+  stroke-dasharray: calc(var(--esp-1) * 0.7) calc(var(--esp-1) * 0.5);
 }
-.editor .borne-suelto__texto { fill: var(--color-aviso); font-size: var(--texto-xs); font-weight: var(--peso-fuerte); }
 .editor .sin-conectar { opacity: 0.6; }
 .editor .cable-pendiente { stroke: var(--color-primario); stroke-width: var(--borde); stroke-dasharray: 5 4; pointer-events: none; }
 
@@ -185,6 +185,8 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 }
 .ficha__datos dt { color: var(--color-texto-suave); }
 .ficha__datos dd { margin: 0; font-variant-numeric: tabular-nums; text-align: right; }
+.ficha__datos .ficha__largo { grid-column: 1 / -1; text-align: left; }
+.ficha__datos dd.ficha__largo { margin-bottom: var(--esp-1); font-weight: var(--peso-fuerte); }
 .ficha__avisos { display: grid; gap: var(--esp-2); }
 .ficha__avisos:empty { display: none; }
 
@@ -535,3 +537,12 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 .barra--editor { gap: var(--esp-2); }
 .grupo .metrica__valor { font-size: var(--texto-sm); white-space: nowrap; }
 .grupo .metrica__titulo { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* --- Etiquetas: Todo / Valores / Nada (menú Vista) --------------------------------------------- */
+/* Valores: nombre y valor de cada pieza y flechas sin número. Nada: solo el dibujo. En los dos, lo
+   seleccionado o bajo el mouse (con-foco) muestra sus números. */
+.editor.etiquetas-valores .tension:not(.con-foco),
+.editor.etiquetas-valores [data-de]:not(.con-foco) .texto-corriente,
+.editor.etiquetas-nada .tension:not(.con-foco),
+.editor.etiquetas-nada [data-de]:not(.con-foco) .texto-corriente,
+.editor.etiquetas-nada .comp:not(.con-foco) .comp__textos .etiqueta { display: none; }

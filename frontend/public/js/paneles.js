@@ -38,6 +38,8 @@ function renderFicha({ estado, resultado, seleccion }) {
     dt.textContent = clave;
     const dd = document.createElement("dd");
     dd.textContent = valor;
+    // Un valor largo (la lectura del código de colores) va en su propio renglón, a todo el ancho.
+    if (valor.length > 22) for (const e of [dt, dd]) e.classList.add("ficha__largo");
     return [dt, dd];
   }));
   $("ficha-avisos").replaceChildren(...datos.avisos.map(({ tipo, texto }) => {

@@ -4,6 +4,9 @@
 import { mkdirSync, readFileSync } from "node:fs";
 import { chromium } from "playwright-core";
 
+import { codificar } from "../../frontend/public/js/lib/compartir.js";
+import { TP4 } from "../../frontend/tests/circuitos-de-prueba.js";
+
 const URL_BASE = process.env.BASE_URL ?? "http://localhost:8000/Simulador-2.0/";
 const SALIDA = process.argv[2] ?? "capturas";
 const CHROME = process.env.CHROME_PATH ?? (process.platform === "win32"
@@ -23,6 +26,8 @@ async function nuevaPagina(opciones = {}) {
     viewport: { width: 1440, height: 900 }, colorScheme: "light", acceptDownloads: true,
     permissions: ["clipboard-read", "clipboard-write"], ...opciones,
   });
+  // Estas pruebas leen los números del dibujo: etiquetas "Todo" (por defecto es "Valores").
+  await contexto.addInitScript(() => localStorage.setItem("etiquetas", "todo"));
   const pagina = await contexto.newPage();
   pagina.on("console", (m) => { if (m.type() === "error") errores.push(m.text()); });
   pagina.on("pageerror", (e) => errores.push(String(e)));
@@ -47,6 +52,15 @@ async function clicEnGrilla(pagina, x, y, doble = false) {
 
 /** Los ejemplos se abren desde la galería (Circuitos → Ejemplos…), con una tarjeta por circuito. */
 async function abrirEjemplo(pagina, texto) {
+  // El TP4 ya no está entre los ejemplos: se abre por link (como lo compartiría alguien).
+  if (texto === "TP4") {
+    const hash = `#c=${await codificar(TP4.estado, TP4.nombre)}`;
+    await pagina.evaluate(() => { location.hash = ""; });
+    await pagina.evaluate((h) => { location.hash = h; }, hash);
+    await pagina.locator("#nombre-circuito", { hasText: "TP4" }).waitFor();
+    await pagina.locator('#editor [data-id="R4"]').waitFor({ state: "attached" });
+    return;
+  }
   await pagina.click("#pestana-circuitos");
   await pagina.click("#accion-ejemplos");
   await pagina.locator(".tarjeta-ejemplo").filter({ has: pagina.locator(".tarjeta-ejemplo__nombre", { hasText: texto }) })

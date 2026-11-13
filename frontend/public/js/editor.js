@@ -66,10 +66,10 @@ function unidadDireccion(desde, hasta) {
 }
 
 /** Flecha fija con el sentido real y el valor de la corriente (se ve también en pausa). */
-function dibujarFlecha(capaTextos, c, corriente) {
+function dibujarFlecha(capaTextos, c, corriente, enfocada = false) {
   const sentido = sentidoCorriente(c, corriente);
   if (!sentido) return;
-  const capa = el("g", { "data-de": c.id }, capaTextos);
+  const capa = el("g", { "data-de": c.id, class: enfocada ? "con-foco" : null }, capaTextos);
   const m = px(centro(c));
   const vertical = esVertical(c);
   const u = unidadDireccion(sentido.desde, sentido.hasta);
@@ -148,6 +148,32 @@ export function crearEditor(svg, contenedor, ctl, animador, info) {
   let piezaArrastrada = null;
   /** Cable que se está dibujando o estirando: {desde, hasta, horizontal}. */
   let previa = null;
+  /** Nodos eléctricos del último dibujo (para mostrar los números de lo enfocado). */
+  let nodosActuales = new Map();
+  let enfocado = null;
+  let ocultarCartel = null;
+
+  /** Nodos de los componentes `ids` (sus dos bornes): sus tensiones se muestran al enfocarlos. */
+  function nodosEnfocados(ids) {
+    const nodos = new Set();
+    for (const id of ids) {
+      const c = ctl.estado.components.find((x) => x.id === id);
+      if (c) for (const p of [c.a, c.b]) nodos.add(nodosActuales.get(nombreNodo(p)));
+    }
+    return nodos;
+  }
+
+  /** Muestra los números de lo que está bajo el mouse (además de lo seleccionado). */
+  function enfocar(id) {
+    if (id === enfocado) return;
+    enfocado = id;
+    for (const e of svg.querySelectorAll(".foco-mouse")) e.classList.remove("foco-mouse", "con-foco");
+    if (!id) return;
+    const marcar = (e) => { if (!e.classList.contains("con-foco")) e.classList.add("con-foco", "foco-mouse"); };
+    for (const e of svg.querySelectorAll(`[data-id="${CSS.escape(id)}"], [data-de="${CSS.escape(id)}"]`)) marcar(e);
+    const nodos = nodosEnfocados([id]);
+    for (const e of svg.querySelectorAll("text.tension")) if (nodos.has(e.dataset.nodo)) marcar(e);
+  }
   const capa = animador.registrar(contenedor, svg, []);
 
   function aplicarZoom(nuevo) {
@@ -205,9 +231,15 @@ export function crearEditor(svg, contenedor, ctl, animador, info) {
 
   function render() {
     const { estado, seleccion, resultado } = ctl;
+    enfocado = null; // el SVG se reconstruye: lo que estaba enfocado con el mouse se recalcula
     const errores = ctl.errores ?? [];
     svg.replaceChildren();
     svg.classList.toggle("herramienta-seleccionar", ctl.herramienta === "seleccionar");
+    // Etiquetas: "todo" muestra todos los números; "valores" (por defecto) solo nombre y valor de cada
+    // pieza y flechas sin número; "nada", solo el dibujo. Lo enfocado (seleccionado o bajo el mouse)
+    // muestra sus números en cualquier modo (clase con-foco).
+    svg.classList.toggle("etiquetas-valores", ctl.etiquetas === "valores");
+    svg.classList.toggle("etiquetas-nada", ctl.etiquetas === "nada");
 
     const defs = el("defs", {}, svg);
     const patron = el("pattern", { id: "grilla", width: PASO, height: PASO, patternUnits: "userSpaceOnUse" }, defs);
@@ -230,6 +262,8 @@ export function crearEditor(svg, contenedor, ctl, animador, info) {
     const nodosConError = new Set(errores.flatMap((e) => e.details?.nodes ?? []));
     const componentesConError = new Set(errores.flatMap((e) => e.details?.components ?? []));
     const seleccionados = new Set(seleccion.ids);
+    nodosActuales = nodosElectricos(estado);
+    const sueltos = new Set((ctl.bornesSueltos ?? []).map(nombreNodo));
     const sinConectar = ctl.sinConectar ?? new Set();
 
     const capaMarcos = el("g", {}, svg);
@@ -265,11 +299,20 @@ export function crearEditor(svg, contenedor, ctl, animador, info) {
           potenciaNominal = undefined;
         }
       }
+      let ohmios;
+      if (c.type === "resistor") {
+        try {
+          ohmios = interpretarValor(c.value);
+        } catch {
+          ohmios = undefined;
+        }
+      }
       const g = dibujarComponente({
-        id: c.id, type: c.type, a: px(c.a), b: px(c.b), closed: c.closed,
+        id: c.id, type: c.type, a: px(c.a), b: px(c.b), closed: c.closed, ohmios,
         etiqueta: c.type === "wire" ? null : c.id, valor: valorTexto(c),
       }, {
         vista: ctl.vista,
+        simbolo: ctl.simboloResistencia,
         animaciones,
         estado: {
           corriente,
@@ -293,12 +336,14 @@ export function crearEditor(svg, contenedor, ctl, animador, info) {
         requestAnimationFrame(() => g.classList.toggle("abierto", c.closed === false));
       }
       (c.type === "wire" ? capaCables : capaPiezas).append(g);
-      if (!esTramo) dibujarFlecha(capaTextos, c, corriente);
+      if (!esTramo) dibujarFlecha(capaTextos, c, corriente, seleccionados.has(c.id));
+      if (seleccionados.has(c.id)) g.classList.add("con-foco");
     }
     ctl.interruptorRecienCambiado = null;
 
-    // Nodos: un punto por terminal, del color de su tensión.
+    // Nodos: un punto por terminal, del color de su tensión (los bornes al aire van aparte).
     for (const [nombre, punto] of puntosConTerminal(estado)) {
+      if (sueltos.has(nombre)) continue;
       const g = dibujarNodo(px(punto), capaNodos, { error: nodosConError.has(nombre) });
       const color = colorDe(punto);
       if (color && !nodosConError.has(nombre)) g.firstChild.style.fill = color;
@@ -306,19 +351,12 @@ export function crearEditor(svg, contenedor, ctl, animador, info) {
         ? `Nodo ${nombre}: ${formatearSI(tensiones.get(nombre), "V")}` : `Nodo ${nombre}`;
     }
 
-    // Bornes al aire: un anillo punteado y "sin conectar" (la simulación sigue con el resto).
+    // Bornes al aire: un círculo hueco con borde punteado, sin texto (la simulación sigue con el
+    // resto). "Sin conectar" se lee en el cartel al pasar el mouse o tocarlo.
     for (const punto of ctl.bornesSueltos ?? []) {
       const p = px(punto);
-      const g = el("g", { class: "borne-suelto" }, capaNodos);
-      el("circle", { class: "borne-suelto__anillo", cx: p.x, cy: p.y, r: 8 }, g);
-      // El texto va hacia afuera de la pieza, así los dos bornes de una pieza suelta no se pisan.
-      const duenio = estado.components.find((c) => mismoPunto(c.a, punto) || mismoPunto(c.b, punto));
-      const u = duenio ? unidadDireccion(centro(duenio), punto) : { x: 0, y: 1 };
-      const atributos = Math.abs(u.x) > Math.abs(u.y)
-        ? { x: p.x + u.x * 13, y: p.y, "text-anchor": u.x > 0 ? "start" : "end", "dominant-baseline": "central" }
-        : { x: p.x, y: p.y + (u.y >= 0 ? 22 : -14), "text-anchor": "middle" };
-      texto("sin conectar", { class: "etiqueta borne-suelto__texto", ...atributos }, g);
-      el("title", {}, g).textContent = "Borne sin conectar: por este componente no circula corriente.";
+      const g = el("g", { class: "borne-suelto", "data-suelto": nombreNodo(punto) }, capaNodos);
+      el("circle", { class: "borne-suelto__anillo", cx: p.x, cy: p.y, r: 4.5 }, g);
     }
 
     // Una etiqueta de tensión por nodo eléctrico, en el primer lugar alrededor del nodo que no
@@ -331,7 +369,10 @@ export function crearEditor(svg, contenedor, ctl, animador, info) {
         const contenido = formatearSI(v, "V");
         const lugar = lugarDeEtiqueta(px(punto), contenido.length * 7.2, ocupado);
         ocupado.push(lugar.caja);
-        texto(contenido, { class: "etiqueta etiqueta--tension tension", ...lugar.atributos }, capaTextos);
+        const etiqueta = texto(contenido, {
+          class: "etiqueta etiqueta--tension tension", "data-nodo": nodosActuales.get(nombreNodo(punto)), ...lugar.atributos,
+        }, capaTextos);
+        if (nodosEnfocados(seleccion.ids).has(etiqueta.dataset.nodo)) etiqueta.classList.add("con-foco");
       }
     }
 
@@ -442,12 +483,40 @@ export function crearEditor(svg, contenedor, ctl, animador, info) {
 
   function ocultarInfo() {
     info.hidden = true;
+    enfocar(null);
   }
 
+  /** Cartel con un título y un detalle en (x, y) de la pantalla. */
+  function cartelEn(x, y, titulo, detalle) {
+    info.replaceChildren();
+    const t = document.createElement("strong");
+    t.textContent = titulo;
+    info.append(t);
+    if (detalle) {
+      const d = document.createElement("span");
+      d.textContent = detalle;
+      info.append(d);
+    }
+    info.hidden = false;
+    const marco = info.offsetParent?.getBoundingClientRect() ?? { left: 0, top: 0, width: innerWidth };
+    let izquierda = x - marco.left + 14;
+    if (izquierda + info.offsetWidth > marco.width - 8) izquierda = x - marco.left - info.offsetWidth - 14;
+    info.style.left = `${Math.max(4, izquierda)}px`;
+    info.style.top = `${y - marco.top + 16}px`;
+  }
+
+  const SUELTO = ["Sin conectar", "Este borne no toca nada: por la pieza no circula corriente."];
+  const esSuelto = (punto) => punto && (ctl.bornesSueltos ?? []).some((q) => mismoPunto(q, punto));
+
   function mostrarInfo(evento) {
+    if (esSuelto(borneCercano(evento))) {
+      enfocar(null);
+      return cartelEn(evento.clientX, evento.clientY, ...SUELTO);
+    }
     const nodo = evento.target.closest?.("[data-id]");
     const componente = nodo && ctl.estado.components.find((c) => c.id === nodo.dataset.id);
     if (!componente) return ocultarInfo();
+    enfocar(componente.id);
     const { titulo, detalle } = resumenFlotante(componente, infoPorId.get(componente.id));
     const circuito = (ctl.circuitos ?? []).length > 1 && ctl.circuitos.find((c) => c.ids.includes(componente.id));
     info.replaceChildren();
@@ -714,7 +783,13 @@ export function crearEditor(svg, contenedor, ctl, animador, info) {
         ctl.alternarInterruptor(g.sel.id);
       }
     } else if (g.tipo === "borne") {
-      // Clic sobre un borne, sin arrastrar: como un clic sobre lo que hay ahí.
+      // Clic sobre un borne, sin arrastrar: como un clic sobre lo que hay ahí. Si está al aire, el
+      // cartel "Sin conectar" aparece un momento (con el dedo no hay mouse para pasar por encima).
+      if (esSuelto(g.inicio)) {
+        cartelEn(evento.clientX, evento.clientY, ...SUELTO);
+        clearTimeout(ocultarCartel);
+        ocultarCartel = setTimeout(() => { info.hidden = true; }, 2500);
+      }
       if (g.sel) {
         ctl.seleccionar({ ids: [g.sel.id] });
         render();

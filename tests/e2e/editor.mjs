@@ -5,6 +5,7 @@ import { mkdirSync } from "node:fs";
 import { chromium } from "playwright-core";
 
 import { PREFIJO_HASH, codificar } from "../../frontend/public/js/lib/compartir.js";
+import { TP4 } from "../../frontend/tests/circuitos-de-prueba.js";
 
 const URL_BASE = process.env.BASE_URL ?? "http://localhost:8000/Simulador-2.0/";
 const SALIDA = process.argv[2] ?? "capturas";
@@ -17,6 +18,8 @@ const errores = [];
 const navegador = await chromium.launch({ executablePath: CHROME, headless: true });
 async function abrir(url = URL_BASE, opciones = {}) {
   const contexto = await navegador.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: "light", ...opciones });
+  // Estas pruebas leen los números del dibujo: etiquetas "Todo" (por defecto es "Valores").
+  await contexto.addInitScript(() => localStorage.setItem("etiquetas", "todo"));
   const pagina = await contexto.newPage();
   pagina.on("console", (m) => { if (m.type() === "error") errores.push(m.text()); });
   pagina.on("pageerror", (e) => errores.push(String(e)));
@@ -152,8 +155,7 @@ await arr.contexto.close();
 // --- Ejemplos con el diseño nuevo ---------------------------------------------------------------
 const ejemplos = await abrir();
 await ejemplos.pagina.click("#pestana-circuitos");
-await ejemplos.pagina.click("#accion-ejemplos");
-await ejemplos.pagina.locator(".tarjeta-ejemplo", { hasText: "TP4" }).click();
+await ejemplos.pagina.goto(`${URL_BASE}${PREFIJO_HASH}${await codificar(TP4.estado, TP4.nombre)}`);
 await ejemplos.pagina.click("#pestana-resultados");
 await ejemplos.pagina.locator("text.tension", { hasText: "30.0 V" }).waitFor();
 await ejemplos.pagina.screenshot({ path: `${SALIDA}/e4-tp4.png` });

@@ -8,6 +8,7 @@ import { chromium } from "playwright-core";
 
 import { codificar } from "../../frontend/public/js/lib/compartir.js";
 import { EJEMPLOS } from "../../frontend/public/js/lib/ejemplos.js";
+import { TP4 } from "../../frontend/tests/circuitos-de-prueba.js";
 
 const URL_BASE = process.env.BASE_URL ?? "http://localhost:8000/Simulador-2.0/";
 const SALIDA = process.argv[2] ?? "capturas";
@@ -17,14 +18,17 @@ mkdirSync(SALIDA, { recursive: true });
 const ok = (cond, msg) => { console.log(`${cond ? "OK " : "MAL"} ${msg}`); if (!cond) process.exitCode = 1; };
 const errores = [];
 const link = async (id) => {
-  const e = EJEMPLOS.find((x) => x.id === id);
+  const e = id === "tp4" ? TP4 : EJEMPLOS.find((x) => x.id === id);
   return `${URL_BASE}#c=${await codificar(e.estado, e.nombre)}`;
 };
 
 const navegador = await chromium.launch({ executablePath: CHROME, headless: true });
-async function abrir(url, opciones = {}) {
+async function abrir(url, opciones = {}, preferencias = {}) {
   const contexto = await navegador.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: "light", ...opciones });
-  await contexto.addInitScript(() => localStorage.setItem("simulador-dc:tutorial", JSON.stringify({ paso: 0, modo: "cerrado", empezado: false })));
+  await contexto.addInitScript((p) => {
+    localStorage.setItem("simulador-dc:tutorial", JSON.stringify({ paso: 0, modo: "cerrado", empezado: false }));
+    for (const [k, v] of Object.entries(p)) localStorage.setItem(k, v);
+  }, preferencias);
   const pagina = await contexto.newPage();
   pagina.on("console", (m) => { if (m.type() === "error") errores.push(m.text()); });
   pagina.on("pageerror", (e) => errores.push(String(e)));
@@ -151,7 +155,7 @@ const seTocan = (u, v) => u.x < v.x + v.width && v.x < u.x + u.width && u.y < v.
 
 // --- Etiquetas: no tapan lámparas ni baterías acostadas ---------------------------------------
 for (const id of ["serie-contra-paralelo", "distintas-potencias", "linterna", "tp4"]) {
-  const { contexto, pagina } = await abrir(await link(id));
+  const { contexto, pagina } = await abrir(await link(id), {}, { etiquetas: "todo" }); // con todos los números a la vista
   const choques = await pagina.evaluate(() => {
     const etiquetas = [...document.querySelectorAll("#editor text.tension")].map((t) => t.getBoundingClientRect());
     const cuerpos = [...document.querySelectorAll("#editor .comp--lamp .contorno, #editor .comp--voltage_source .contorno, #editor .comp--switch .contorno")]
@@ -196,6 +200,96 @@ for (const id of ["serie-contra-paralelo", "distintas-potencias", "linterna", "t
   await toque("touchEnd", null);
   await pagina.waitForTimeout(400);
   ok(await panel.getAttribute("data-altura") !== "plegada", `arrastrar el asa hacia arriba la desliza (${await panel.getAttribute("data-altura")})`);
+  await contexto.close();
+}
+
+// --- Bloque F: código de colores, zigzag, etiquetas, bornes sueltos, sin TP4 y el bug de soltar --
+{
+  const { contexto, pagina } = await abrir(await link("divisor"));
+  // Código de colores: 1 kΩ = marrón-negro-rojo-dorado.
+  const bandas = await pagina.locator('#editor [data-id="R1"] .res-banda').evaluateAll((rs) =>
+    rs.map((r) => [...r.classList].find((c) => c.startsWith("banda--")).slice(7)));
+  ok(JSON.stringify(bandas) === JSON.stringify(["marron", "negro", "rojo", "dorado"]), `R1 (1 kΩ): bandas ${bandas.join("-")}`);
+  const r1 = await pagina.locator('#editor [data-id="R1"] line.comp__seleccion').boundingBox();
+  await pagina.mouse.click(r1.x + r1.width / 2, r1.y + r1.height / 2);
+  ok((await pagina.locator("#ficha").innerText()).includes("marrón-negro-rojo = 10 × 100 = 1 kΩ"), "la ficha de R1 lee el código de colores");
+  await pagina.screenshot({ path: `${SALIDA}/f1-ficha-codigo.png` });
+  await pagina.keyboard.press("Escape");
+
+  // Zigzag por defecto en la vista esquemática, rectángulo IEC como opción.
+  await pagina.keyboard.press("v");
+  ok(await pagina.locator("#editor .comp--resistor .esq-zigzag").count() === 2 && await pagina.locator("#editor .comp--resistor .esq-cuerpo").count() === 0,
+    "vista esquemática: resistencias en zigzag por defecto");
+  await pagina.click("#boton-menu-vista");
+  await pagina.click('#control-simbolo [data-simbolo="iec"]');
+  ok(await pagina.locator("#editor .comp--resistor .esq-cuerpo").count() === 2, "el menú Vista cambia al rectángulo IEC");
+  await pagina.click('#control-simbolo [data-simbolo="zigzag"]');
+  await pagina.keyboard.press("Escape");
+  await pagina.keyboard.press("v");
+
+  // Soltar una resistencia sobre un cable corto: no queda suelta encima (explica por qué).
+  const boton = await pagina.locator('[data-herramienta="resistor"]').boundingBox();
+  const soltarEn = async (gx, gy) => {
+    const destino = await enPantalla(pagina, gx, gy);
+    await pagina.mouse.move(boton.x + boton.width / 2, boton.y + boton.height / 2);
+    await pagina.mouse.down();
+    await pagina.mouse.move(destino.x, destino.y - 30, { steps: 6 });
+    await pagina.mouse.move(destino.x, destino.y, { steps: 3 });
+    await pagina.mouse.up();
+  };
+  await soltarEn(6, 5); // cable de 6_6 a 6_4, mide 2
+  await pagina.locator("#aviso", { hasText: "No entra" }).waitFor();
+  ok(await pagina.locator('#editor [data-id="R3"]').count() === 0, "soltar sobre un cable corto: no se coloca y avisa «No entra en ese cable»");
+  await soltarEn(12, 10); // cable largo de abajo
+  await pagina.locator('#editor [data-id="R3"]').waitFor({ state: "attached" });
+  await pagina.locator("#estado-simulacion[data-fase='ok']").waitFor();
+  ok(!(await pagina.locator("#estado-simulacion").innerText()).includes("sin conectar")
+    && !(await pagina.locator("#estado-simulacion").innerText()).includes("circuitos"),
+  "soltar sobre un cable largo la inserta en serie (sin «Circuito 2» ni bornes sueltos)");
+
+  // Sin TP4 entre los ejemplos.
+  await pagina.click("#pestana-circuitos");
+  await pagina.click("#accion-ejemplos");
+  ok(await pagina.locator(".tarjeta-ejemplo", { hasText: "TP4" }).count() === 0, "el ejemplo del TP4 ya no está en la galería");
+  await pagina.keyboard.press("Escape");
+  await contexto.close();
+}
+{
+  // Etiquetas: Valores por defecto en el Wheatstone; al pasar el mouse se ven los números de esa pieza.
+  const { contexto, pagina } = await abrir(await link("wheatstone"));
+  const visibles = (sel) => pagina.locator(sel).evaluateAll((es) => es.filter((e) => e.getBoundingClientRect().width > 0).length);
+  ok(await visibles("#editor text.tension") === 0 && await visibles("#editor .texto-corriente") === 0
+    && await visibles("#editor .punta") > 0 && await visibles("#editor .comp__textos .etiqueta") >= 6,
+  "Etiquetas «Valores» por defecto: nombres y valores, flechas sin número");
+  await pagina.screenshot({ path: `${SALIDA}/f2-wheatstone-valores.png` });
+  const r1 = await pagina.locator('#editor [data-id="R1"] line.comp__seleccion').boundingBox();
+  await pagina.mouse.move(r1.x + r1.width / 2, r1.y + r1.height / 2);
+  await pagina.locator('#editor [data-de="R1"].con-foco').waitFor({ state: "attached" });
+  ok(await visibles('#editor [data-de="R1"] .texto-corriente') === 1 && await visibles("#editor text.tension") >= 1,
+    "al pasar el mouse por R1 se ven su corriente y las tensiones de sus nodos");
+  await pagina.screenshot({ path: `${SALIDA}/f3-wheatstone-foco.png` });
+  await pagina.mouse.move(5, 5);
+  await pagina.click("#boton-menu-vista");
+  await pagina.click('#control-etiquetas [data-etiquetas="todo"]');
+  ok(await visibles("#editor text.tension") >= 3 && await visibles("#editor .texto-corriente") >= 5, "«Todo» muestra todos los números (para proyectar)");
+  await pagina.click('#control-etiquetas [data-etiquetas="nada"]');
+  ok(await visibles("#editor .comp__textos .etiqueta") === 0, "«Nada» deja solo el dibujo");
+  await pagina.click('#control-etiquetas [data-etiquetas="valores"]');
+  await pagina.keyboard.press("Escape");
+  await contexto.close();
+}
+{
+  // Bornes sueltos: un símbolo chico y el texto solo en el cartel.
+  const divisor = EJEMPLOS.find((e) => e.id === "divisor").estado;
+  const estado = { ...divisor, components: [...divisor.components, { id: "R9", type: "resistor", a: { x: 26, y: 8 }, b: { x: 30, y: 8 }, value: "470" }] };
+  const { contexto, pagina } = await abrir(`${URL_BASE}#c=${await codificar(estado, "Con una suelta")}`);
+  ok(await pagina.locator("#editor .borne-suelto").count() === 2 && await pagina.locator("#editor text", { hasText: "sin conectar" }).count() === 0,
+    "bornes sueltos: dos círculos punteados, sin texto en el dibujo");
+  const borne = await enPantalla(pagina, 30, 8);
+  await pagina.mouse.move(borne.x, borne.y);
+  await pagina.locator("#info-flotante", { hasText: "Sin conectar" }).waitFor();
+  ok(true, "al pasar el mouse por un borne suelto, el cartel dice «Sin conectar»");
+  await pagina.screenshot({ path: `${SALIDA}/f4-borne-suelto.png` });
   await contexto.close();
 }
 

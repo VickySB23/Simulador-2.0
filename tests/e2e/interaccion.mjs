@@ -15,6 +15,8 @@ const errores = [];
 
 const navegador = await chromium.launch({ executablePath: CHROME, headless: true });
 const contexto = await navegador.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: "light" });
+// Estas pruebas leen los números del dibujo: etiquetas "Todo" (por defecto es "Valores").
+await contexto.addInitScript(() => localStorage.setItem("etiquetas", "todo"));
 const pagina = await contexto.newPage();
 pagina.on("console", (m) => { if (m.type() === "error") errores.push(m.text()); });
 pagina.on("pageerror", (e) => errores.push(String(e)));

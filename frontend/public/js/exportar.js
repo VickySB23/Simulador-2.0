@@ -5,7 +5,7 @@
 
 const PROPIEDADES = [
   "fill", "stroke", "stroke-width", "stroke-linecap", "stroke-linejoin", "stroke-dasharray",
-  "opacity", "font-family", "font-size", "font-weight", "paint-order",
+  "opacity", "font-family", "font-size", "font-weight", "paint-order", "display",
 ];
 const MARGEN = 24;
 
