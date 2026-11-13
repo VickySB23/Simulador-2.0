@@ -14,7 +14,8 @@
 //   agrega brightness = P / Pnom y burned. Si P > Pnom el filamento se corta y la lámpara abre el
 //   circuito, como una real: en serie se apagan todas y en paralelo siguen las demás. Se quema
 //   primero la más sobrecargada y se vuelve a resolver (al quemarse una, otra puede recibir más
-//   tensión y quemarse también). Las quemadas se listan en stats.burned_lamps.
+//   tensión y quemarse también). Las quemadas se listan en stats.burned_lamps. Una lámpara que llega
+//   con burned: true ya está quemada (la interfaz la deja así hasta que se reemplaza).
 // - switch: closed = true funciona como un cable; closed = false se excluye del circuito.
 // Si un interruptor abierto o una lámpara quemada deja una parte sin camino a tierra, esa parte
 // no es un error: se resuelve con una referencia propia. Sus corrientes y las tensiones entre
@@ -451,7 +452,8 @@ const redondear = (ms) => Math.round(ms * 1000) / 1000;
  */
 export function simulate(entrada) {
   const inicio = ahora();
-  const quemadas = new Set();
+  // Las que llegan quemadas (burned: true) siguen abiertas hasta que se reemplacen.
+  const quemadas = new Set((entrada?.components ?? []).filter((c) => c?.type === "lamp" && c.burned === true).map((c) => String(c.id)));
   for (;;) {
     const resultado = simularUnaVez(entrada, quemadas);
     const sobrecargadas = resultado.components.filter((c) => c.type === "lamp" && c.burned && !quemadas.has(c.id));

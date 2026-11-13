@@ -412,3 +412,19 @@ test("abrir y cerrar el interruptor de un paralelo solo saca esa rama", () => {
   assert.equal(porId(abierto).L2.current, 0);
   aprox(porId(abierto).L1.brightness, 1);
 });
+
+test("una lámpara que llega quemada (burned: true) sigue abierta aunque no se pase", () => {
+  const r = simulate({
+    ground: "0",
+    components: [
+      { id: "V1", type: "voltage_source", a: "1", b: "0", value: "6" },
+      { id: "L1", type: "lamp", a: "1", b: "0", value: "12", rated_power: "100", burned: true },
+      { id: "R1", type: "resistor", a: "1", b: "0", value: "6" },
+    ],
+  });
+  const l1 = r.components.find((c) => c.id === "L1");
+  assert.equal(l1.burned, true);
+  assert.equal(l1.current, 0);
+  assert.deepEqual(r.stats.burned_lamps, ["L1"]);
+  assert.ok(Math.abs(r.components.find((c) => c.id === "R1").current - 1) < 1e-12);
+});
