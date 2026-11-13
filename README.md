@@ -48,8 +48,10 @@ el grupo se mueve, gira (**R**) y se borra junto, y se copia con **Ctrl+C** / **
 duplica con **Ctrl+D**. Con una sola pieza seleccionada, arriba de los resultados aparece su
 **ficha**: valores, tensión, corriente, potencia y avisos.
 
-Un componente con un borne al aire se marca **"sin conectar"** y no frena nada: por él no circula
-corriente y el resto del circuito se sigue simulando.
+Un borne al aire se marca con un **círculo chico punteado** (al pasar el mouse o tocarlo dice "Sin
+conectar") y no frena nada: por esa pieza no circula corriente y el resto se sigue simulando. Si
+soltás una pieza sobre un cable donde no entra (un tramo más corto que la pieza), no se coloca y
+el simulador te dice por qué, en lugar de dejarla suelta encima.
 
 **El panel de la derecha** se agranda o achica arrastrando su borde, y se oculta con el botón de
 arriba a la derecha para dibujar a pantalla completa. Las tablas largas (nodos, ecuaciones) se
@@ -70,14 +72,13 @@ lámpara, cables, GND, encenderla, interruptor y quemarla. Cada paso espera a qu
 puede saltear o cerrar.
 
 ¿Querés partir de algo hecho? En la pestaña **Circuitos**, el botón **Ejemplos de Física 2…** abre una
-galería con una tarjeta (y un dibujito) por circuito. Hay trece:
+galería con una tarjeta (y un dibujito) por circuito. Hay doce:
 
 | Ejemplo | Qué muestra |
 | --- | --- |
 | Divisor de tensión | 12 V sobre 1 kΩ y 2 kΩ: el nodo del medio queda en 8 V |
 | Serie | 1 kΩ, 2 kΩ y 3 kΩ con 12 V: circulan 2 mA y caen 2, 4 y 6 V |
 | Paralelo | Las mismas resistencias en paralelo: 12 + 6 + 4 = 22 mA |
-| Mixto (TP4) | (3 Ω ∥ 12 Ω) en serie con (6 Ω ∥ 4 Ω) con 60 V: V2 = 30 V, I = 12,5 A |
 | Puente de Wheatstone | Equilibrado: no circula corriente por el galvanómetro (probá cambiar R4) |
 | Dos mallas con dos fuentes | 12 V y 6 V con una rama común: el nodo del medio queda en 7,5 V y la fuente de 6 V absorbe potencia |
 | Linterna | Pila de 6 V, interruptor y lámpara de 12 Ω / 3 W: 0,5 A, brillo pleno; con S1 abierto se apaga |
@@ -106,6 +107,15 @@ galería con una tarjeta (y un dibujito) por circuito. Hay trece:
   corriente, una flecha con su sentido.
 - **Vista ilustrada o esquemática:** en el menú **Vista** (o con la tecla **V**) se cambia entre los
   dibujos y los símbolos IEC de los libros.
+- **Resistencias:** sus bandas muestran el **código de colores** del valor real: cuatro bandas (dos
+  cifras, multiplicador y tolerancia dorada) o cinco si el valor tiene tres cifras significativas
+  (con tolerancia marrón, ±1 %). Al seleccionar una, la ficha da la lectura, por ejemplo
+  "amarillo-violeta-rojo = 47 × 100 = 4,7 kΩ". En la vista esquemática se dibujan en zigzag; el
+  rectángulo de la norma IEC se elige en el menú **Vista**.
+- **Etiquetas** (menú **Vista**): con **Valores** (lo normal) se ve el nombre y el valor de cada pieza
+  y las flechas de corriente sin número; al pasar el mouse o seleccionar algo aparecen sus números
+  (corriente y tensiones de sus nodos). **Todo** deja todos los números a la vista, para proyectar en
+  clase; **Nada** deja solo el dibujo.
 - **Interruptores:** la palanca se levanta al abrirlo y la luz de la base se pone roja (verde,
   cerrado); en la vista esquemática la cuchilla se separa del contacto.
 - **Pestaña Resultados:** tensión, corriente y potencia de cada componente; tensión de cada nodo;
@@ -133,7 +143,7 @@ rojo el lugar del problema.
 
 Una pieza con un borne al aire no es un error: se marca "sin conectar" y el resto sigue.
 
-![Una resistencia suelta marcada "sin conectar"; el TP4 sigue dando 30 V](docs/capturas/nodo-suelto.png)
+![Una resistencia suelta: sus bornes llevan un círculo punteado y el resto sigue simulando](docs/capturas/nodo-suelto.png)
 
 ![Ficha de una lámpara de 48 W que casi no brilla: la corriente es muy baja](docs/capturas/ficha.png)
 

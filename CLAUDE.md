@@ -79,7 +79,22 @@ relativa a la escala).
   "sin conectar" solo los bornes que estaban al aire. Un lazo cerrado sin tierra sigue siendo
   `floating_nodes` (en rojo). Ecuaciones usa el mismo estado activo.
 - **Insertar en un cable:** al colocar una pieza, o al soltar una sola arrastrada, con el centro
-  sobre un cable, `insertarEnCable` la alinea y corta el cable en sus bornes.
+  sobre un cable, `insercionEnCable` busca el recorrido recto de cables (varios alineados cuentan
+  como uno), la desliza a la posición más cercana donde entra sin tapar una unión con otra rama, y
+  corta los cables en sus bornes. Si no entra devuelve `motivo` y la app no la coloca (o la vuelve
+  a su lugar al arrastrar) y avisa. Antes solo miraba un cable: en los tramos cortos la pieza quedaba
+  encima sin conectar ("Circuito 2" con dos bornes sueltos); lo cubre un test que suelta una
+  resistencia en cada punto de cada cable de los ejemplos.
+- **Código de colores:** `lib/codigo-colores.js` (4 bandas, o 5 con 3 cifras significativas); el
+  dibujo recibe `ohmios` y pinta `.banda--<color>`; la ficha muestra la lectura.
+- **Etiquetas Todo / Valores / Nada** (`ctl.etiquetas`, por defecto "valores"): todo se dibuja y
+  el CSS oculta los números según la clase del SVG; lo seleccionado o bajo el mouse lleva
+  `con-foco` (las tensiones tienen `data-nodo`). Las pruebas viejas fijan "todo" en localStorage.
+- **Bornes sueltos:** un círculo punteado (`.borne-suelto`, sin texto); "Sin conectar" va en el
+  cartel (mouse) o aparece un momento al tocarlo.
+- **Links:** después de abrir un `#c=…` la app lo saca de la dirección (`history.replaceState`),
+  así recargar retoma el borrador con los cambios. El TP4 ya no es un ejemplo: vive en
+  `frontend/tests/circuitos-de-prueba.js` y las pruebas de Chrome lo abren por link.
 - **Selección:** `ctl.seleccion = {ids}` (lib/seleccion.js); operaciones todo o nada.
 - **Tierras:** son componentes `type: "ground"` de un solo punto (a = b, ids G1, G2…; contador G).
   `armarNetlist` usa la primera como referencia y une las demás con cables ideales (`~G2`). Los
@@ -154,7 +169,7 @@ render reemplaza los elementos del SVG.
 ## Comandos
 
 ```bash
-cd frontend && node --test                  # 166 tests
+cd frontend && node --test                  # 176 tests
 node tests/e2e/servir.mjs                   # http://localhost:8000/Simulador-2.0/
 cd tests/e2e && npm install && node verificar.mjs capturas   # 38 comprobaciones en Chrome
 node tests/e2e/actualizacion.mjs            # aviso de versión nueva (publicar mientras espera)

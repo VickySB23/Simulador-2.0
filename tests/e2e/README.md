@@ -3,7 +3,7 @@
 `verificar.mjs` maneja un Chrome real (headless) y recorre la página como lo haría un usuario
 (38 comprobaciones):
 
-- los trece ejemplos simulan; el TP4 da 30 V y la fuente entrega 12,5 A, el Wheatstone equilibrado no tiene
+- los doce ejemplos simulan; el TP4 (abierto por link: ya no es un ejemplo) da 30 V y la fuente entrega 12,5 A, el Wheatstone equilibrado no tiene
   corriente en el galvanómetro y las dos mallas dan 7,5 V;
 - el panel de ecuaciones (KCL con valores, matriz MNA y solución);
 - una pieza suelta se marca "sin conectar" sin frenar el resto;
@@ -67,6 +67,11 @@ movimiento reducido), el interruptor abierto (palanca y luz), las secciones pleg
 del panel arrastrando el borde y ocultarlo, la galería de ejemplos, el diálogo ajustado, que las
 etiquetas de tensión no tapen lámparas ni baterías, F para ajustar, el mensaje de dos GND en corto
 y, en un celular emulado, botones de 40 px y la hoja inferior deslizable.
+
+También prueba el bloque F: bandas del código de colores y su lectura en la ficha, el zigzag
+(y el rectángulo IEC desde el menú), soltar una resistencia sobre un cable corto (avisa y no la
+deja suelta) y sobre uno largo (la inserta), que el TP4 ya no esté en la galería, las etiquetas
+Todo / Valores / Nada con los números al pasar el mouse y los bornes sueltos con su cartel.
 
 `capturas-diseno.mjs` saca las mismas capturas con cualquier versión (abre los circuitos por
 link), para comparar el antes y el después de un cambio de diseño.
