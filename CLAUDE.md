@@ -23,6 +23,7 @@ frontend/public/          lo que se publica (HTML + CSS + JS vanilla con módulo
                           seleccion (grupo: mover, rotar, borrar, copiar, pegar), ficha, tutorial
   js/app.js, editor.js, paneles.js, exportar.js, tema.js     interfaz (css/editor.css)
   js/tutorial.js          pestaña del tutorial (progreso en localStorage; botón "?" del encabezado)
+  js/menu.js              menú contextual (rotar, editar valor, duplicar, borrar)
   sw.js                   service worker: caché con versión, red primero (4 s) y caché sin conexión
   js/version.js, js/actualizacion.js   versión de la página y aviso "Hay una versión nueva — Actualizar"
   css/tokens.css          sistema de diseño (único lugar con valores literales): claro, oscuro, proyector
@@ -78,6 +79,17 @@ relativa a la escala).
 - **Insertar en un cable:** al colocar una pieza, o al soltar una sola arrastrada, con el centro
   sobre un cable, `insertarEnCable` la alinea y corta el cable en sus bornes.
 - **Selección:** `ctl.seleccion = {ids, tierra}` (lib/seleccion.js); operaciones todo o nada.
+- **Sin modos (editor.js, un gesto por vez en `gesto`):** con Seleccionar, apretar cerca de un
+  borne o punta (9 px con mouse, 16 con el dedo) y arrastrar dibuja un cable (`agregarCableEnL`,
+  dobla según el primer movimiento y parte el cable sobre el que termina); sobre una pieza la
+  mueve; sobre el fondo mueve la vista (scroll del contenedor); Shift/Ctrl + fondo es el
+  rectángulo. Las puntas de un cable seleccionado (`.asa`) lo estiran (`estirarCable`). Colocar
+  una pieza o la tierra vuelve a Seleccionar (Shift la mantiene). La herramienta Cable encadena
+  tramos por clics hasta Esc. R es la herramienta Resistencia: girar es con espacio.
+- **Zoom:** rueda y dos dedos alrededor del punto (`zoomEn`); en escritorio `body` mide 100vh
+  y en el celular el lienzo 60vh, para que se desplace el lienzo y no la página.
+- **Menú contextual** (`js/menu.js`): clic derecho, o presión larga de 550 ms con el dedo (no se
+  usa `contextmenu` con el dedo porque iOS no lo dispara).
 - **Tutorial:** no se adelanta solo sobre un circuito ya armado: empieza a contar desde el lienzo
   vacío o desde que se saltea el primer paso.
 - **Lámpara en su potencia nominal:** no se quema (tolerancia relativa 1e-9 en `mna.js`).
@@ -117,7 +129,7 @@ render reemplaza los elementos del SVG.
 ## Comandos
 
 ```bash
-cd frontend && node --test                  # 151 tests
+cd frontend && node --test                  # 155 tests
 node tests/e2e/servir.mjs                   # http://localhost:8000/Simulador-2.0/
 cd tests/e2e && npm install && node verificar.mjs capturas   # 33 comprobaciones en Chrome
 node tests/e2e/actualizacion.mjs            # aviso de versión nueva (publicar mientras espera)
@@ -125,6 +137,7 @@ node tests/e2e/galeria.mjs capturas         # capturas de la galería y cuadros/
 node tests/e2e/editor.mjs capturas          # editor: lámpara, interruptor, vista, arrastre y cuadros/s
 node tests/e2e/interaccion.mjs capturas     # insertar en cable, selección múltiple, copiar/pegar, ficha, tutorial
 node tests/e2e/estados.mjs capturas         # estados de la barra en claro, oscuro y proyector
+node tests/e2e/sin-modos.mjs capturas       # barra→circuito, cables desde bornes, menú, zoom y vista
 ```
 
 ## Cómo trabajar

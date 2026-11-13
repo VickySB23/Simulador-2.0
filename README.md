@@ -17,23 +17,31 @@ nueva — Actualizar"**: con un clic se recarga con la versión nueva (el circui
 
 ## Armar un circuito en un minuto
 
-1. **Elegí una herramienta** en la barra de arriba: **R** (resistencia), **Batería** (fuente de
-   tensión), **I** (fuente de corriente), **Lámpara**, **Interruptor**, **Cable** o **GND** (tierra).
-2. **Hacé clic en la grilla** para poner la pieza. Antes de hacer clic podés girarla con la tecla
-   **R** o la **barra espaciadora**. Si la soltás **sobre un cable, queda en serie**: el cable se
-   corta solo en sus bornes.
-3. **Uní las piezas.** Dos terminales quedan conectados si caen en el mismo punto de la grilla o si
-   los une un cable. Para el cable, arrastrá de un punto a otro (o hacé clic en el inicio y en el
-   final).
+1. **Arrastrá una pieza desde la barra** hasta el circuito: **R** (resistencia), **Batería**
+   (fuente de tensión), **I** (fuente de corriente), **Lámpara**, **Interruptor** o **GND**
+   (tierra). También podés tocarla (o usar su letra, ver los atajos) y hacer clic donde va; después
+   de colocarla se vuelve sola a **Seleccionar**. Con la **barra espaciadora** se gira. Si la soltás
+   **sobre un cable, queda en serie**: el cable se corta solo en sus bornes.
+2. **Uní las piezas arrastrando desde un borne** hasta otro: el cable se dobla solo en L, y desde su
+   punta se puede seguir dibujando. No hace falta elegir ninguna herramienta. Un cable seleccionado
+   muestra sus puntas: arrastralas para estirarlo. Con la herramienta **Cable** (tecla **C**) cada
+   clic agrega un tramo desde el anterior; **Esc** termina.
+3. Dos terminales quedan conectados si caen en el mismo punto de la grilla o si los une un cable
+   (un cable que termina en el medio de otro también se conecta).
 4. **Poné la tierra** con **GND** en algún nodo. Sin tierra no hay referencia y el simulador lo avisa.
 5. **Cambiá los valores** con **doble clic** sobre la pieza. Se aceptan prefijos: `10k`, `4.7k`
    (o `4,7k`), `1MEG`, `5m`, `2.2u`. `M` y `MEG` son mega; `m` es mili. La lámpara pide dos:
    su resistencia y su potencia nominal.
 6. **Abrí o cerrá un interruptor** con un clic (con la herramienta Seleccionar).
 
-Listo: los resultados aparecen solos mientras dibujás. Con **Seleccionar** podés mover piezas
-(arrastrando), borrarlas (**Supr**) o deshacer (**Ctrl+Z**). Para trabajar con varias a la vez,
-**arrastrá un rectángulo** sobre el fondo o sumalas con **Ctrl + clic** (o **Shift + clic**):
+Listo: los resultados aparecen solos mientras dibujás. Arrastrando una pieza la movés; con **Supr**
+la borrás y con **Ctrl+Z** deshacés. El **clic derecho** sobre una pieza (o mantenerla presionada en
+el celular) abre un menú para rotar, editar el valor, duplicar o borrar. Al pasar el mouse sobre
+un cable o una pieza se ven su tensión y su corriente. Para acercar, usá la **rueda** (o dos dedos
+en el celular); para mover la vista, **arrastrá el fondo vacío**.
+
+Para trabajar con varias piezas a la vez, **Shift + arrastrar** sobre el fondo selecciona con un
+rectángulo (**Ctrl + arrastrar** lo suma), y **Ctrl + clic** (o **Shift + clic**) suma o saca:
 el grupo se mueve, gira (**R**) y se borra junto, y se copia con **Ctrl+C** / **Ctrl+V** o se
 duplica con **Ctrl+D**. Con una sola pieza seleccionada, arriba de los resultados aparece su
 **ficha**: valores, tensión, corriente, potencia y avisos.
@@ -144,10 +152,16 @@ al lado.
 
 | Tecla | Acción |
 | --- | --- |
-| 1 a 8 | Seleccionar, Cable, R, Batería, I, Lámpara, Interruptor, GND |
-| R o espacio | Girar la pieza (la que vas a poner o lo seleccionado) |
+| C, R, B, I, L, S, G | Cable, Resistencia, Batería, fuente de corriente (I), Lámpara, Interruptor (S), tierra (G) |
+| Esc | Volver a Seleccionar (también termina un cable o cierra el menú) |
+| 1 a 8 | Las mismas herramientas, en el orden de la barra |
+| Espacio | Girar la pieza (la que vas a poner o lo seleccionado) |
+| Shift + clic al colocar | Seguir con la misma herramienta |
+| Clic derecho | Menú: rotar, editar valor, duplicar, borrar |
+| Rueda | Zoom alrededor del puntero |
+| Arrastrar el fondo | Mover la vista |
 | Ctrl / Shift + clic | Sumar o sacar de la selección |
-| Arrastrar sobre el fondo | Seleccionar con un rectángulo |
+| Shift + arrastrar el fondo | Seleccionar con un rectángulo (Ctrl + arrastrar lo suma) |
 | Ctrl+C / Ctrl+V / Ctrl+D | Copiar / pegar / duplicar lo seleccionado |
 | Ctrl+A | Seleccionar todo |
 | Doble clic | Editar el valor |
@@ -155,11 +169,11 @@ al lado.
 | V | Vista ilustrada / esquemática |
 | Supr | Borrar lo seleccionado |
 | Ctrl+Z / Ctrl+Y | Deshacer / rehacer |
-| Esc | Cancelar el cable o deseleccionar |
 | P | Modo proyector |
 
-En el celular, todo se hace tocando: un toque para poner o seleccionar, arrastrar para mover y
-doble toque para editar el valor.
+En el celular, todo se hace tocando: arrastrar desde la barra para poner una pieza, desde un borne
+para dibujar un cable, una pieza para moverla y el fondo para mover la vista; dos dedos para el
+zoom, doble toque para editar el valor y mantener presionado para el menú.
 
 <img src="docs/capturas/celular.png" alt="El simulador en un celular" width="260">
 

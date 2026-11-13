@@ -51,6 +51,13 @@ cable la inserta en serie; selección con rectángulo y con Ctrl/Shift + clic, m
 en grupo; Ctrl+C, Ctrl+V y Ctrl+D; la ficha de una lámpara que casi no brilla y el tutorial
 completo hecho con el mouse (saltear, cerrar y reabrir con "?").
 
+`sin-modos.mjs` prueba la interacción sin cambiar de modo: los atajos de una letra (y que estén
+en los tooltips), arrastrar una pieza desde la barra, volver solo a Seleccionar, cables desde un
+borne doblados en L y siguiendo desde la punta, encadenar tramos con la herramienta Cable,
+estirar un cable por su punta, el cartel con tensión y corriente, el menú con clic derecho
+(también con el teclado), el zoom con la rueda, mover la vista arrastrando el fondo y, en un
+celular emulado, la presión larga, el zoom con dos dedos y mover la vista con un dedo.
+
 `estados.mjs` revisa la barra en claro, oscuro y proyector: el botón activo no se corre, queda
 centrado en su grupo, sin doble borde (también "Reanudar"), y el foco con teclado se ve sin
 salirse del grupo. Guarda capturas de cada estado.
