@@ -32,6 +32,7 @@
       <span id="nombre-circuito" class="nombre-circuito">Sin título</span>
       <span id="marca-sucio" class="marca-sucio" hidden title="Cambios sin guardar">●</span>
     </div>
+    <button id="boton-ayuda" class="boton boton--icono" type="button" title="Tutorial paso a paso" aria-label="Tutorial paso a paso" aria-pressed="false">?</button>
     <button id="boton-compartir" class="boton boton--primario" type="button" title="Copiar un link con este circuito">
       <span data-icono="compartir"></span><span class="texto-opcional">Compartir</span>
     </button>
@@ -90,6 +91,25 @@
         <button id="zoom-ajustar" class="boton boton--icono boton--chico" type="button" title="Ajustar al ancho" aria-label="Ajustar al ancho">⤢</button>
         <button id="zoom-mas" class="boton boton--icono boton--chico" type="button" title="Acercar" aria-label="Acercar">+</button>
       </div>
+      <aside id="tutorial" class="tutorial" aria-label="Tutorial" hidden>
+        <button id="tutorial-pestana" class="tutorial__pestana" type="button" aria-expanded="false" aria-controls="tutorial-cuerpo">? Tutorial</button>
+        <div id="tutorial-cuerpo" class="tutorial__cuerpo" hidden>
+          <div class="tutorial__encabezado">
+            <span id="tutorial-progreso" class="tutorial__progreso"></span>
+            <button id="tutorial-plegar" class="boton boton--plano boton--chico boton--icono" type="button" title="Plegar" aria-label="Plegar el tutorial">–</button>
+            <button id="tutorial-cerrar" class="boton boton--plano boton--chico boton--icono" type="button" title="Cerrar (se reabre con ?)" aria-label="Cerrar el tutorial"><span data-icono="cerrar"></span></button>
+          </div>
+          <p id="tutorial-logro" class="tutorial__logro" hidden></p>
+          <h2 id="tutorial-titulo" class="tutorial__titulo"></h2>
+          <p id="tutorial-texto" class="tutorial__texto"></p>
+          <ol id="tutorial-puntos" class="tutorial__puntos" aria-hidden="true"></ol>
+          <div class="acciones">
+            <button id="tutorial-vacio" class="boton boton--chico" type="button">Empezar con el lienzo vacío</button>
+            <button id="tutorial-saltear" class="boton boton--chico" type="button">Saltear paso</button>
+            <button id="tutorial-reiniciar" class="boton boton--chico" type="button" hidden>Empezar de nuevo</button>
+          </div>
+        </div>
+      </aside>
       <div id="estado-simulacion" class="estado-simulacion" role="status" aria-live="polite"></div>
     </section>
 
@@ -104,7 +124,13 @@
         <header class="tarjeta__encabezado"><h2>Resultados</h2></header>
         <div class="tarjeta__cuerpo">
           <div id="mensaje-error" class="mensaje mensaje--error" hidden></div>
+          <section id="ficha" class="ficha" aria-live="polite" hidden>
+            <h3 id="ficha-titulo" class="ficha__titulo"></h3>
+            <dl id="ficha-datos" class="ficha__datos"></dl>
+            <div id="ficha-avisos" class="ficha__avisos"></div>
+          </section>
           <div id="aviso-lamparas" class="mensaje mensaje--aviso" hidden></div>
+          <div id="aviso-sueltos" class="mensaje mensaje--aviso" hidden></div>
           <p id="resultados-vacios" class="nota">Los resultados aparecen acá mientras dibujás.</p>
           <div id="resultados" class="resultados" hidden>
             <div class="metricas">

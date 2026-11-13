@@ -49,7 +49,7 @@ async function abrirEjemplo(pagina, texto) {
   await pagina.click("#pestana-circuitos");
   await pagina.locator("#lista-ejemplos li")
     .filter({ has: pagina.locator(".elemento__nombre", { hasText: texto }) })
-    .getByRole("button", { name: "Abrir" }).click();
+    .first().getByRole("button", { name: "Abrir" }).click();
 }
 
 /** Lo que se ve del circuito: componentes con su posición, valores, tierra, tensiones y nombre. */
@@ -88,7 +88,8 @@ ok((await pagina.locator("#solucion-mna").innerText()).includes("V(12,8) = 30 V"
 ok(await pagina.locator("#matriz-mna table tbody tr").count() === 3, "Ecuaciones: matriz MNA de 3 × 3");
 await pagina.screenshot({ path: `${SALIDA}/02-ecuaciones.png` });
 
-for (const nombre of ["Serie", "Paralelo", "Wheatstone", "Dos mallas", "Divisor"]) {
+for (const nombre of ["Serie", "Paralelo", "Wheatstone", "Dos mallas", "Linterna", "serie contra paralelo",
+  "se apagan todas", "las demás siguen", "Dimmer", "distintas potencias", "Una casa", "Divisor"]) {
   await abrirEjemplo(pagina, nombre);
   await esperarFase(pagina, "ok");
 }
@@ -98,30 +99,38 @@ const flechaR5 = await pagina.locator("text.texto-corriente").allTextContents();
 ok(flechaR5.length === 5, `Wheatstone equilibrado: 5 flechas, ninguna en el galvanómetro (${flechaR5.length})`);
 await abrirEjemplo(pagina, "Dos mallas");
 await pagina.locator("text.tension", { hasText: "7.50 V" }).waitFor();
-ok(true, "los 6 ejemplos simulan; dos mallas da 7,5 V en el medio");
+ok(true, "los 13 ejemplos simulan; dos mallas da 7,5 V en el medio");
 
-// --- Nodo suelto, deshacer/rehacer, ids y tierra -------------------------------------------
+// --- Borne sin conectar, lazo flotante, deshacer/rehacer, ids y tierra ---------------------
 await abrirEjemplo(pagina, "TP4");
 await esperarFase(pagina, "ok");
 await pagina.click('[data-herramienta="resistor"]');
 await clicEnGrilla(pagina, 30, 18);
-await esperarFase(pagina, "error");
+await pagina.locator("#estado-simulacion", { hasText: "1 componente sin conectar" }).waitFor();
 await pagina.click("#pestana-resultados");
-ok(await pagina.locator("circle.anillo-error").count() === 2, "nodo suelto: sus 2 nodos en rojo");
-ok((await pagina.locator("#mensaje-error").innerText()).includes("28_18, 32_18"), "nodo suelto: mensaje con los nodos");
+ok(await pagina.locator("g.borne-suelto").count() === 2 && (await etiquetas(pagina)).includes("30.0 V"),
+  "borne suelto: R5 marcada \"sin conectar\" y el resto sigue simulando (30 V)");
+ok((await pagina.locator("#aviso-sueltos").innerText()).includes("R5"), "borne suelto: aviso en Resultados");
 await pagina.screenshot({ path: `${SALIDA}/03-nodo-suelto.png` });
+await clicEnGrilla(pagina, 30, 18); // R6 encima: un lazo cerrado sin camino a tierra
+await esperarFase(pagina, "error");
+ok(await pagina.locator("circle.anillo-error").count() === 2, "lazo flotante: sus 2 nodos en rojo");
+ok((await pagina.locator("#mensaje-error").innerText()).includes("28_18, 32_18"), "lazo flotante: mensaje con los nodos");
 await pagina.click('[data-herramienta="seleccionar"]');
 await pagina.keyboard.press("Control+z");
 await esperarFase(pagina, "ok");
 await pagina.keyboard.press("Control+y");
 await esperarFase(pagina, "error");
-ok(await pagina.locator('[data-id="R5"]').count() === 1, "Ctrl+Z / Ctrl+Y quitan y reponen R5");
+ok(await pagina.locator('[data-id="R6"]').count() === 1, "Ctrl+Z / Ctrl+Y quitan y reponen R6");
 await clicEnGrilla(pagina, 30, 18);
 await pagina.keyboard.press("Delete");
 await esperarFase(pagina, "ok");
+await clicEnGrilla(pagina, 30, 18);
+await pagina.keyboard.press("Delete");
+await pagina.locator("g.borne-suelto").first().waitFor({ state: "detached" });
 await pagina.click('[data-herramienta="resistor"]');
 await clicEnGrilla(pagina, 30, 18);
-ok(await pagina.locator('[data-id="R6"]').count() === 1, "los ids no se repiten: después de borrar R5 viene R6");
+ok(await pagina.locator('[data-id="R7"]').count() === 1, "los ids no se repiten: después de borrar R5 y R6 viene R7");
 await pagina.keyboard.press("Control+z");
 await pagina.click('[data-herramienta="ground"]');
 await clicEnGrilla(pagina, 18, 4);

@@ -52,6 +52,25 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 .editor .punta { fill: var(--color-flecha-corriente); }
 .editor .fantasma { opacity: 0.45; pointer-events: none; }
 .editor .cursor { fill: var(--color-primario); opacity: 0.7; pointer-events: none; }
+.editor .rectangulo-seleccion {
+  fill: var(--color-seleccion-suave);
+  fill-opacity: 0.35;
+  stroke: var(--color-seleccion);
+  stroke-width: var(--borde-fino);
+  stroke-dasharray: var(--esp-1) var(--esp-1);
+  pointer-events: none;
+}
+
+/* Bornes al aire: no frenan la simulación, solo se marcan. */
+.editor .borne-suelto { pointer-events: none; }
+.editor .borne-suelto__anillo {
+  fill: none;
+  stroke: var(--color-aviso);
+  stroke-width: var(--borde);
+  stroke-dasharray: var(--esp-1) calc(var(--esp-1) * 0.75);
+}
+.editor .borne-suelto__texto { fill: var(--color-aviso); font-size: var(--texto-xs); font-weight: var(--peso-fuerte); }
+.editor .sin-conectar { opacity: 0.6; }
 .editor .cable-pendiente { stroke: var(--color-primario); stroke-width: var(--borde); stroke-dasharray: 5 4; pointer-events: none; }
 
 .contenedor-editor { position: relative; }
@@ -139,3 +158,73 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
   .marca h1 { font-size: var(--texto-lg); }
   .aviso-version--flotante { left: var(--esp-4); justify-content: space-between; }
 }
+
+/* Ficha de la pieza seleccionada, arriba de los resultados. */
+.ficha {
+  display: grid;
+  gap: var(--esp-2);
+  padding: var(--esp-3);
+  border: var(--borde) solid var(--tarjeta-color);
+  border-radius: var(--radio-md);
+  background: var(--color-superficie-2);
+}
+.ficha__titulo { margin: 0; font-size: var(--texto-base); font-weight: var(--peso-titulo); }
+.ficha__datos {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--esp-1) var(--esp-3);
+  margin: 0;
+  font-size: var(--texto-sm);
+}
+.ficha__datos dt { color: var(--color-texto-suave); }
+.ficha__datos dd { margin: 0; font-variant-numeric: tabular-nums; text-align: right; }
+.ficha__avisos { display: grid; gap: var(--esp-2); }
+.ficha__avisos:empty { display: none; }
+
+/* --- Tutorial: pestaña chica al costado del lienzo que se despliega ---------------------------- */
+.tutorial {
+  position: absolute;
+  left: 0;
+  bottom: calc(var(--alto-control) + var(--esp-3));
+  z-index: 3;
+  max-width: calc(100% - var(--esp-4));
+}
+.tutorial__pestana {
+  min-height: var(--alto-control-chico);
+  padding: 0 var(--esp-3);
+  border: var(--borde) solid var(--color-tinta);
+  border-left: 0;
+  border-radius: 0 var(--radio-pildora) var(--radio-pildora) 0;
+  background: var(--color-mostaza);
+  color: var(--color-sobre-mostaza);
+  font: inherit;
+  font-size: var(--texto-sm);
+  font-weight: var(--peso-fuerte);
+  cursor: pointer;
+}
+.tutorial__cuerpo {
+  display: grid;
+  gap: var(--esp-2);
+  width: calc(var(--esp-7) * 6.5);
+  max-width: 100%;
+  margin-left: var(--esp-3);
+  padding: var(--esp-3) var(--esp-4) var(--esp-4);
+  border: var(--borde) solid var(--color-tinta);
+  border-radius: var(--radio-lg);
+  background: var(--color-superficie);
+  box-shadow: var(--sombra-flotante);
+}
+.tutorial__encabezado { display: flex; align-items: center; gap: var(--esp-1); }
+.tutorial__progreso { flex: 1; color: var(--color-texto-suave); font-size: var(--texto-sm); font-weight: var(--peso-fuerte); }
+.tutorial__titulo { margin: 0; font-size: var(--texto-lg); font-weight: var(--peso-titulo); }
+.tutorial__texto { margin: 0; font-size: var(--texto-sm); line-height: var(--interlineado); }
+.tutorial__logro { margin: 0; color: var(--color-ok); font-size: var(--texto-sm); font-weight: var(--peso-fuerte); }
+.tutorial__puntos { display: flex; gap: var(--esp-1); margin: 0; padding: 0; list-style: none; }
+.tutorial__puntos li {
+  width: var(--esp-2);
+  height: var(--esp-2);
+  border: var(--borde-fino) solid var(--color-tinta);
+  border-radius: var(--radio-pildora);
+}
+.tutorial__puntos li.hecho { background: var(--color-ok); }
+.tutorial__puntos li.actual { background: var(--color-mostaza); width: var(--esp-4); }

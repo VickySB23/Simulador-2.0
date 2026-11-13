@@ -3,9 +3,11 @@
 // calor, pulso) lo dibuja el animador en un canvas encima. El circuito se redibuja entero en cada
 // cambio, salvo en dos casos que tienen que ser fluidos con 50 componentes en un celular:
 // - el fantasma de la pieza a colocar se redibuja solo;
-// - al arrastrar, la pieza (con su flecha y su etiqueta) pasa a un SVG superpuesto que se desplaza
-//   con transform de CSS, sin repintar el circuito; al soltar se simula y se redibuja una vez.
-//   Reconstruir el SVG en cada movimiento costaba ~280 ms con la CPU 4× más lenta.
+// - al arrastrar, lo seleccionado (con sus flechas y etiquetas) pasa a un SVG superpuesto que se
+//   desplaza con transform de CSS, sin repintar el circuito; al soltar se simula y se redibuja una
+//   vez. Reconstruir el SVG en cada movimiento costaba ~280 ms con la CPU 4× más lenta.
+// Selección: clic elige una pieza; Ctrl/Shift + clic suma o saca; arrastrar sobre el fondo dibuja
+// un rectángulo (con Ctrl/Shift se suma a lo que había).
 import { dibujarComponente, dibujarNodo, dibujarTierra, el } from "./dibujo.js";
 import { calorResistencia, colorTension } from "./lib/animacion.js";
 import { corrientesDeTramos } from "./lib/corrientes.js";
@@ -14,6 +16,7 @@ import {
   puntosConTerminal, terminalesDesdeCentro,
 } from "./lib/modelo.js";
 import { puntosDeEtiqueta, sentidoCorriente, tensionesPorPunto } from "./lib/netlist.js";
+import { SELECCION_VACIA, alternarEnSeleccion, seleccionEnRectangulo, unirSelecciones } from "./lib/seleccion.js";
 import { formatearCompacto, formatearSI, interpretarValor } from "./lib/valores.js";
 
 export const PASO = 20;
@@ -94,6 +97,7 @@ export function crearEditor(svg, contenedor, ctl, animador) {
   let puntero = null;
   let cablePendiente = null;
   let arrastre = null;
+  let rectangulo = null;
   let ultimoToque = null;
   let capaFantasma = null;
   let animacionesActuales = [];
@@ -106,13 +110,20 @@ export function crearEditor(svg, contenedor, ctl, animador) {
     animador.reajustar(capa);
   }
 
-  function puntoDe(evento) {
+  /** Punto del mundo bajo el puntero, sin redondear (en celdas). */
+  function puntoExacto(evento) {
     const matriz = svg.getScreenCTM()?.inverse();
     if (!matriz) return null;
     const p = new DOMPoint(evento.clientX, evento.clientY).matrixTransform(matriz);
+    return { x: (p.x - MARGEN) / PASO, y: (p.y - MARGEN) / PASO };
+  }
+
+  function puntoDe(evento) {
+    const p = puntoExacto(evento);
+    if (!p) return null;
     return {
-      x: Math.min(ANCHO_MUNDO, Math.max(0, Math.round((p.x - MARGEN) / PASO))),
-      y: Math.min(ALTO_MUNDO, Math.max(0, Math.round((p.y - MARGEN) / PASO))),
+      x: Math.min(ANCHO_MUNDO, Math.max(0, Math.round(p.x))),
+      y: Math.min(ALTO_MUNDO, Math.max(0, Math.round(p.y))),
     };
   }
 
@@ -148,6 +159,8 @@ export function crearEditor(svg, contenedor, ctl, animador) {
     const potenciaMaxima = Math.max(0, ...[...porId.values()].filter((c) => c.type === "resistor").map((c) => c.power));
     const nodosConError = new Set(error?.details?.nodes ?? []);
     const componentesConError = new Set(error?.details?.components ?? []);
+    const seleccionados = new Set(seleccion.ids);
+    const sinConectar = ctl.sinConectar ?? new Set();
 
     const capaCables = el("g", {}, svg);
     const capaPiezas = el("g", {}, svg);
@@ -183,11 +196,13 @@ export function crearEditor(svg, contenedor, ctl, animador) {
           quemada: res?.burned,
           calor: c.type === "resistor" ? calorResistencia(res?.power, potenciaMaxima) : 0,
           color: c.type === "wire" ? colorDe(c.a) : null,
-          seleccionado: seleccion?.tipo === "componente" && seleccion.id === c.id,
+          seleccionado: seleccionados.has(c.id),
           error: componentesConError.has(c.id),
         },
       });
-      el("title", {}, g).textContent = c.type === "wire" ? c.id : `${c.id} · ${TIPOS[c.type].nombre}`;
+      el("title", {}, g).textContent = (c.type === "wire" ? c.id : `${c.id} · ${TIPOS[c.type].nombre}`)
+        + (sinConectar.has(c.id) ? " · sin conectar" : "");
+      if (sinConectar.has(c.id)) g.classList.add("sin-conectar");
       // La palanca se anima: se dibuja en el estado anterior y se cambia en el cuadro siguiente.
       if (c.type === "switch" && ctl.interruptorRecienCambiado === c.id) {
         g.classList.toggle("abierto", c.closed !== false);
@@ -207,6 +222,21 @@ export function crearEditor(svg, contenedor, ctl, animador) {
         ? `Nodo ${nombre}: ${formatearSI(tensiones.get(nombre), "V")}` : `Nodo ${nombre}`;
     }
 
+    // Bornes al aire: un anillo punteado y "sin conectar" (la simulación sigue con el resto).
+    for (const punto of ctl.bornesSueltos ?? []) {
+      const p = px(punto);
+      const g = el("g", { class: "borne-suelto" }, capaNodos);
+      el("circle", { class: "borne-suelto__anillo", cx: p.x, cy: p.y, r: 8 }, g);
+      // El texto va hacia afuera de la pieza, así los dos bornes de una pieza suelta no se pisan.
+      const duenio = estado.components.find((c) => mismoPunto(c.a, punto) || mismoPunto(c.b, punto));
+      const u = duenio ? unidadDireccion(centro(duenio), punto) : { x: 0, y: 1 };
+      const atributos = Math.abs(u.x) > Math.abs(u.y)
+        ? { x: p.x + u.x * 13, y: p.y, "text-anchor": u.x > 0 ? "start" : "end", "dominant-baseline": "central" }
+        : { x: p.x, y: p.y + (u.y >= 0 ? 22 : -14), "text-anchor": "middle" };
+      texto("sin conectar", { class: "etiqueta borne-suelto__texto", ...atributos }, g);
+      el("title", {}, g).textContent = "Borne sin conectar: por este componente no circula corriente.";
+    }
+
     // Una etiqueta de tensión por nodo eléctrico.
     if (resultado) {
       for (const punto of puntosDeEtiqueta(estado)) {
@@ -220,7 +250,7 @@ export function crearEditor(svg, contenedor, ctl, animador) {
     if (estado.ground) {
       const p = px(estado.ground);
       const g = el("g", {
-        class: seleccion?.tipo === "tierra" ? "comp seleccionado" : "comp", "data-tierra": "1",
+        class: seleccion.tierra ? "comp seleccionado" : "comp", "data-tierra": "1",
       }, capaTierra);
       el("rect", { class: "golpe", x: p.x - 14, y: p.y - 2, width: 28, height: 28 }, g);
       dibujarTierra(p, g);
@@ -249,10 +279,21 @@ export function crearEditor(svg, contenedor, ctl, animador) {
     return capaSvg;
   }
 
-  /** Elementos del SVG que se mueven con lo que se arrastra (la pieza, su flecha y su etiqueta). */
+  /** Elementos del SVG que se mueven con lo seleccionado (piezas, flechas y etiquetas). */
   function elementosDe(sel) {
-    if (sel.tipo === "tierra") return [...svg.querySelectorAll("[data-tierra]")];
-    return [...svg.querySelectorAll(`[data-id="${CSS.escape(sel.id)}"], [data-de="${CSS.escape(sel.id)}"]`)];
+    const selectores = sel.ids.map((id) => `[data-id="${CSS.escape(id)}"], [data-de="${CSS.escape(id)}"]`);
+    if (sel.tierra) selectores.push("[data-tierra]");
+    return selectores.length ? [...svg.querySelectorAll(selectores.join(", "))] : [];
+  }
+
+  /** Rectángulo de selección: un solo elemento que se actualiza (no redibuja el circuito). */
+  function dibujarRectangulo(desde, hasta) {
+    const a = px({ x: Math.min(desde.x, hasta.x), y: Math.min(desde.y, hasta.y) });
+    const b = px({ x: Math.max(desde.x, hasta.x), y: Math.max(desde.y, hasta.y) });
+    if (!rectangulo.nodo) rectangulo.nodo = el("rect", { class: "rectangulo-seleccion" }, svg);
+    for (const [k, v] of Object.entries({ x: a.x, y: a.y, width: b.x - a.x, height: b.y - a.y })) {
+      rectangulo.nodo.setAttribute(k, v);
+    }
   }
 
   function renderFantasma() {
@@ -285,24 +326,44 @@ export function crearEditor(svg, contenedor, ctl, animador) {
     if (herramienta === "seleccionar") {
       const sel = objetivo(evento);
       const tipo = sel?.tipo === "componente" ? ctl.estado.components.find((c) => c.id === sel.id)?.type : null;
+      const sumar = evento.ctrlKey || evento.shiftKey || evento.metaKey;
       // Doble clic (o doble toque) detectado a mano: cada render reemplaza los elementos del SVG,
       // así que el evento dblclick del navegador no siempre llega al componente.
       const ahora = evento.timeStamp;
-      const esDoble = tipo && tipo !== "switch" && ultimoToque?.id === sel.id && ahora - ultimoToque.tiempo < DOBLE_CLIC_MS;
-      ultimoToque = tipo ? { id: sel.id, tiempo: ahora } : null;
+      const esDoble = !sumar && tipo && tipo !== "switch" && ultimoToque?.id === sel.id && ahora - ultimoToque.tiempo < DOBLE_CLIC_MS;
+      ultimoToque = tipo && !sumar ? { id: sel.id, tiempo: ahora } : null;
       if (esDoble) {
         ultimoToque = null;
         ctl.editarValor(sel.id);
         evento.preventDefault();
         return;
       }
-      ctl.seleccionar(sel);
-      render();
-      if (sel) {
-        arrastre = { inicio: punto, dx: 0, dy: 0, sel, tipo, elementos: elementosDe(sel), movio: false };
-        ctl.empezarArrastre();
+      if (!sel) {
+        // Fondo: rectángulo de selección.
+        rectangulo = { inicio: puntoExacto(evento), base: sumar ? ctl.seleccion : SELECCION_VACIA, nodo: null };
+        if (!sumar) ctl.seleccionar(SELECCION_VACIA);
+        render();
         svg.setPointerCapture(evento.pointerId);
+        evento.preventDefault();
+        return;
       }
+      if (sumar) {
+        ctl.seleccionar(alternarEnSeleccion(ctl.seleccion, sel));
+        render();
+        evento.preventDefault();
+        return;
+      }
+      const yaEstaba = sel.tipo === "tierra" ? ctl.seleccion.tierra : ctl.seleccion.ids.includes(sel.id);
+      const sola = sel.tipo === "tierra" ? { ids: [], tierra: true } : { ids: [sel.id], tierra: false };
+      // Sobre algo ya seleccionado se arrastra todo el grupo; si no, se elige solo esa pieza.
+      if (!yaEstaba) ctl.seleccionar(sola);
+      render();
+      arrastre = {
+        inicio: punto, dx: 0, dy: 0, sel, tipo, sola, elementos: elementosDe(ctl.seleccion), movio: false,
+        grupo: ctl.seleccion.ids.length + (ctl.seleccion.tierra ? 1 : 0) > 1,
+      };
+      ctl.empezarArrastre();
+      svg.setPointerCapture(evento.pointerId);
     } else if (herramienta === "wire") {
       if (!cablePendiente) cablePendiente = punto;
       svg.setPointerCapture(evento.pointerId);
@@ -320,7 +381,9 @@ export function crearEditor(svg, contenedor, ctl, animador) {
     if (!punto) return;
     const cambio = !puntero || !mismoPunto(punto, puntero);
     puntero = punto;
-    if (arrastre) {
+    if (rectangulo) {
+      dibujarRectangulo(rectangulo.inicio, puntoExacto(evento) ?? punto);
+    } else if (arrastre) {
       const dx = punto.x - arrastre.inicio.x;
       const dy = punto.y - arrastre.inicio.y;
       if ((dx !== arrastre.dx || dy !== arrastre.dy) && ctl.arrastrar(dx, dy)) {
@@ -329,8 +392,8 @@ export function crearEditor(svg, contenedor, ctl, animador) {
         if (!arrastre.movio) {
           // Sus puntos de corriente quedarían en el lugar viejo: se sacan hasta soltar.
           arrastre.movio = true;
-          const id = arrastre.sel.id;
-          animador.actualizar(capa, animacionesActuales.filter((e) => e.id !== id));
+          const ids = new Set(ctl.seleccion.ids);
+          animador.actualizar(capa, animacionesActuales.filter((e) => !ids.has(e.id)));
           arrastre.capaSvg = crearCapaArrastre(arrastre.elementos);
         }
         arrastre.capaSvg.style.transform = `translate(${dx * PASO * zoom}px, ${dy * PASO * zoom}px)`;
@@ -342,14 +405,28 @@ export function crearEditor(svg, contenedor, ctl, animador) {
 
   svg.addEventListener("pointerup", (evento) => {
     const punto = puntoDe(evento) ?? puntero;
-    if (arrastre) {
-      const { dx, dy, sel, tipo, movio, capaSvg } = arrastre;
+    if (rectangulo) {
+      const { inicio, base, nodo } = rectangulo;
+      rectangulo = null;
+      nodo?.remove();
+      const fin = puntoExacto(evento) ?? inicio;
+      ctl.seleccionar(unirSelecciones(base, seleccionEnRectangulo(ctl.estado, inicio, fin)));
+      render();
+    } else if (arrastre) {
+      const { dx, dy, sel, tipo, movio, capaSvg, grupo, sola } = arrastre;
       arrastre = null;
       capaSvg?.remove();
       // Si cambió, terminarArrastre simula y redibuja; si volvió al lugar, se redibuja acá.
       if (!ctl.terminarArrastre() && movio) render();
-      // Un clic sin arrastrar sobre un interruptor lo abre o lo cierra.
-      if (tipo === "switch" && dx === 0 && dy === 0) ctl.alternarInterruptor(sel.id);
+      const clic = dx === 0 && dy === 0;
+      if (clic && grupo) {
+        // Clic sin arrastrar sobre una pieza de un grupo: queda solo esa.
+        ctl.seleccionar(sola);
+        render();
+      } else if (clic && tipo === "switch") {
+        // Un clic sin arrastrar sobre un interruptor lo abre o lo cierra.
+        ctl.alternarInterruptor(sel.id);
+      }
     } else if (ctl.herramienta === "wire" && cablePendiente && punto && !mismoPunto(punto, cablePendiente)) {
       // Arrastrar o hacer clic en dos puntos: las dos formas terminan acá.
       const inicio = cablePendiente;
@@ -361,6 +438,10 @@ export function crearEditor(svg, contenedor, ctl, animador) {
   });
 
   svg.addEventListener("pointercancel", () => {
+    if (rectangulo) {
+      rectangulo.nodo?.remove();
+      rectangulo = null;
+    }
     if (arrastre) {
       const { movio, capaSvg } = arrastre;
       arrastre = null;
@@ -370,7 +451,7 @@ export function crearEditor(svg, contenedor, ctl, animador) {
   });
 
   svg.addEventListener("pointerleave", (evento) => {
-    if (evento.pointerType === "mouse" && !arrastre) {
+    if (evento.pointerType === "mouse" && !arrastre && !rectangulo) {
       puntero = null;
       renderFantasma();
     }

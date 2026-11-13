@@ -28,6 +28,7 @@ const ARCHIVOS = [
   "js/galeria.js",
   "js/lib/animacion.js",
   "js/tema.js",
+  "js/tutorial.js",
   "js/version.js",
   "js/actualizacion.js",
   "js/app.js",
@@ -39,10 +40,13 @@ const ARCHIVOS = [
   "js/lib/corrientes.js",
   "js/lib/ecuaciones.js",
   "js/lib/ejemplos.js",
+  "js/lib/ficha.js",
   "js/lib/historial.js",
   "js/lib/mna.js",
   "js/lib/modelo.js",
   "js/lib/netlist.js",
+  "js/lib/seleccion.js",
+  "js/lib/tutorial.js",
   "js/lib/valores.js",
 ];
 

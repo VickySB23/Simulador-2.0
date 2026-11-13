@@ -135,10 +135,12 @@ await arr.pagina.mouse.move((desde.x + hasta.x) / 2, desde.y, { steps: 3 });
 ok(await arr.pagina.locator(".capa-arrastre [data-id=\"R2\"]").count() === 1, "mientras se arrastra, la pieza va en su capa aparte");
 await arr.pagina.mouse.move(hasta.x, hasta.y, { steps: 3 });
 await arr.pagina.mouse.up();
-await fase(arr.pagina, "error");
+// Suelta, R2 queda "sin conectar" y el resto (V1 y R1) ya no cierra un circuito: no es un error.
+await fase(arr.pagina, "vacio");
 const x1 = await arr.pagina.locator('#editor [data-id="R2"] line.comp__seleccion').getAttribute("x1");
-ok(x1 === String(21 * 20 + 10) && await arr.pagina.locator(".capa-arrastre").count() === 0,
-  "al soltar, R2 queda 3 celdas a la derecha y se vuelve a simular (quedó suelta: error de nodos)");
+ok(x1 === String(21 * 20 + 10) && await arr.pagina.locator(".capa-arrastre").count() === 0
+  && await arr.pagina.locator("g.borne-suelto").count() > 0,
+  "al soltar, R2 queda 3 celdas a la derecha y se vuelve a simular (quedó suelta: sin conectar)");
 await arr.pagina.keyboard.press("Control+z");
 await fase(arr.pagina, "ok");
 await arr.contexto.close();

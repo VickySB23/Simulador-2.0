@@ -9,12 +9,15 @@ import { EJEMPLOS } from "./lib/ejemplos.js";
 import { Historial } from "./lib/historial.js";
 import {
   TIPOS, aLayout, agregarCable, agregarPieza, alternarInterruptor, buscar, cambiarPotencia, cambiarValor,
-  circuitoVacio, desdeLayout, eliminar, mover, moverTierra, ponerTierra, quitarTierra, restaurar, rotar,
-  tieneValor,
+  circuitoVacio, desdeLayout, insertarEnCable, ponerTierra, restaurar, rotar, tieneValor,
 } from "./lib/modelo.js";
 import { simularEstado } from "./lib/netlist.js";
+import {
+  SELECCION_VACIA, copiarSeleccion, eliminarSeleccion, moverSeleccion, pegar, rotarSeleccion, seleccionVacia,
+} from "./lib/seleccion.js";
 import { interpretarValor, normalizarTexto } from "./lib/valores.js";
 import { pedirTexto, pedirValores, renderEcuaciones, renderResultados } from "./paneles.js";
+import { crearTutorial } from "./tutorial.js";
 
 const $ = (id) => document.getElementById(id);
 const HERRAMIENTAS = ["seleccionar", "wire", "resistor", "voltage_source", "current_source", "lamp", "switch", "ground"];
@@ -34,11 +37,15 @@ const almacen = new Almacen();
 
 const ctl = {
   estado: structuredClone(EJEMPLOS[0].estado),
-  seleccion: null,
+  /** {ids, tierra}: lo seleccionado (ver lib/seleccion.js). */
+  seleccion: SELECCION_VACIA,
   herramienta: "seleccionar",
   rotacion: 0,
   resultado: null,
   error: null,
+  /** Puntos de los bornes al aire, que el editor marca "sin conectar". */
+  bornesSueltos: [],
+  sinConectar: new Set(),
   actual: { id: null, name: EJEMPLOS[0].nombre },
   sucio: false,
   vista: leerPreferencia("vista", "ilustrada") === "esquematica" ? "esquematica" : "ilustrada",
@@ -48,7 +55,8 @@ const ctl = {
   // --- Acciones que dispara el editor -------------------------------------------------
   colocarPieza(tipo, centro) {
     const { estado, id } = agregarPieza(ctl.estado, tipo, centro, ctl.rotacion);
-    if (id) aplicar(estado);
+    // Sobre un cable, la pieza queda en serie: el cable se corta en sus bornes.
+    if (id) aplicar(insertarEnCable(estado, id));
   },
   agregarCable(a, b) {
     aplicar(agregarCable(ctl.estado, a, b).estado);
@@ -57,8 +65,9 @@ const ctl = {
     aplicar(ponerTierra(ctl.estado, punto));
   },
   seleccionar(seleccion) {
-    ctl.seleccion = seleccion;
+    ctl.seleccion = seleccion ?? SELECCION_VACIA;
     actualizarBotones();
+    renderResultados(ctl);
   },
   empezarArrastre() {
     ctl._antesDelArrastre = ctl.estado;
@@ -70,9 +79,7 @@ const ctl = {
   arrastrar(dx, dy) {
     const antes = ctl._antesDelArrastre;
     if (!antes) return false;
-    const nuevo = ctl.seleccion?.tipo === "tierra"
-      ? moverTierra(antes, dx, dy)
-      : mover(antes, ctl.seleccion.id, dx, dy);
+    const nuevo = moverSeleccion(antes, ctl.seleccion, dx, dy);
     if (nuevo === antes && (dx !== 0 || dy !== 0)) return false;
     ctl.estado = nuevo;
     return true;
@@ -82,6 +89,9 @@ const ctl = {
     const antes = ctl._antesDelArrastre;
     ctl._antesDelArrastre = null;
     if (antes && antes !== ctl.estado) {
+      // Una sola pieza soltada sobre un cable queda en serie.
+      const { ids, tierra } = ctl.seleccion;
+      if (ids.length === 1 && !tierra) ctl.estado = insertarEnCable(ctl.estado, ids[0]);
       historial.registrar(antes);
       circuitoCambiado();
       return true;
@@ -143,17 +153,21 @@ async function editarLampara(lampara) {
 
 const animador = new Animador();
 const editor = crearEditor($("editor"), $("contenedor-editor"), ctl, animador);
+const tutorial = crearTutorial({ lienzoVacio: () => nuevo() });
 
 // --- Simulación (en el navegador, al instante) -----------------------------------------------
 
 function simular() {
-  const { resultado, error } = simularEstado(ctl.estado);
+  const { resultado, error, sinConectar, bornesSueltos } = simularEstado(ctl.estado);
   ctl.resultado = resultado ?? null;
   ctl.error = error ?? null;
+  ctl.sinConectar = sinConectar;
+  ctl.bornesSueltos = bornesSueltos;
   mostrarEstado();
   editor.render();
   renderResultados(ctl);
   if (!$("vista-ecuaciones").hidden) renderEcuaciones(ctl.estado);
+  tutorial.actualizar({ estado: ctl.estado, resultado: ctl.resultado });
 }
 
 function mostrarEstado() {
@@ -161,7 +175,9 @@ function mostrarEstado() {
   if (ctl.resultado) {
     const s = ctl.resultado.stats;
     caja.dataset.fase = "ok";
-    caja.textContent = `Simulación OK · ${s.electrical_nodes} nodos · ${s.unknowns} incógnitas · ${s.total_ms.toFixed(1)} ms`;
+    const sueltos = ctl.sinConectar.size;
+    caja.textContent = `Simulación OK · ${s.electrical_nodes} nodos · ${s.unknowns} incógnitas · ${s.total_ms.toFixed(1)} ms`
+      + (sueltos ? ` · ${sueltos === 1 ? "1 componente sin conectar" : `${sueltos} componentes sin conectar`}` : "");
   } else {
     caja.dataset.fase = ctl.error?.code === "empty" ? "vacio" : "error";
     caja.textContent = ctl.error?.message ?? "";
@@ -180,8 +196,11 @@ function aplicar(nuevo) {
 
 function circuitoCambiado({ sucio = true } = {}) {
   if (sucio) ctl.sucio = true;
-  if (ctl.seleccion?.tipo === "componente" && !buscar(ctl.estado, ctl.seleccion.id)) ctl.seleccion = null;
-  if (ctl.seleccion?.tipo === "tierra" && !ctl.estado.ground) ctl.seleccion = null;
+  const { ids, tierra } = ctl.seleccion;
+  const quedan = ids.filter((id) => buscar(ctl.estado, id));
+  if (quedan.length !== ids.length || (tierra && !ctl.estado.ground)) {
+    ctl.seleccion = { ids: quedan, tierra: tierra && Boolean(ctl.estado.ground) };
+  }
   simular();
   actualizarEncabezado();
   actualizarBotones();
@@ -192,7 +211,7 @@ function cargar(estado, actual, { sucio = false } = {}) {
   historial.limpiar();
   ctl.estado = estado;
   ctl.actual = actual;
-  ctl.seleccion = null;
+  ctl.seleccion = SELECCION_VACIA;
   circuitoCambiado({ sucio });
   ctl.sucio = sucio;
   actualizarEncabezado();
@@ -216,10 +235,19 @@ function rehacer() {
   }
 }
 
+/** Una sola pieza seleccionada (sin la tierra): su id, o null. */
+function unicaSeleccionada() {
+  const { ids, tierra } = ctl.seleccion;
+  return ids.length === 1 && !tierra ? ids[0] : null;
+}
+
 function rotarAccion() {
-  const sel = ctl.seleccion;
-  if (sel?.tipo === "componente" && buscar(ctl.estado, sel.id)?.type !== "wire") {
-    aplicar(rotar(ctl.estado, sel.id));
+  const { ids } = ctl.seleccion;
+  const unica = unicaSeleccionada();
+  if (unica && PIEZAS.has(buscar(ctl.estado, unica)?.type)) {
+    aplicar(rotar(ctl.estado, unica));
+  } else if (ids.length > 1 || (ids.length === 1 && !unica)) {
+    aplicar(rotarSeleccion(ctl.estado, ctl.seleccion));
   } else if (PIEZAS.has(ctl.herramienta)) {
     ctl.rotacion = (ctl.rotacion + 1) % 4;
     editor.render();
@@ -228,14 +256,49 @@ function rotarAccion() {
 
 function borrarSeleccion() {
   const sel = ctl.seleccion;
-  if (!sel) return;
-  ctl.seleccion = null;
-  aplicar(sel.tipo === "tierra" ? quitarTierra(ctl.estado) : eliminar(ctl.estado, sel.id));
+  if (seleccionVacia(sel)) return;
+  ctl.seleccion = SELECCION_VACIA;
+  aplicar(eliminarSeleccion(ctl.estado, sel));
+}
+
+// --- Portapapeles propio (Ctrl+C, Ctrl+V, Ctrl+D) ------------------------------------------------
+
+let portapapeles = [];
+let pegadas = 0;
+
+function copiar() {
+  const copia = copiarSeleccion(ctl.estado, ctl.seleccion);
+  if (!copia.length) return;
+  portapapeles = copia;
+  pegadas = 0;
+  avisar(copia.length === 1 ? "Copiado 1 componente." : `Copiados ${copia.length} componentes.`);
+}
+
+/** Pega lo copiado corrido 2 celdas por cada vez que se pegó, y lo deja seleccionado. */
+function pegarCopiado(copiados = portapapeles, veces = pegadas + 1) {
+  if (!copiados.length) return;
+  const { estado, seleccion } = pegar(ctl.estado, copiados, { x: 2 * veces, y: 2 * veces });
+  if (estado === ctl.estado) return;
+  if (copiados === portapapeles) pegadas = veces;
+  ctl.seleccion = seleccion;
+  elegirHerramienta("seleccionar");
+  aplicar(estado);
+}
+
+function duplicar() {
+  pegarCopiado(copiarSeleccion(ctl.estado, ctl.seleccion), 1);
+}
+
+function seleccionarTodo() {
+  ctl.seleccion = { ids: ctl.estado.components.map((c) => c.id), tierra: Boolean(ctl.estado.ground) };
+  elegirHerramienta("seleccionar");
+  editor.render();
+  renderResultados(ctl);
 }
 
 function elegirHerramienta(herramienta) {
   ctl.herramienta = herramienta;
-  if (herramienta !== "seleccionar") ctl.seleccion = null;
+  if (herramienta !== "seleccionar") ctl.seleccion = SELECCION_VACIA;
   for (const boton of document.querySelectorAll("[data-herramienta]")) {
     boton.setAttribute("aria-pressed", String(boton.dataset.herramienta === herramienta));
   }
@@ -253,11 +316,11 @@ function actualizarEncabezado() {
 
 function actualizarBotones() {
   const sel = ctl.seleccion;
-  const tipo = sel?.tipo === "componente" ? buscar(ctl.estado, sel.id)?.type : null;
-  const pieza = PIEZAS.has(tipo);
-  $("accion-rotar").disabled = !pieza && !PIEZAS.has(ctl.herramienta);
+  const unica = unicaSeleccionada();
+  const tipo = unica ? buscar(ctl.estado, unica)?.type : null;
+  $("accion-rotar").disabled = !sel.ids.length && !PIEZAS.has(ctl.herramienta);
   $("accion-valor").disabled = !tieneValor(tipo) || tipo === "wire" || !tipo;
-  $("accion-borrar").disabled = !sel;
+  $("accion-borrar").disabled = seleccionVacia(sel);
   $("accion-deshacer").disabled = !historial.puedeDeshacer;
   $("accion-rehacer").disabled = !historial.puedeRehacer;
   const vacio = ctl.estado.components.length === 0;
@@ -530,7 +593,7 @@ async function cargarDesdeHash() {
 function svgActual() {
   // Sin selección ni fantasma en la imagen.
   const seleccion = ctl.seleccion;
-  ctl.seleccion = null;
+  ctl.seleccion = SELECCION_VACIA;
   editor.render();
   const svg = svgDelCircuito($("editor"));
   ctl.seleccion = seleccion;
@@ -628,7 +691,8 @@ for (const b of document.querySelectorAll("[data-herramienta]")) {
 }
 $("accion-rotar").addEventListener("click", rotarAccion);
 $("accion-valor").addEventListener("click", () => {
-  if (ctl.seleccion?.tipo === "componente") ctl.editarValor(ctl.seleccion.id);
+  const unica = unicaSeleccionada();
+  if (unica) ctl.editarValor(unica);
 });
 $("accion-borrar").addEventListener("click", borrarSeleccion);
 $("accion-deshacer").addEventListener("click", deshacer);
@@ -683,6 +747,19 @@ document.addEventListener("keydown", (evento) => {
   } else if (control && tecla.toLowerCase() === "y") {
     evento.preventDefault();
     rehacer();
+  } else if (control && tecla.toLowerCase() === "c") {
+    if (window.getSelection()?.toString()) return; // texto seleccionado: copia del navegador
+    evento.preventDefault();
+    copiar();
+  } else if (control && tecla.toLowerCase() === "v") {
+    evento.preventDefault();
+    pegarCopiado();
+  } else if (control && tecla.toLowerCase() === "d") {
+    evento.preventDefault();
+    duplicar();
+  } else if (control && tecla.toLowerCase() === "a") {
+    evento.preventDefault();
+    seleccionarTodo();
   } else if (control || evento.altKey) {
     return;
   } else if (tecla === "r" || tecla === "R" || tecla === " ") {
@@ -693,10 +770,11 @@ document.addEventListener("keydown", (evento) => {
     evento.preventDefault();
     borrarSeleccion();
   } else if (tecla === "Escape") {
-    if (!editor.cancelarCable() && ctl.seleccion) {
-      ctl.seleccion = null;
+    if (!editor.cancelarCable() && !seleccionVacia(ctl.seleccion)) {
+      ctl.seleccion = SELECCION_VACIA;
       editor.render();
       actualizarBotones();
+      renderResultados(ctl);
     }
   } else if (tecla === "p" || tecla === "P") {
     alternarProyector();

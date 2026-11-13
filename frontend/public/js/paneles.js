@@ -1,7 +1,8 @@
 // Paneles de resultados y ecuaciones, y diálogos de texto.
 import { colorTension } from "./lib/animacion.js";
 import { MAXIMO_MATRIZ, ecuacionesDe, numeroCorto } from "./lib/ecuaciones.js";
-import { nombreNodo, nodosElectricos } from "./lib/modelo.js";
+import { fichaDe } from "./lib/ficha.js";
+import { buscar, nombreNodo, nodosElectricos } from "./lib/modelo.js";
 import { puntosDeEtiqueta, tensionesPorPunto } from "./lib/netlist.js";
 import { formatearSI } from "./lib/valores.js";
 
@@ -23,7 +24,39 @@ function fila(celdas, clase) {
 /** Errores que no se muestran como mensaje rojo: el circuito simplemente está incompleto. */
 const SIN_MENSAJE = new Set(["empty"]);
 
-export function renderResultados({ estado, resultado, error }) {
+/** Ficha de la pieza seleccionada (solo con una sola seleccionada). */
+function renderFicha({ estado, resultado, seleccion }) {
+  const ficha = $("ficha");
+  const id = seleccion && seleccion.ids.length === 1 && !seleccion.tierra ? seleccion.ids[0] : null;
+  const componente = id ? buscar(estado, id) : null;
+  ficha.hidden = !componente;
+  if (!componente) return;
+  const datos = fichaDe(componente, resultado?.components.find((c) => c.id === id));
+  $("ficha-titulo").textContent = datos.titulo;
+  $("ficha-datos").replaceChildren(...datos.filas.flatMap(([clave, valor]) => {
+    const dt = document.createElement("dt");
+    dt.textContent = clave;
+    const dd = document.createElement("dd");
+    dd.textContent = valor;
+    return [dt, dd];
+  }));
+  $("ficha-avisos").replaceChildren(...datos.avisos.map(({ tipo, texto }) => {
+    const p = document.createElement("p");
+    p.className = `mensaje ${tipo === "error" ? "mensaje--error" : "mensaje--aviso"}`;
+    p.textContent = texto;
+    return p;
+  }));
+}
+
+export function renderResultados(ctl) {
+  const { estado, resultado, error } = ctl;
+  renderFicha(ctl);
+  const sueltos = [...(ctl.sinConectar ?? [])];
+  const avisoSueltos = $("aviso-sueltos");
+  avisoSueltos.hidden = !sueltos.length || !resultado;
+  avisoSueltos.textContent = sueltos.length === 1
+    ? `${sueltos[0]} tiene un borne sin conectar: no circula corriente por él.`
+    : `${sueltos.join(", ")} tienen bornes sin conectar: no circula corriente por ellos.`;
   const mensaje = $("mensaje-error");
   const mostrarError = error && !SIN_MENSAJE.has(error.code);
   mensaje.hidden = !mostrarError;
@@ -61,8 +94,9 @@ export function renderResultados({ estado, resultado, error }) {
     .filter((c) => c.type !== "wire" && c.type !== "switch")
     .map((c) => {
       const potencia = formatearSI(c.power, "W") + (c.power < -1e-15 ? " ↑" : "");
-      const nombre = c.type !== "lamp" ? c.id
+      let nombre = c.type !== "lamp" ? c.id
         : `${c.id} · ${c.burned ? "quemada" : `${Math.round(Math.min(1, c.brightness) * 100)} %`}`;
+      if (c.unconnected) nombre = `${c.id} · sin conectar`;
       return fila([
         { contenido: nombre },
         { contenido: c.voltage === null ? "—" : formatearSI(c.voltage, "V"), num: true },
